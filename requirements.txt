@@ -1,0 +1,44 @@
+# OANDA API
+oandapyV20>=0.7.0
+
+# Data handling
+pandas>=2.0.0
+numpy>=1.24.0
+pyarrow>=14.0.0
+
+# Technical analysis
+pandas-ta>=0.3.14b
+ta>=0.10.2
+
+# Optimization
+optuna>=3.5.0
+optuna-dashboard>=0.15.0
+
+# Backtesting
+vectorbt>=0.26.0
+
+# Visualization
+matplotlib>=3.7.0
+plotly>=5.18.0
+
+# Configuration
+python-dotenv>=1.0.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Logging
+loguru>=0.7.0
+
+# Alerts (optional)
+python-telegram-bot>=20.0
+
+# Scheduling
+schedule>=1.2.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# Development
+black>=23.0.0
+ipykernel>=6.27.0

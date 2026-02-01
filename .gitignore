@@ -1,0 +1,47 @@
+# Environment and secrets
+.env
+.env.local
+*.pem
+*credentials*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Data files (large)
+data/oanda/*.csv
+data/oanda/*.parquet
+data/mt5/*.csv
+data/mt5/*.parquet
+
+# Results
+results/backtests/*
+results/optimization/*.db
+results/optimization/*.csv
+logs/*.log
+
+# Keep directory structure
+!data/oanda/.gitkeep
+!data/mt5/.gitkeep
+!results/backtests/.gitkeep
+!results/optimization/.gitkeep
+!logs/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
