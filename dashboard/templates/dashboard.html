@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OANDA Trading Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-card: #111827;
+            --bg-card-hover: #1a2237;
+            --bg-input: #0d1320;
+            --border: #1e293b;
+            --border-light: #2a3a52;
+            --text-primary: #e2e8f0;
+            --text-secondary: #8896ab;
+            --text-muted: #5a6a80;
+            --green: #10b981;
+            --green-dim: #065f46;
+            --red: #ef4444;
+            --red-dim: #7f1d1d;
+            --yellow: #f59e0b;
+            --yellow-dim: #78350f;
+            --blue: #3b82f6;
+            --purple: #8b5cf6;
+            --cyan: #06b6d4;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+
+        /* ===== HEADER ===== */
+        .header {
+            background: linear-gradient(180deg, rgba(17,24,39,0.95) 0%, var(--bg-primary) 100%);
+            border-bottom: 1px solid var(--border);
+            padding: 20px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .header-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .header-subtitle {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .refresh-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .refresh-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--green);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .btn {
+            padding: 6px 14px;
+            border: 1px solid var(--border-light);
+            border-radius: 6px;
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.78rem;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .btn:hover {
+            background: var(--bg-card-hover);
+            color: var(--text-primary);
+        }
+
+        /* ===== SUMMARY CARDS ===== */
+        .summary-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            padding: 20px 32px;
+        }
+
+        .summary-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 14px 16px;
+        }
+
+        .summary-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 4px;
+        }
+
+        .summary-value {
+            font-size: 1.4rem;
+            font-weight: 600;
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: -0.02em;
+        }
+
+        .positive { color: var(--green); }
+        .negative { color: var(--red); }
+        .warning-text { color: var(--yellow); }
+
+        /* ===== INSTANCES TABLE ===== */
+        .section {
+            padding: 0 32px 20px;
+        }
+
+        .section-title {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .table-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+
+        th {
+            padding: 10px 14px;
+            text-align: left;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            font-size: 0.68rem;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-input);
+        }
+
+        td {
+            padding: 10px 14px;
+            border-bottom: 1px solid rgba(30,41,59,0.5);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.78rem;
+        }
+
+        tr:hover td { background: rgba(255,255,255,0.015); }
+
+        .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+
+        .status-running { background: var(--green); box-shadow: 0 0 6px rgba(16,185,129,0.4); }
+        .status-stopped { background: var(--red); }
+        .status-unknown { background: var(--text-muted); }
+        .status-stale { background: var(--yellow); }
+
+        .svc-btn {
+            padding: 3px 8px;
+            border: 1px solid var(--border-light);
+            border-radius: 4px;
+            background: transparent;
+            color: var(--text-muted);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.68rem;
+            cursor: pointer;
+            transition: all 0.15s;
+            margin-right: 4px;
+        }
+
+        .svc-btn:hover {
+            background: var(--bg-card-hover);
+            color: var(--text-primary);
+        }
+
+        .svc-btn.start:hover { border-color: var(--green); color: var(--green); }
+        .svc-btn.stop:hover { border-color: var(--red); color: var(--red); }
+        .svc-btn.restart:hover { border-color: var(--yellow); color: var(--yellow); }
+
+        .pnl-cell {
+            text-align: right;
+        }
+
+        /* ===== PERFORMANCE PANEL ===== */
+        .perf-panel {
+            background: var(--bg-input);
+            border-top: 1px solid var(--border);
+            padding: 16px 20px;
+            display: none;
+        }
+
+        .perf-panel.open { display: block; }
+
+        .perf-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+
+        .perf-title {
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .perf-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 8px;
+        }
+
+        .perf-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+
+        .perf-metric-name {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .perf-values {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .perf-expected {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .perf-live {
+            font-size: 0.82rem;
+            font-weight: 500;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .perf-status {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-left: 4px;
+        }
+
+        .perf-ok { background: var(--green); }
+        .perf-warning { background: var(--yellow); }
+        .perf-alert { background: var(--red); }
+        .perf-nodata { background: var(--text-muted); }
+
+        .export-btn {
+            padding: 4px 12px;
+            border: 1px solid var(--border-light);
+            border-radius: 4px;
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.72rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.15s;
+        }
+
+        .export-btn:hover {
+            background: var(--bg-card-hover);
+            color: var(--text-primary);
+        }
+
+        /* ===== TRADE HISTORY ===== */
+        .trades-panel {
+            background: var(--bg-input);
+            border-top: 1px solid var(--border);
+            padding: 16px 20px;
+            display: none;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .trades-panel.open { display: block; }
+
+        .trades-panel::-webkit-scrollbar { width: 6px; }
+        .trades-panel::-webkit-scrollbar-track { background: var(--bg-card); }
+        .trades-panel::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
+
+        .trades-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.75rem;
+        }
+
+        .trades-table th {
+            padding: 6px 10px;
+            font-size: 0.65rem;
+            background: var(--bg-card);
+        }
+
+        .trades-table td {
+            padding: 5px 10px;
+            font-size: 0.72rem;
+        }
+
+        .toggle-btn {
+            padding: 3px 10px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: transparent;
+            color: var(--text-muted);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.68rem;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .toggle-btn:hover {
+            color: var(--text-secondary);
+            border-color: var(--border-light);
+        }
+
+        .toggle-btn.active {
+            color: var(--blue);
+            border-color: var(--blue);
+        }
+
+        /* ===== FOOTER ===== */
+        .footer {
+            text-align: center;
+            padding: 16px 32px;
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            border-top: 1px solid var(--border);
+            margin-top: 20px;
+        }
+
+        .no-data {
+            color: var(--text-muted);
+            font-style: italic;
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 768px) {
+            .header { padding: 16px; flex-direction: column; gap: 12px; }
+            .summary-row { padding: 12px 16px; grid-template-columns: repeat(2, 1fr); }
+            .section { padding: 0 16px 16px; }
+            td, th { padding: 6px 8px; font-size: 0.7rem; }
+            .perf-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+    <div class="header-left">
+        <div>
+            <div class="header-title">OANDA Trading Dashboard</div>
+            <div class="header-subtitle">Multi-Strategy Monitor</div>
+        </div>
+    </div>
+    <div class="header-right">
+        <div class="refresh-indicator">
+            <span class="refresh-dot"></span>
+            <span id="last-update">--:--:--</span>
+        </div>
+        <button class="btn" onclick="refreshNow()">Refresh</button>
+    </div>
+</div>
+
+<!-- SUMMARY CARDS -->
+<div class="summary-row" id="summary-row">
+    <div class="summary-card">
+        <div class="summary-label">Daily P&L</div>
+        <div class="summary-value {{ 'positive' if summary.daily_pnl >= 0 else 'negative' }}" id="sum-daily-pnl">
+            {{ '%.2f'|format(summary.daily_pnl) }}
+        </div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-label">Open Positions</div>
+        <div class="summary-value" id="sum-positions">{{ summary.open_positions }}</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-label">Trades Today</div>
+        <div class="summary-value" id="sum-trades">{{ summary.total_trades }}</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-label">Running</div>
+        <div class="summary-value {{ 'positive' if summary.running == summary.total else 'warning-text' }}" id="sum-running">
+            {{ summary.running }}/{{ summary.total }}
+        </div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-label">Errors</div>
+        <div class="summary-value {{ 'negative' if summary.errors > 0 else '' }}" id="sum-errors">{{ summary.errors }}</div>
+    </div>
+</div>
+
+<!-- INSTANCES TABLE -->
+<div class="section">
+    <div class="section-title">Strategy Instances</div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Status</th>
+                    <th>Strategy</th>
+                    <th>Pair / TF</th>
+                    <th>Heartbeat</th>
+                    <th>Pos</th>
+                    <th style="text-align:right">Daily P&L</th>
+                    <th style="text-align:right">W / L</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="instances-body">
+                {% for inst in instances %}
+                <tr class="instance-row" data-id="{{ inst.id }}">
+                    <td>
+                        {% if not inst.enabled %}
+                        <span class="status-dot status-unknown"></span><span class="no-data">Disabled</span>
+                        {% elif inst.service_status == 'SERVICE_RUNNING' and inst.heartbeat_ok %}
+                        <span class="status-dot status-running"></span>Running
+                        {% elif inst.service_status == 'SERVICE_RUNNING' and not inst.heartbeat_ok and inst.has_health %}
+                        <span class="status-dot status-stale"></span>Stale
+                        {% elif inst.service_status == 'SERVICE_STOPPED' %}
+                        <span class="status-dot status-stopped"></span>Stopped
+                        {% elif inst.service_status == 'not_installed' %}
+                        <span class="status-dot status-unknown"></span>Not installed
+                        {% else %}
+                        <span class="status-dot status-unknown"></span>{{ inst.service_status or 'Unknown' }}
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span style="color:var(--text-primary);font-weight:500;font-family:'Inter',sans-serif">{{ inst.strategy }}</span>
+                        {% if inst.description %}
+                        <br><span style="font-size:0.68rem;color:var(--text-muted);font-family:'Inter',sans-serif">{{ inst.description }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span style="font-weight:500">{{ inst.pair }}</span>
+                        <span style="color:var(--text-muted);font-size:0.7rem;margin-left:4px">{{ inst.timeframe }}</span>
+                    </td>
+                    <td>
+                        {% if inst.heartbeat_ok %}
+                        <span style="color:var(--green)">{{ inst.heartbeat_display }}</span>
+                        {% elif inst.has_health %}
+                        <span style="color:var(--yellow)">{{ inst.heartbeat_display }}</span>
+                        {% else %}
+                        <span class="no-data">N/A</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ inst.positions if inst.has_health else '-' }}</td>
+                    <td class="pnl-cell">
+                        {% if inst.daily_pnl != 0 %}
+                        <span class="{{ 'positive' if inst.daily_pnl > 0 else 'negative' }}">
+                            {{ '%+.2f'|format(inst.daily_pnl) }}
+                        </span>
+                        {% else %}
+                        <span class="no-data">0.00</span>
+                        {% endif %}
+                    </td>
+                    <td class="pnl-cell">
+                        {% if inst.daily_trades > 0 %}
+                        <span class="positive">{{ inst.daily_wins }}</span> / <span class="negative">{{ inst.daily_losses }}</span>
+                        {% else %}
+                        <span class="no-data">- / -</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if inst.enabled %}
+                        <button class="svc-btn start" onclick="serviceAction('{{ inst.id }}', 'start')" title="Start">St</button>
+                        <button class="svc-btn restart" onclick="serviceAction('{{ inst.id }}', 'restart')" title="Restart">Re</button>
+                        <button class="svc-btn stop" onclick="serviceAction('{{ inst.id }}', 'stop')" title="Stop">Sp</button>
+                        <button class="toggle-btn" onclick="togglePanel('perf-{{ inst.id }}')" title="Performance">Perf</button>
+                        <button class="toggle-btn" onclick="toggleTrades('{{ inst.id }}')" title="Trade History">Trades</button>
+                        {% endif %}
+                    </td>
+                </tr>
+                <!-- Performance Panel -->
+                <tr>
+                    <td colspan="8" style="padding:0;border:none">
+                        <div class="perf-panel" id="perf-{{ inst.id }}">
+                            <div class="perf-header">
+                                <span class="perf-title">Performance vs Backtest Expectations</span>
+                                <a class="export-btn" href="/api/export/{{ inst.id }}" title="Download CSV">Export CSV</a>
+                            </div>
+                            {% if inst.expectations %}
+                            <div class="perf-grid">
+                                {% set lp = inst.live_performance %}
+                                {% set ex = inst.expectations %}
+
+                                <div class="perf-item">
+                                    <span class="perf-metric-name">Win Rate</span>
+                                    <div class="perf-values">
+                                        <span class="perf-expected">exp {{ '%.1f'|format(ex.get('win_rate', 0) * 100) }}%</span>
+                                        {% if lp and lp.trades_total > 0 %}
+                                        <span class="perf-live">{{ '%.1f'|format(lp.win_rate * 100) }}%</span>
+                                        {% else %}
+                                        <span class="perf-live no-data">No trades</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="perf-item">
+                                    <span class="perf-metric-name">Profit Factor</span>
+                                    <div class="perf-values">
+                                        <span class="perf-expected">exp {{ '%.2f'|format(ex.get('profit_factor', 0)) }}</span>
+                                        {% if lp and lp.trades_total > 0 %}
+                                        <span class="perf-live">{{ '%.2f'|format(lp.profit_factor) }}</span>
+                                        {% else %}
+                                        <span class="perf-live no-data">--</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="perf-item">
+                                    <span class="perf-metric-name">Trades / Month</span>
+                                    <div class="perf-values">
+                                        <span class="perf-expected">exp {{ '%.1f'|format(ex.get('avg_trades_per_month', 0)) }}</span>
+                                        {% if lp and lp.trades_per_month > 0 %}
+                                        <span class="perf-live">{{ '%.1f'|format(lp.trades_per_month) }}</span>
+                                        {% else %}
+                                        <span class="perf-live no-data">--</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="perf-item">
+                                    <span class="perf-metric-name">Sharpe</span>
+                                    <div class="perf-values">
+                                        <span class="perf-expected">exp {{ '%.2f'|format(ex.get('sharpe', 0)) }}</span>
+                                        {% if lp and lp.trades_total >= 30 %}
+                                        <span class="perf-live no-data">Need impl</span>
+                                        {% else %}
+                                        <span class="perf-live no-data">Need 30+ trades</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="perf-item">
+                                    <span class="perf-metric-name">Max Drawdown</span>
+                                    <div class="perf-values">
+                                        <span class="perf-expected">exp {{ '%.1f'|format(ex.get('max_drawdown_pct', 0)) }}%</span>
+                                        {% if lp and lp.trades_total > 0 %}
+                                        <span class="perf-live">{{ '%.1f'|format(lp.max_drawdown_pct) }}%</span>
+                                        {% else %}
+                                        <span class="perf-live no-data">--</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="perf-item">
+                                    <span class="perf-metric-name">Total Trades</span>
+                                    <div class="perf-values">
+                                        <span class="perf-expected">fwd {{ ex.get('forward_trades', '?') }}</span>
+                                        {% if lp %}
+                                        <span class="perf-live">{{ lp.trades_total }}</span>
+                                        {% else %}
+                                        <span class="perf-live no-data">0</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% else %}
+                            <div class="no-data" style="padding:12px 0">
+                                No expectations data. Re-export params with: python scripts\export_params.py --run RUN_ID
+                            </div>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                <!-- Trade History Panel -->
+                <tr>
+                    <td colspan="8" style="padding:0;border:none">
+                        <div class="trades-panel" id="trades-{{ inst.id }}">
+                            <div class="perf-header">
+                                <span class="perf-title">Recent Trades</span>
+                            </div>
+                            <div id="trades-content-{{ inst.id }}">
+                                <span class="no-data">Click to load...</span>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+    OANDA Trading System &mdash; Auto-refresh: {{ refresh_seconds }}s &mdash;
+    <span id="footer-time">--:--:-- UTC</span>
+</div>
+
+<script>
+const REFRESH_SECONDS = {{ refresh_seconds }};
+let refreshTimer = null;
+
+function updateTime() {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-US', {hour12: false, timeZone: 'UTC'});
+    document.getElementById('last-update').textContent = timeStr;
+    document.getElementById('footer-time').textContent = timeStr + ' UTC';
+}
+
+function refreshNow() {
+    fetch('/api/status')
+        .then(r => r.json())
+        .then(data => {
+            updateSummary(data.summary);
+            updateInstances(data.instances);
+            updateTime();
+        })
+        .catch(err => console.error('Refresh failed:', err));
+}
+
+function updateSummary(s) {
+    const pnlEl = document.getElementById('sum-daily-pnl');
+    pnlEl.textContent = s.daily_pnl.toFixed(2);
+    pnlEl.className = 'summary-value ' + (s.daily_pnl >= 0 ? 'positive' : 'negative');
+
+    document.getElementById('sum-positions').textContent = s.open_positions;
+    document.getElementById('sum-trades').textContent = s.total_trades;
+
+    const runEl = document.getElementById('sum-running');
+    runEl.textContent = s.running + '/' + s.total;
+    runEl.className = 'summary-value ' + (s.running === s.total ? 'positive' : 'warning-text');
+
+    const errEl = document.getElementById('sum-errors');
+    errEl.textContent = s.errors;
+    errEl.className = 'summary-value ' + (s.errors > 0 ? 'negative' : '');
+}
+
+function updateInstances(instances) {
+    instances.forEach(inst => {
+        const row = document.querySelector(`tr[data-id="${inst.id}"]`);
+        if (!row) return;
+        const cells = row.querySelectorAll('td');
+
+        // Status cell
+        let statusHtml = '';
+        if (!inst.enabled) {
+            statusHtml = '<span class="status-dot status-unknown"></span><span class="no-data">Disabled</span>';
+        } else if (inst.service_status === 'SERVICE_RUNNING' && inst.heartbeat_ok) {
+            statusHtml = '<span class="status-dot status-running"></span>Running';
+        } else if (inst.service_status === 'SERVICE_RUNNING' && !inst.heartbeat_ok && inst.has_health) {
+            statusHtml = '<span class="status-dot status-stale"></span>Stale';
+        } else if (inst.service_status === 'SERVICE_STOPPED') {
+            statusHtml = '<span class="status-dot status-stopped"></span>Stopped';
+        } else if (inst.service_status === 'not_installed') {
+            statusHtml = '<span class="status-dot status-unknown"></span>Not installed';
+        } else {
+            statusHtml = '<span class="status-dot status-unknown"></span>' + (inst.service_status || 'Unknown');
+        }
+        cells[0].innerHTML = statusHtml;
+
+        // Heartbeat
+        if (inst.heartbeat_ok) {
+            cells[3].innerHTML = '<span style="color:var(--green)">' + inst.heartbeat_display + '</span>';
+        } else if (inst.has_health) {
+            cells[3].innerHTML = '<span style="color:var(--yellow)">' + inst.heartbeat_display + '</span>';
+        } else {
+            cells[3].innerHTML = '<span class="no-data">N/A</span>';
+        }
+
+        // Positions
+        cells[4].textContent = inst.has_health ? inst.positions : '-';
+
+        // Daily P&L
+        if (inst.daily_pnl !== 0) {
+            const cls = inst.daily_pnl > 0 ? 'positive' : 'negative';
+            const sign = inst.daily_pnl > 0 ? '+' : '';
+            cells[5].innerHTML = '<span class="' + cls + '">' + sign + inst.daily_pnl.toFixed(2) + '</span>';
+        } else {
+            cells[5].innerHTML = '<span class="no-data">0.00</span>';
+        }
+
+        // W/L
+        if (inst.daily_trades > 0) {
+            cells[6].innerHTML = '<span class="positive">' + inst.daily_wins + '</span> / <span class="negative">' + inst.daily_losses + '</span>';
+        } else {
+            cells[6].innerHTML = '<span class="no-data">- / -</span>';
+        }
+    });
+}
+
+function serviceAction(instanceId, action) {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = '...';
+
+    fetch('/api/service/' + instanceId + '/' + action, {method: 'POST'})
+        .then(r => r.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.textContent = action === 'start' ? 'St' : action === 'restart' ? 'Re' : 'Sp';
+            if (!data.ok) {
+                alert(data.message || 'Action failed');
+            }
+            // Refresh after a short delay to show new status
+            setTimeout(refreshNow, 1500);
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.textContent = action === 'start' ? 'St' : action === 'restart' ? 'Re' : 'Sp';
+            alert('Request failed: ' + err);
+        });
+}
+
+function togglePanel(panelId) {
+    const panel = document.getElementById(panelId);
+    if (panel) {
+        panel.classList.toggle('open');
+        // Find the button and toggle active state
+        const btn = event.target;
+        btn.classList.toggle('active');
+    }
+}
+
+function toggleTrades(instanceId) {
+    const panel = document.getElementById('trades-' + instanceId);
+    const content = document.getElementById('trades-content-' + instanceId);
+    const btn = event.target;
+
+    if (panel.classList.contains('open')) {
+        panel.classList.remove('open');
+        btn.classList.remove('active');
+        return;
+    }
+
+    panel.classList.add('open');
+    btn.classList.add('active');
+
+    // Load trades
+    content.innerHTML = '<span class="no-data">Loading...</span>';
+    fetch('/api/trades/' + instanceId + '?limit=30')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.trades || data.trades.length === 0) {
+                content.innerHTML = '<span class="no-data">No closed trades yet</span>';
+                return;
+            }
+
+            let html = '<table class="trades-table"><thead><tr>';
+            html += '<th>Time</th><th>Dir</th><th>Entry</th><th>Exit</th><th>Reason</th><th style="text-align:right">P&L</th>';
+            html += '</tr></thead><tbody>';
+
+            data.trades.forEach(t => {
+                const pnl = t.realized_pnl || 0;
+                const cls = pnl >= 0 ? 'positive' : 'negative';
+                const sign = pnl >= 0 ? '+' : '';
+                const exitTime = t.exit_time ? t.exit_time.substring(0, 16).replace('T', ' ') : '--';
+                html += '<tr>';
+                html += '<td style="font-family:JetBrains Mono,monospace">' + exitTime + '</td>';
+                html += '<td>' + (t.direction || '--') + '</td>';
+                html += '<td>' + (t.entry_price ? parseFloat(t.entry_price).toFixed(5) : '--') + '</td>';
+                html += '<td>' + (t.exit_price ? parseFloat(t.exit_price).toFixed(5) : '--') + '</td>';
+                html += '<td style="font-family:Inter,sans-serif">' + (t.exit_reason || '--') + '</td>';
+                html += '<td class="pnl-cell ' + cls + '">' + sign + pnl.toFixed(2) + '</td>';
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            content.innerHTML = html;
+        })
+        .catch(err => {
+            content.innerHTML = '<span class="no-data">Failed to load trades</span>';
+        });
+}
+
+// Initialize
+updateTime();
+refreshTimer = setInterval(refreshNow, REFRESH_SECONDS * 1000);
+</script>
+
+</body>
+</html>

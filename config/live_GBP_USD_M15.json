@@ -39,5 +39,17 @@
     "trade_monday": false,
     "trade_friday": false,
     "friday_close_hour": 20
+  },
+  "expectations": {
+    "win_rate": 0.8522,
+    "sharpe": 1.148,
+    "profit_factor": 1.378,
+    "avg_trades_per_month": 31.6,
+    "max_drawdown_pct": 4.5,
+    "forward_return_pct": 24.1,
+    "back_win_rate": 0.5098,
+    "back_sharpe": 1.361,
+    "forward_trades": 379,
+    "forward_months": 12
   }
 }

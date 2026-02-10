@@ -42,7 +42,7 @@ echo [OK] Python found
 :: Install deps
 echo.
 echo Installing dependencies...
-pip install pandas numpy requests loguru pydantic pydantic-settings python-dotenv numba pandas-ta ta pyarrow --quiet
+pip install pandas numpy requests loguru pydantic pydantic-settings python-dotenv numba pandas-ta ta pyarrow fastapi uvicorn jinja2 --quiet
 if errorlevel 1 (
     echo WARNING: Some packages may have failed. Continuing...
 )
@@ -125,6 +125,8 @@ echo.
 echo ============================================================
 echo    SETUP COMPLETE
 echo ============================================================
+echo.
+echo   Dashboard: http://YOUR_VPS_IP:8080
 echo.
 echo   Quick commands:
 echo     Status:   deploy\nssm\nssm.exe status OandaTrader_STRATEGY_ID

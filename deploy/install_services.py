@@ -127,6 +127,67 @@ def install_strategy(strategy: dict, python_path: str) -> bool:
     return True
 
 
+def install_dashboard(config: dict, python_path: str) -> bool:
+    """Install the dashboard as a Windows service."""
+    svc_name = "OandaTrader_Dashboard"
+    dash_config = config.get("dashboard", {})
+    port = dash_config.get("port", 8080)
+
+    print(f"\n--- Dashboard ---")
+
+    script = ROOT / "scripts" / "run_dashboard.py"
+    app_args = f'"{script}" --port {port} --host 0.0.0.0'
+
+    # Remove existing service if present
+    if service_exists(svc_name):
+        print(f"  Updating existing dashboard service...")
+        run_nssm("stop", svc_name)
+        run_nssm("remove", svc_name, "confirm")
+
+    # Install
+    result = run_nssm("install", svc_name, python_path, app_args)
+    if result.returncode != 0:
+        print(f"  [ERROR] Dashboard install failed: {result.stderr}")
+        return False
+
+    # Configure
+    run_nssm("set", svc_name, "AppDirectory", str(ROOT))
+    log_dir = INSTANCES_DIR / "_dashboard" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    run_nssm("set", svc_name, "AppStdout", str(log_dir / "stdout.log"))
+    run_nssm("set", svc_name, "AppStderr", str(log_dir / "stderr.log"))
+    run_nssm("set", svc_name, "AppRotateFiles", "1")
+    run_nssm("set", svc_name, "AppRotateBytes", "10485760")
+    run_nssm("set", svc_name, "AppRestartDelay", "10000")
+    run_nssm("set", svc_name, "Start", "SERVICE_AUTO_START")
+    run_nssm("set", svc_name, "Description", f"OANDA Trading Dashboard (port {port})")
+
+    # Add firewall rule
+    try:
+        fw_cmd = [
+            "netsh", "advfirewall", "firewall", "add", "rule",
+            f"name=OANDA Dashboard (port {port})",
+            "dir=in", "action=allow", "protocol=TCP",
+            f"localport={port}",
+        ]
+        subprocess.run(fw_cmd, capture_output=True, text=True, timeout=10)
+    except Exception:
+        print(f"  [WARN] Could not add firewall rule (run as admin)")
+
+    # Start
+    result = run_nssm("start", svc_name)
+    if result.returncode != 0:
+        print(f"  [WARN] Dashboard start may have failed: {result.stderr.strip()}")
+    else:
+        print(f"  [OK] Dashboard installed and started")
+
+    print(f"    Service: {svc_name}")
+    print(f"    URL:     http://0.0.0.0:{port}")
+    print(f"    Logs:    {log_dir}")
+
+    return True
+
+
 def main():
     if not NSSM.exists():
         print("ERROR: NSSM not found at", NSSM)
@@ -161,8 +222,16 @@ def main():
         else:
             failed += 1
 
+    # Install dashboard
+    if config.get("dashboard"):
+        install_dashboard(config, python_path)
+
     print(f"\n{'=' * 40}")
     print(f"Results: {ok} running, {skipped} disabled, {failed} failed")
+
+    if config.get("dashboard"):
+        port = config["dashboard"].get("port", 8080)
+        print(f"Dashboard: http://YOUR_VPS_IP:{port}")
 
     if failed:
         sys.exit(1)

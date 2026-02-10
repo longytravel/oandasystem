@@ -6,7 +6,9 @@
       "pair": "GBP_USD",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true
+      "enabled": true,
+      "from_run": "GBP_USD_M15_20260210_063223",
+      "description": "V3 RSI M15 - 87.2 GREEN"
     },
     {
       "id": "rsi_v3_GBP_USD_H1",
@@ -14,7 +16,13 @@
       "pair": "GBP_USD",
       "timeframe": "H1",
       "risk_pct": 0.5,
-      "enabled": false
+      "enabled": true,
+      "from_run": "GBP_USD_H1_20260206_151217",
+      "description": "V3 RSI H1 - 89.8 GREEN"
     }
-  ]
+  ],
+  "dashboard": {
+    "port": 8080,
+    "refresh_seconds": 15
+  }
 }
