@@ -419,6 +419,9 @@ class LiveTrader:
         # Initial sync
         self._sync_positions()
 
+        # Write initial heartbeat so dashboard sees us immediately
+        self._write_heartbeat(status="running", last_candle="startup")
+
         while self.running:
             try:
                 # Wait for candle close
