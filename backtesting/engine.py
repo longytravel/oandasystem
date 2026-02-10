@@ -64,6 +64,11 @@ class OpenPosition:
     take_profit: float
     size: float
     signal: Signal
+    # Trade management state
+    break_even_triggered: bool = False
+    trailing_active: bool = False
+    highest_price: float = 0.0  # For trailing (long)
+    lowest_price: float = float('inf')  # For trailing (short)
 
 
 class BacktestEngine:
@@ -85,6 +90,16 @@ class BacktestEngine:
         slippage_pips: float = 0.5,
         pip_value: float = 10.0,  # Value per pip for 1 lot
         leverage: float = 100.0,
+        # Break-even settings
+        use_break_even: bool = False,
+        break_even_pips: float = 30.0,  # Profit in pips to trigger BE
+        break_even_offset: float = 2.0,  # Pips above entry for BE
+        # Trailing stop settings
+        use_trailing_stop: bool = False,
+        trailing_start_pips: float = 40.0,  # Profit in pips to start trailing
+        trailing_step_pips: float = 10.0,   # Trail distance in pips
+        # V4: Chain BE -> Trailing
+        chain_be_to_trail: bool = False,
     ):
         """
         Initialize backtest engine.
@@ -95,12 +110,26 @@ class BacktestEngine:
             slippage_pips: Slippage to apply on entries
             pip_value: Dollar value per pip for 1 standard lot
             leverage: Account leverage
+            use_break_even: Enable break-even stop
+            break_even_pips: Pips of profit before moving SL to break-even
+            break_even_offset: Pips above/below entry for break-even SL
+            use_trailing_stop: Enable trailing stop
+            trailing_start_pips: Pips of profit before trailing starts
+            trailing_step_pips: Distance to trail behind price
         """
         self.initial_capital = initial_capital
         self.spread_pips = spread_pips
         self.slippage_pips = slippage_pips
         self.pip_value = pip_value
         self.leverage = leverage
+        # Trade management
+        self.use_break_even = use_break_even
+        self.break_even_pips = break_even_pips
+        self.break_even_offset = break_even_offset
+        self.use_trailing_stop = use_trailing_stop
+        self.trailing_start_pips = trailing_start_pips
+        self.trailing_step_pips = trailing_step_pips
+        self.chain_be_to_trail = chain_be_to_trail
 
     def run(
         self,
@@ -209,20 +238,70 @@ class BacktestEngine:
         """Check if position should be closed this bar."""
 
         if position.direction == SignalType.BUY:
-            # Long position - check if low hit SL or high hit TP
+            # Update tracking prices for trailing
+            position.highest_price = max(position.highest_price, bar['high'])
+            current_profit_pips = (bar['high'] - position.entry_price) / pip_size
+
+            # Break-even logic (V4: moved BEFORE trailing for chaining)
+            if self.use_break_even and not position.break_even_triggered:
+                if current_profit_pips >= self.break_even_pips:
+                    new_sl = position.entry_price + (self.break_even_offset * pip_size)
+                    if new_sl > position.stop_loss:
+                        position.stop_loss = new_sl
+                        position.break_even_triggered = True
+                    # V4: Chain BE -> Trailing
+                    if self.chain_be_to_trail and self.use_trailing_stop:
+                        position.trailing_active = True
+
+            # Trailing stop logic
+            if self.use_trailing_stop:
+                if not position.trailing_active and current_profit_pips >= self.trailing_start_pips:
+                    position.trailing_active = True
+                if position.trailing_active:
+                    trail_sl = position.highest_price - (self.trailing_step_pips * pip_size)
+                    if trail_sl > position.stop_loss:
+                        position.stop_loss = trail_sl
+
+            # Check exits - Long position
             if bar['low'] <= position.stop_loss:
+                exit_reason = "TRAIL" if position.trailing_active else ("BE" if position.break_even_triggered else "SL")
                 return self._create_trade(
-                    position, position.stop_loss, bar_time, "SL", pip_size
+                    position, position.stop_loss, bar_time, exit_reason, pip_size
                 ), True
             elif bar['high'] >= position.take_profit:
                 return self._create_trade(
                     position, position.take_profit, bar_time, "TP", pip_size
                 ), True
         else:
-            # Short position - check if high hit SL or low hit TP
+            # Update tracking prices for trailing (short)
+            position.lowest_price = min(position.lowest_price, bar['low'])
+            current_profit_pips = (position.entry_price - bar['low']) / pip_size
+
+            # Break-even logic (V4: moved BEFORE trailing for chaining)
+            if self.use_break_even and not position.break_even_triggered:
+                if current_profit_pips >= self.break_even_pips:
+                    new_sl = position.entry_price - (self.break_even_offset * pip_size)
+                    if new_sl < position.stop_loss:
+                        position.stop_loss = new_sl
+                        position.break_even_triggered = True
+                    # V4: Chain BE -> Trailing
+                    if self.chain_be_to_trail and self.use_trailing_stop:
+                        position.trailing_active = True
+
+            # Trailing stop logic
+            if self.use_trailing_stop:
+                if not position.trailing_active and current_profit_pips >= self.trailing_start_pips:
+                    position.trailing_active = True
+                if position.trailing_active:
+                    trail_sl = position.lowest_price + (self.trailing_step_pips * pip_size)
+                    if trail_sl < position.stop_loss:
+                        position.stop_loss = trail_sl
+
+            # Check exits - Short position
             if bar['high'] >= position.stop_loss:
+                exit_reason = "TRAIL" if position.trailing_active else ("BE" if position.break_even_triggered else "SL")
                 return self._create_trade(
-                    position, position.stop_loss, bar_time, "SL", pip_size
+                    position, position.stop_loss, bar_time, exit_reason, pip_size
                 ), True
             elif bar['low'] <= position.take_profit:
                 return self._create_trade(
@@ -321,9 +400,13 @@ class BacktestEngine:
         max_drawdown_pct = max_drawdown / rolling_max[drawdown.idxmin()] if len(drawdown) > 0 else 0
 
         # Sharpe ratio (simplified - assumes risk-free = 0)
+        # Fix Finding 10: was referencing `df` which is not in scope
         if len(trades) > 1:
             returns = pd.Series([t.pnl for t in trades])
-            sharpe_ratio = np.sqrt(252) * returns.mean() / returns.std() if returns.std() > 0 else 0
+            # Estimate duration from trade timestamps
+            duration_days = (trades[-1].exit_time - trades[0].entry_time).days
+            trades_per_year = len(trades) * 365.25 / max(duration_days, 1)
+            sharpe_ratio = np.sqrt(trades_per_year) * returns.mean() / returns.std() if returns.std() > 0 else 0
         else:
             sharpe_ratio = 0
 

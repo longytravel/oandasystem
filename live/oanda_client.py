@@ -237,10 +237,18 @@ class OandaClient:
             all_candles.append(df)
 
             # Move to next chunk (handle timezone-aware timestamps)
+            # FIX: Advance by the correct granularity duration, not just 1 minute
+            tf_minutes = {
+                "S5": 5/60, "S10": 10/60, "S15": 15/60, "S30": 30/60,
+                "M1": 1, "M2": 2, "M4": 4, "M5": 5, "M10": 10, "M15": 15, "M30": 30,
+                "H1": 60, "H2": 120, "H3": 180, "H4": 240, "H6": 360, "H8": 480, "H12": 720,
+                "D": 1440, "W": 10080, "M": 43200
+            }
+            candle_minutes = tf_minutes.get(granularity, 60)
             last_time = df.index[-1].to_pydatetime()
             if last_time.tzinfo is not None:
                 last_time = last_time.replace(tzinfo=None)
-            current_from = last_time + timedelta(minutes=1)
+            current_from = last_time + timedelta(minutes=candle_minutes)
 
             logger.debug(f"Fetched {len(df)} candles, up to {df.index[-1]}")
 

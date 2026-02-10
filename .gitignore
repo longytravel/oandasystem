@@ -23,21 +23,36 @@ env/
 # Data files (large)
 data/oanda/*.csv
 data/oanda/*.parquet
-data/mt5/*.csv
-data/mt5/*.parquet
+data/*.parquet
+data/*.csv
+data/state/
 
-# Results
-results/backtests/*
-results/optimization/*.db
-results/optimization/*.csv
-logs/*.log
+# Results (large, regeneratable)
+results/backtests/
+results/optimization/
+results/pipelines/
+results/robust/
+results/comparison/
+results/charts/
+results/*.png
+results/*.txt
+results/*.log
+results/*.json
+logs/
 
-# Keep directory structure
-!data/oanda/.gitkeep
-!data/mt5/.gitkeep
-!results/backtests/.gitkeep
-!results/optimization/.gitkeep
-!logs/.gitkeep
+# CatBoost cache
+catboost_info/
+
+# Deployment runtime (not in git)
+instances/
+deploy/nssm/nssm.exe
+deploy/nssm/nssm.zip
+deploy/nssm/temp/
+deploy/.env
+nul
+
+# Claude Code (personal config)
+.claude/
 
 # OS
 .DS_Store

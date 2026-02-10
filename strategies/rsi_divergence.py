@@ -42,6 +42,9 @@ class RSIDivergenceStrategy(Strategy):
         return {
             # RSI settings
             "rsi_period": 14,
+            "rsi_overbought": 70,      # RSI overbought level
+            "rsi_oversold": 30,        # RSI oversold level
+            "min_rsi_diff": 5.0,       # Minimum RSI divergence (points)
 
             # Swing detection
             "swing_strength": 5,       # Bars each side for swing
@@ -51,11 +54,17 @@ class RSIDivergenceStrategy(Strategy):
             # Stop loss / Take profit (in pips)
             "stop_loss_pips": 50.0,
             "tp_multiplier": 2.0,      # TP = SL * multiplier
+            "use_atr_stops": False,    # Use ATR-based stops
+            "atr_period": 14,          # ATR period
+            "atr_multiplier": 2.0,     # SL = ATR * multiplier
 
             # Filters
             "use_slope_filter": True,
             "min_price_slope": 10.0,   # Minimum slope angle (degrees)
             "max_price_slope": 80.0,   # Maximum slope angle
+            "use_rsi_filter": False,   # Filter by RSI levels
+            "use_trend_filter": False, # Filter by MA trend
+            "trend_ma_period": 50,     # Trend MA period
 
             # Risk
             "risk_percent": 1.0,
@@ -71,14 +80,26 @@ class RSIDivergenceStrategy(Strategy):
     def get_parameter_space(self) -> Dict[str, Any]:
         """Parameter ranges for Optuna optimization."""
         return {
+            # Core RSI parameters
             "rsi_period": (5, 30),
+            "min_rsi_diff": (2.0, 15.0),
+
+            # Swing detection
             "swing_strength": (2, 10),
             "min_bars_between": (3, 15),
             "max_bars_between": (20, 100),
+
+            # Stop loss / Take profit
             "stop_loss_pips": (20.0, 80.0),
             "tp_multiplier": (1.0, 4.0),
+
+            # Slope filter
             "min_price_slope": (5.0, 30.0),
             "max_price_slope": (50.0, 85.0),
+
+            # Trading hours
+            "trade_start_hour": (0, 8),
+            "trade_end_hour": (18, 23),
         }
 
     def calculate_rsi(self, close: pd.Series, period: int = 14) -> pd.Series:
@@ -234,6 +255,12 @@ class RSIDivergenceStrategy(Strategy):
 
         # Hidden bullish: Price HL, RSI LL
         if recent.price > previous.price and recent.rsi < previous.rsi:
+            # Check minimum RSI divergence
+            rsi_diff = abs(previous.rsi - recent.rsi)
+            min_rsi_diff = self.params.get("min_rsi_diff", 0)
+            if rsi_diff < min_rsi_diff:
+                return None
+
             # Optional: slope filter
             if self.params["use_slope_filter"]:
                 price_angle = self.calculate_slope_angle(
@@ -276,6 +303,12 @@ class RSIDivergenceStrategy(Strategy):
 
         # Hidden bearish: Price LH, RSI HH
         if recent.price < previous.price and recent.rsi > previous.rsi:
+            # Check minimum RSI divergence
+            rsi_diff = abs(recent.rsi - previous.rsi)
+            min_rsi_diff = self.params.get("min_rsi_diff", 0)
+            if rsi_diff < min_rsi_diff:
+                return None
+
             # Optional: slope filter
             if self.params["use_slope_filter"]:
                 price_angle = self.calculate_slope_angle(

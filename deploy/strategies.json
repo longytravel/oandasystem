@@ -1,0 +1,20 @@
+{
+  "strategies": [
+    {
+      "id": "rsi_v3_GBP_USD_M15",
+      "strategy": "rsi_v3",
+      "pair": "GBP_USD",
+      "timeframe": "M15",
+      "risk_pct": 1.0,
+      "enabled": true
+    },
+    {
+      "id": "rsi_v3_GBP_USD_H1",
+      "strategy": "rsi_v3",
+      "pair": "GBP_USD",
+      "timeframe": "H1",
+      "risk_pct": 0.5,
+      "enabled": false
+    }
+  ]
+}

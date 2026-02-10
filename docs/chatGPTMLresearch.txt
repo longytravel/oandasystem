@@ -1,0 +1,320 @@
+ML-Based Forex Trading Strategy Design
+1. Optimal Model Architecture
+
+For a 15-minute to 4-hour prediction horizon, a hybrid ensemble approach is recommended. Different model types excel at different aspects of FX prediction, so combining them can capture more signal:
+
+Gradient Boosting (XGBoost/LightGBM/CatBoost) – Serves as a strong tabular baseline. These models handle diverse features (technical, macro, etc.) and are less prone to overfitting on small datasets. In a 2024 study, an XGBoost model incorporating a wide range of features achieved better out-of-sample accuracy and its forecasts-based FX portfolio outperformed benchmark strategies. Boosted trees efficiently capture non-linear feature interactions and have shown predictive power in FX when carefully tuned (e.g. using monotonic constraints to impose economically sensible relationships).
+
+Recurrent Neural Networks (LSTM/GRU) – Well-suited for sequential patterns and “memory” of past regimes. LSTMs are the most popular deep learning models in FX research, used in ~50% of studies. They can learn time-dependent structures that static models miss. For example, an LSTM can theoretically detect a price pattern that precedes a breakout. Research shows LSTMs can outperform traditional models; one study on volatility forecasting found an LSTM achieved highest out-of-sample R² (0.96), beating GARCH and XGBoost. However, LSTMs require large data and careful regularization to avoid overfitting the noise in high-frequency FX data.
+
+Temporal Convolutional Networks (TCN) – CNN-based models that capture long-range patterns via dilated convolutions. TCNs can be faster to train than RNNs and have shown impressive results in financial time series like stock prediction. A hybrid TCN-LSTM architecture was tested on forex (EUR/USD, etc.), and a variant (LSTM layers followed by TCN) slightly improved prediction accuracy (lower RMSE) over the reverse order. TCNs are worth exploring as they handle sequence data without recursion, but like LSTMs they need sufficient data to train.
+
+Transformers (TFT or other attention-based models) – Newer sequence models that use attention mechanisms instead of recurrence. The Temporal Fusion Transformer (TFT) in particular is designed for multivariate time-series forecasting with built-in feature importance and multi-horizon prediction. Transformers can capture long-term dependencies and have the benefit of interpretability via attention weights. In one recent study on crypto trading, a transformer-based model outperformed LSTMs and CNNs in generating profitable signals. The TFT can integrate known future inputs (like scheduled news times) along with past data, which is valuable for FX. The downside is that transformers are data-hungry and require extensive tuning – they may overfit if your training sample is limited.
+
+Ensemble of Models – Given the uncertainty in which model will capture the FX “edge,” an ensemble can be powerful. Lopez de Prado (2018) advocates model diversification to avoid missing a genuine signal. For example, you might combine a tree-based model’s output with a neural network’s output (e.g. average their probability of an up-move). Ensembles have shown robust performance; researchers found that an ensemble of a TFT with other models significantly outperformed a single model. By blending algorithms, you reduce model-specific bias – e.g. a fast-reacting model can be tempered by a slower, steadier model to avoid over-trading.
+
+Recommendation: Start with a gradient boosting model as a baseline (for its simplicity and solid performance on tabular financial features), and in parallel experiment with a ResNet-LSTM or TFT model that can ingest raw price series. Evaluate which performs better out-of-sample; ultimately consider combining them (e.g. use the average signal or a meta-model) to exploit their complementary strengths. For instance, XGBoost could predict the probability of a profitable move using engineered features, while an LSTM analyzes pure price sequences – a trade is taken only if both agree. This primary ML engine will be the core decision-maker, replacing any rigid rule-based entries.
+
+ 
+
+Published evidence of profitability: Pure ML-driven FX strategies are rare in academic literature (many papers show predictive accuracy but not trading results). However, there are promising signs. A 2025 survey of AI in financial markets noted that hybrid models (combining LSTM with others) are increasingly adopted and can be effective. Importantly, a very recent study on algorithmic crypto trading (analogous to FX) concluded that: “The market is not fully efficient; machine learning models (especially deep learning and transformers) can predict future prices and create a profitable strategy”. In that study, a transformer-based strategy had the highest Sharpe. Likewise, the XGBoost-based FX forecasting approach in 2024 showed that using ML forecasts to drive a trading strategy beat a random walk and legacy strategies out-of-sample. These results suggest that a well-designed ML model as the primary signal can yield an edge in FX, provided it’s trained and validated correctly (with no look-ahead bias). Expect to need many months of data for training – ideally several years (tens of thousands of 15m bars, or 5k+ H1 bars) to give complex models enough examples. Simpler models (boosting) can learn with fewer samples but still benefit from more data. In practice, using an expanding training window or walk-forward scheme (discussed below) will let the model learn from hundreds of trades. Ensuring ample training data and using strong regularization (or dropouts for NN) is crucial to achieve stable out-of-sample performance.
+
+2. Prediction Target (Label) Selection
+
+Choosing the right target variable for the ML model is fundamental. We want the target to align with profitable trading outcomes, not just prediction for its own sake. Several options were considered:
+
+Next-N-Bar Direction (Up/Down) – A simple binary classification of whether price will be higher or lower after N bars (e.g. 4 hours ahead). This is straightforward and was used in many studies. It’s relatively easy for models to learn classification, and direction accuracy > 50% can in theory yield profits. However, it ignores the magnitude of moves and can be misleading – a 1-pip up move vs. 50-pip up move are treated the same, even though the latter is far more profitable. Pure direction models often end up with many small wins that don’t overcome fewer big losses.
+
+Next-N-Bar Return (Regression) – Predict the actual return (or pip change) over the next horizon. This gives magnitude info, enabling dynamic position sizing (larger trades when a big move is predicted). The challenge is that FX returns are noisy; a regression model might struggle to get precise values and can be thrown off by outliers. Small prediction errors can flip a trading decision (long vs short). In practice, if pursuing regression, one often converts it into a directional strategy anyway (e.g. go long if predicted return > 0). Thus, pure regression may not add much beyond a thresholded directional signal, unless you use the magnitude for sizing.
+
+Classification with Triple Barrier Labeling – This approach (from Lopez de Prado’s work) is highly recommended. Instead of a fixed time horizon, you label an outcome based on hitting a profit target or stop-loss before a certain cutoff time. For example, label = +1 if the price moves +X pips before dropping –Y pips (and within T hours), label = –1 if it hits –Y pips loss first, and 0 if neither barrier is hit by time T. This directly models the outcome of a trade with take-profit X and stop-loss Y. It’s been shown that triple-barrier labeling yields better performance than single-horizon labeling – the model learns to predict achievable moves (with a given risk/reward), rather than just any upward move. Essentially, this is asking the model: “Will a trade placed now reach +X pips profit before a –Y pips loss?”. This target is very trading-aligned and helps the ML focus on meaningful signals. One study on crypto found that using triple-barrier labels improved strategy profitability compared to predicting the next-bar move.
+
+Market Regime Classification – This means predicting the regime or context, e.g. trending vs ranging, or high-volatility vs low-volatility conditions. The idea is that the strategy could then adapt: e.g. only take trend-following trades in a trending regime, or use mean-reversion tactics in ranging markets. Regime classification can be done with a simple ML model or even rules (e.g. ADX indicator threshold for trend strength). Papapolyzos & Choumas (2021) successfully built a daily FX classifier that output both next-day direction and a trend/mean-reversion regime flag. Using those, one could filter or modify trades (they reported this produced “exploitable & tradable information” in real settings). While regime labels don’t directly signal a trade, they are extremely useful features or filters for the primary model. For instance, you could train separate entry models for trending vs ranging periods, or include the regime probability as an input feature to the main model.
+
+Optimal Holding Period – Predicting how long a position should be held (for maximum return or Sharpe). In practice this is hard to label: one way is to simulate trades in hindsight and record the optimal exit time for each, but that can be unstable (and it assumes your model will know when to exit, which becomes a circular problem). Given the complexity, this is less commonly used. It may be more practical to infer holding period from the model’s confidence or by setting a time limit in the strategy rather than have the model predict it explicitly.
+
+Probability of Hitting X before Y – This is essentially the triple-barrier method described above (probability of hitting target X pips vs stop Y pips). You could also generalize it: e.g. the model outputs a probability that a +10 pip move occurs before a –10 pip move. If that probability is > 50%, that’s an edge. In fact, one can train a classifier on such events directly. This framing directly encodes a risk/reward trade-off into the prediction.
+
+Recommended approach: Use a triple-barrier labeling scheme to create your primary trade entry labels. For example, choose a reward/risk ratio you desire – say 2:1 (e.g. target = 20 pips, stop = 10 pips) based on typical volatility of your pair/timeframe. Label historical data for each potential entry point: +1 if the market went +20 pips before dropping 10 pips, –1 if it hit –10 pips first, or 0 if neither happened within, say, the next 8 hours. This labeling ensures the model’s “positive” predictions correspond to trades that actually would have been profitable (net of stop) in the past. It teaches the model to detect patterns preceding asymmetric payoffs. Many will be labeled 0 (indecisive moves), which you can either drop or treat as no-trade signals. A balanced dataset of clear +1 and –1 cases is ideal for training. You might even implement Meta-Labeling: first use a simpler model or indicator to flag potential entries, then use ML to predict which of those will hit the target (Lopez de Prado’s meta-labeling technique). But since the prompt is to use ML as primary, you can label every time step with triple barrier outcomes.
+
+ 
+
+Additionally, incorporate a regime label (trending or ranging). One way is to pre-compute a regime (e.g. by ADX or by volatility breakouts) and feed it as a feature. Another is to have the ML model output a regime classification alongside its trade signal. For simplicity, you could start by defining regime heuristically (e.g. 20-bar ADX > 25 => trending regime) and include that in the feature set or use separate models for each regime. This helps avoid the model trying to learn two opposite behaviors in one – it’s often easier to have it specialize per regime (trend-following vs mean-reversion signals).
+
+ 
+
+Why these targets? They align with trading success. A model that simply predicts “up 55% of the time” may not be profitable if ups are tiny and downs are large. By predicting hitting a profit target before a stop, the model inherently focuses on higher-quality opportunities with favorable risk/reward. In fact, the cited crypto study explicitly noted “Triple Barrier labeling allows better profitability than next-bar labeling”. Our target choice will also directly feed into position sizing and risk management (next sections): if the model is forecasting a high probability of hitting +20 pips vs –10 pips, one can size that position more confidently or set the stop/limit accordingly.
+
+3. Feature Engineering and Selection
+
+Developing predictive features is where domain knowledge meets data science. We need inputs that genuinely lead the target (not coincident or lagging it), and we must avoid overly complex or redundant feature sets that cause overfitting. Key feature categories and recommendations:
+
+Price-Derived Technical Features: These are computed from the currency’s own price history. They capture momentum, mean reversion, and volatility, which are the bread-and-butter of FX signals. Examples:
+
+Returns and Momentum: Include recent log returns over multiple horizons (e.g. 1-bar return, 5-bar return, 20-bar return). These help the model gauge short-term momentum or reversal. FX markets exhibit short bursts of momentum and also pullbacks. In academic factor research, momentum is a known predictor (albeit weaker in FX than equities). Indeed, Chen & Lin (2020) identify trend momentum as a significant factor in FX returns. You can also add classic momentum indicators like moving average crossovers, MACD, or RSI (14-period RSI for overbought/oversold). For example, Papapolyzos et al. used RSI and MACD values as features for daily FX direction classification. These indicators compress recent price action into a feature the model might find useful. Caution: Many technical indicators overlap (e.g. RSI and stochastics convey similar info). It’s wise to pick a small subset of well-known ones rather than feeding dozens of highly correlated indicators.
+
+Volatility: Features that measure recent volatility or range. E.g. ATR (Average True Range) over last N bars, or standard deviation of returns over a window. Volatility often precedes breakouts and can also indicate regime. If the ATR is very low, the market might be coiling for a move (or just dead). ATR was one feature used in the referenced trader study. Also consider ** Bollinger Bands %B** (position of price within its recent range) as a normalized measure of how extreme the current price is.
+
+Mean-reversion indicators: e.g. relative price to a moving average (price / 50-bar MA) or z-score of price vs a rolling mean. Currencies often oscillate around value; a large deviation might predict a snap-back. These can complement momentum features.
+
+In general, don’t overdo the technical indicators – they are often all derived from the same price data. A minimal viable set might be: recent returns, an RSI, an ATR, and perhaps a moving average slope. For example, a study that only used OHLC prices plus RSI, MACD, ADX (trend strength), and ATR was able to achieve profitable daily predictions. The goal is capturing the essence of price action (trend, volatility, direction) without too much noise.
+
+Market Microstructure Features: These relate to order flow, spreads, and liquidity. It’s known in FX microstructure research that order flow (net buyer vs seller volume) has predictive power for exchange rates – essentially, if there’s persistent buying pressure (positive order flow), it often leads to price appreciation. If you have access to such data (e.g. Oanda’s order book or a proxy like tick volume), incorporate it. Features could include: recent tick volume, volume imbalance (buy vs sell volume in the last X minutes), bid-ask spread changes, or order book imbalance (if available, e.g. % of orders on bid vs ask). These can signal impending moves (e.g. widening spread may indicate an upcoming news release or low liquidity period).
+
+ 
+
+However, getting true order flow data is tough for spot FX (no centralized tape). You might use tick count or volume as a proxy – e.g. an unusual surge in tick volume could indicate institutional activity. Ernest Chan notes that while order flow is a powerful predictor, retail traders often lack direct access to it. If you can’t get detailed order flow, you might skip this category or rely on proxies like short-term price pattern features (which indirectly reflect microstructure, e.g. how many bars out of last 10 were up vs down). Even a feature like “consecutive up-ticks” or a short-term imbalance indicator (count of buys minus sells in last 5 minutes, if you can infer it) might add value, as it captures the current order imbalance.
+
+Cross-Pair/Cross-Asset Features: Currencies are interrelated. A move in one pair can affect another (via the shared currency). Features capturing the broader currency landscape can provide context:
+
+Currency Strength Index: Construct indices for each currency (e.g. an index for USD based on USD’s value against a basket). If, say, USD is weak across the board, it could bolster a long EUR/USD trade’s confidence. You can create a simple USD strength feature by averaging the returns of USD against several majors. Similarly, “EUR strength” from EUR crosses. These act like market breadth indicators for that currency.
+
+Correlated Assets: Sometimes equity or bond markets influence FX (risk-on/risk-off behavior). E.g. the Japanese Yen often strengthens when global equities sell off (safe-haven demand). Including a stock index return (S&P 500 or Nikkei) or VIX volatility index as features can help the model learn these relationships. In fact, one study enhanced FX forecasts by adding global risk indicators (VIX) and found it improved accuracy. For your system, consider if your pair has a known correlation (AUD and gold prices, CAD and oil, etc.) and include that asset’s price or return.
+
+Interest Rate Differentials: The carry trade effect means currencies with higher interest rates tend to appreciate slowly (to offset the yield differential). A feature for the 2-year yield difference or overnight rate difference between the two currencies is effectively the “carry.” While carry is more of a long-horizon factor, it can influence trend direction. Incorporating it as a slow-moving feature (updated when rates change) gives the model a fundamental anchor. In the XGBoost FX paper, they integrated such fundamental variables alongside technical ones, and imposing the expected directional effect (via monotonic constraints) helped the model. For example, ensure the model learns that if USD interest rate >> EUR interest rate, the USD tends to appreciate (EUR/USD down).
+
+Note: Cross-asset features must be synchronized in time and known in advance (e.g. yesterday’s stock close can be used for today’s FX prediction on daily; for intraday, you might use same-hour equity moves). They add complexity, so introduce a few that you suspect are impactful rather than dozens. A currency correlation matrix or PCA can also be used to reduce redundancy – e.g. instead of individual pairs, include the first principal component of major FX pairs (which often represents overall USD strength).
+
+Macro-economic and Calendar Features: These include economic indicators and event timings:
+
+Scheduled News/Event Flags: Big FX moves often happen around economic data releases (jobs reports, CPI, central bank meetings). The model should be aware of these time-based catalysts. Include features like “Minutes until next Fed rate decision” or a binary flag “NFP report in next hour”. This doesn’t tell direction, but signals the model that volatility regime is about to change. You might even include previous event outcomes (e.g. last CPI surprise) if you want the model to anticipate similar reactions.
+
+Economic Fundamentals: For longer timeframe models (H4 or daily), inputs like inflation rates, GDP growth, or trade balances can matter. But on 15m–H1, these won’t vary within the horizon and are likely already priced in except when surprising. It might be safer to exclude most slow economic variables to avoid overfitting (they’re more relevant for macro analysis than short-term trading). One exception is interest rate differential (discussed above) which is simple and powerful.
+
+Technical Patterns / Price Structure: This is more advanced – using ML to recognize patterns like support/resistance or chart formations. One way is to compute distance to recent high/low (e.g. pips from the 20-day high and 20-day low) as features. If price is near a major high, the model might learn breakout vs double-top probabilities. Another way is employing a CNN on raw price “images” or using autoencoders to detect complex patterns and feed those signals in. Unless you already have such tools, a simpler approach is to include a few price action features: e.g. candle shape (was last bar bullish engulfing?), trend line slope, or support/resistance tests (flag = 1 if price is within 5 pips of 30-day high). These can hint to the model about important levels.
+
+Time-of-Day/Week/Seasonality: FX markets exhibit intraday and weekly cycles due to market sessions and habitual flows. For example, London/New York overlap (roughly 13:00–17:00 GMT) is most volatile, while Asian session night hours are quieter. You should include time features such as:
+
+Hour of day (could be one-hot encoded or a cyclical variable).
+
+Day of week (FX tends to have certain day patterns – e.g. Monday ranges, Thursday trending moves, etc.).
+
+Possibly a session indicator (e.g. feature “LondonSession=1/0”).
+
+These help the model know when to expect big moves. A known strategy is the “London breakout”, implying volatility surge at a certain hour. Including time explicitly lets the ML learn such patterns. Seasonality can extend to month of year (some currencies strengthen seasonally at certain times due to corporate flows or holidays). For a medium-term strategy this is minor, but if you find evidence (say December tends to be quiet, or August sees trends due to low liquidity) you could incorporate a month feature.
+
+In designing the minimum viable feature set, focus on quality over quantity. Each feature should have a plausible rationale for why it might predict the target. For instance, “the 1-hour momentum is strong, and it’s London morning – likely the move continues enough to hit a 20 pip target” — here momentum and time features together support a prediction. You might start with ~10-20 features covering different aspects (trend, vol, time, relative strength, etc.). A possible minimal set:
+
+1-bar and 10-bar returns (momentum/reversal)
+
+14-period RSI (overbought/oversold)
+
+20-bar ATR (volatility)
+
+Price distance from 50-bar MA (trend vs mean reversion)
+
+Day of week and Hour of day
+
+A currency index (e.g. USD index if your pair involves USD)
+
+Interest rate diff (for fundamental bias)
+
+A flag for “major news in next hour”
+
+This is just a starting point; you will iterate and refine.
+
+ 
+
+Feature selection/importance: After initial training, evaluate which features the model actually uses. Tree models give importance scores or SHAP values; for neural nets, you can do ablation (remove one feature and see impact). If some features seem to contribute nothing or just add noise, consider dropping them to simplify the model. Conversely, if model performance is lacking, brainstorm additional features that might capture missed effects. The key is to guard against “feature overload” – more features != better. In fact, Lopez de Prado emphasizes that too many features can overfit random noise in finance data; he advocates techniques like orthogonal feature selection and purging features that don’t add predictive power. Use cross-validated feature importance: if a feature doesn’t consistently improve validation performance, it’s probably not real signal. Also beware of multicollinearity – if you include highly correlated features (e.g. 5 different moving averages), the model effectively sees the same signal multiple times and can overfit to its noise. It’s better to pick one or use PCA to compress them.
+
+ 
+
+In summary, ground your feature set in known FX behaviors: trend, carry, momentum, seasonality, and risk sentiment. Many academic and industry works reinforce these – e.g. an IEEE survey (2023) found that combining technical indicators with other AI-driven features can yield robust models. Keep the feature set parsimonious at first; you can always add more later if needed. It’s often surprising how a small set of well-chosen features can produce a decent Sharpe, whereas a kitchen-sink approach might backfire out-of-sample.
+
+4. Timeframe and Pair Selection
+
+Optimal Timeframe: The choice between 15-minute (M15) and 1-hour (H1) (or 4-hour) involves a trade-off between sample size and signal quality:
+
+M15: You get 4 times more data than H1, which helps train data-hungry models and yields more trades for statistical confidence. Short-term patterns (order book imbalances, microstructure effects) might be more pronounced here. However, noise and false signals are much higher on 15-min bars. Small moves may not overcome transaction costs. The market can “wiggle” a lot within an hour, producing whipsaws that trick the model.
+
+H1: Each bar encapsulates more price movement and naturally filters out some noise. Many traders consider H1 a sweet spot for intraday swing trades – it’s fast enough to get dozens of trades per month, but slow enough that each move is significant. H1 signals often have better signal-to-noise ratio than very short-term. The downside is fewer training samples (only ~24 bars per day). With limited data, complex ML might overfit or not generalize well.
+
+Research perspective: Studies vary; some algorithmic trading research focuses on daily or hourly bars where economic signals are clearer, whereas high-frequency studies rely on proprietary order book data. For our context (retail spot FX, aiming for Sharpe >1.5 after costs), H1 is likely a reasonable starting timeframe to target. Your earlier tests on H1 showed about ~70-100 trades per walk-forward window, which might have been a bit low. If that was per year, that’s okay but borderline – ideally, we want 200+ trades in the test to gauge statistical significance (as you noted). If H1 over a year yields <100 trades with your strategy, consider either lengthening the test period or shifting to M30 or M15 to increase frequency.
+
+ 
+
+One approach is to use multi-timeframe features: e.g. run the model on M15 bars (to update predictions every 15 minutes) but include H1 or H4 trend indicators as features. This way, you benefit from both worlds – the model sees the smoother longer-term trend and the finer short-term price action. Many practitioners do this (e.g. an H4 moving average feature on an M15 model).
+
+ 
+
+Recommendation: Begin with H1 as the decision interval for model training/validation – it’s simpler and likely more robust initially. Once you have a working model on H1, you can attempt to refine to M15 if needed to get more trades (ensuring you incorporate techniques to manage the extra noise, such as requiring stronger model confidence for M15 entries). The 4-hour (H4) timeframe could also be considered for a slower strategy if aiming for swing trades spanning days, but that will severely limit the number of trades (maybe a few per month) – not ideal for ML which needs many examples. Many successful FX algos operate around H1 timeframe for a balance of quantity and quality.
+
+ 
+
+Pair Selection: Focus on liquid, major or minor FX pairs where data is plentiful and spreads are reasonable. Your options:
+
+Major pairs (EUR/USD, GBP/USD, USD/JPY, USD/CHF, AUD/USD, USD/CAD, etc.): These have the tightest spreads (often <1 pip for EUR/USD) and lots of historical and real-time data. They tend to be more efficient (harder to find an edge) because so many participants trade them. Nonetheless, subtle patterns exist and costs are low, so a small edge can be exploited. EUR/USD is a common starting point – it’s the most liquid and somewhat trend-following at times (especially during active hours).
+
+Crosses (minor pairs like GBP/JPY, EUR/JPY, AUD/NZD, etc.): These have slightly wider spreads and less volume, but as a result they can be less efficiently arbitraged. Anecdotally, crosses sometimes exhibit cleaner technical patterns or persistent deviations because not all big players watch them as closely as EUR/USD. For example, GBP/JPY is known for strong trends and volatility (the “Dragon” pair). A LinkedIn article noted that minor pairs can present untapped opportunities due to lower efficiency, but with higher volatility and risk. If your brokerage spreads are manageable on such pairs, they could be fruitful for an ML model to exploit anomalies.
+
+Exotic pairs (USD/TRY, etc.): Usually not recommended – very high spreads, event risk, and unreliable data. Leave these until much later if at all.
+
+Which pair to choose? It often depends on your strategy type. If your features include global risk factors and USD strength, trading a USD-based major (like GBP/USD or EUR/USD) makes sense to capture those effects. If you suspect a certain pair has a behavioral quirk (e.g. AUD/NZD mean reverts strongly due to economic linkage), you might target that. Given your goal of 200+ trades in test, majors will provide plenty of opportunities.
+
+ 
+
+A pragmatic approach: start with 2-3 pairs to develop models for, possibly with different characteristics (e.g. one major like EUR/USD, one volatile like GBP/JPY). This way you diversify and also see where the model performs best. Often, each pair will require its own model tuned to its behavior – e.g. an EUR/USD model might not transfer well to USD/JPY because the drivers differ (EUR/USD more sensitive to Eurozone/U.S. data, USD/JPY to risk sentiment and BoJ policy). In the XGBoost FX study, they indeed evaluated models across G10 currencies individually (forecasting each with its own model) rather than one model for all.
+
+ 
+
+Multi-Pair Model? You might ask if a single model can be trained to trade multiple pairs (with pair as an input feature). In theory yes – you could add a one-hot encoding of which pair, and train on all data combined. This gives more data to the model and it might find general patterns (like momentum works universally). But in practice, the differences in pair behavior might confuse a single model (one size may not fit all). It’s usually more effective to build separate models per pair, or at least per cluster of similar pairs. You can then allocate capital to each model’s signals. This also avoids a single model overweighting a currency that had more data in training.
+
+ 
+
+Timeframe/Pairs Summary: Target H1 for the core strategy, trade a handful of liquid pairs that complement each other (e.g. don’t pick only EUR/USD and USD/CHF which are highly anti-correlated due to the Euro and Swiss Franc both vs USD – that’s effectively one trade). Maybe EUR/USD (steady, lower volatility), GBP/JPY (wild, higher volatility), and one commodity currency pair (AUD/USD or USD/CAD) for diversity. Ensure your backtest includes realistic spreads for each (majors might easily handle your 20 pip target, whereas a pair with 3 pip spread might need a slightly larger target).
+
+ 
+
+During development, you might find the model works great on one pair and not at all on another – use that feedback to iterate. It’s possible that some pairs are more predictable by ML than others. Academic evidence suggests exchange rates are notoriously hard to predict out-of-sample (the classic Meese-Rogoff result), but certain structured strategies (carry, momentum) did work historically. By focusing on a pair where a structural inefficiency exists (e.g. a central bank intervenes regularly, creating mean reversion – like perhaps USD/JPY historically with BoJ), you increase chances of success.
+
+ 
+
+Finally, remember to trade one model per pair rather than feeding all pairs into one pot. This also helps achieve the 200+ trades requirement: you can combine the trade counts from multiple models (assuming they are uncorrelated strategies) to reach a higher total number of trades and more stable overall performance.
+
+5. Training Methodology and Overfitting Prevention
+
+Designing the training and validation pipeline correctly is crucial to get realistic out-of-sample performance and avoid overfitting (which is the #1 pitfall in financial ML). Key aspects:
+
+Walk-Forward Validation: You already have a 7-stage walk-forward pipeline, which is excellent. Continue with a walk-forward (rolling window) approach for model retraining and validation. In walk-forward, you train the model on a rolling historical window (e.g. last 2 years), then test it on the subsequent out-of-sample period (e.g. next 3 months). Then slide the window forward and repeat. This mimics how the model will be used in live trading (constantly re-trained on recent data as time progresses). It also reveals how performance might decay or shift in different market regimes. Do not use future data to train at any point in a given iteration – this ensures no look-ahead bias. An expanding window (where you keep adding new data without dropping old) is another option, but in FX long-old data may not be relevant (due to regime changes), so a rolling window that only uses the last N bars may generalize better to current market conditions. You can experiment with window length (e.g. 1 year vs 3 years of training data) – longer gives the model more data, shorter makes it adapt to recent regime. Often a compromise is best (maybe ~2 years for H1 data, so ~17k bars).
+
+Purged & Embargoed Cross-Validation: When tuning hyperparameters (e.g. via Optuna) or selecting features, use purged CV on your training set to avoid subtle leaks. Purged K-fold cross-validation means that if a training label’s period overlaps with a validation label’s period, you remove (purge) that training sample. This prevents the model from training on data points that could have knowledge of the validation window (due to overlapping trades or adjacent time). Additionally, apply an embargo – a buffer period after each validation fold, to ensure no bleed-over of information through time adjacency. Lopez de Prado introduced Combinatorial Purged CV as a robust method for financial data. Implementing this might be complex, but at least ensure your CV splits respect time order (never train on future) and ideally leave a gap. For example, if doing a simple train/validation split for parameter tuning, don’t just take the last X% as validation without a gap – better to leave say 1-week gap between train and validation to ensure truly unseen.
+
+Sample Size & Overfitting: As mentioned, try to have a healthy number of training examples per model. Each walk-forward training might use, say, ~10k hours of data (~1.5 years) which with perhaps 2 features per hour (if triple barrier labeling yields ~2 trade labels per day on average) gives a few thousand positive/negative examples – that’s borderline but workable for a simple model. For deep learning, you’d want more. If you find the model is overfitting (training performance much better than validation), reduce complexity (e.g. fewer layers, stronger regularization, or switch to a simpler algorithm). It’s better to underfit than overfit in finance – a simpler model with slightly lower in-sample fit often performs more consistently out-of-sample.
+
+Label Construction Nuances: Use the triple-barrier labeling as described for generating training labels. A few practical points: define your profit and stop targets in a dynamic way if possible (e.g. 2 * ATR for profit, 1 * ATR for stop) so they scale with volatility. This can make labels more consistent across different volatility regimes. Alternatively, keep them fixed (e.g. 20 pips/10 pips) but be aware in very quiet periods 20 pips might never hit, and in volatile periods 20 pips is easy – causing a bias in labels. You could incorporate volatility as a feature to help the model contextualize this. Also, ensure transaction costs are accounted for in labeling: for instance, if your spread is 1 pip, you might actually label positive only if price went Target+spread in your data (so that net of spread you got target). It’s small but it aligns the model with net returns.
+
+ 
+
+If using a classification target with 0 (no-event), you may choose to drop the 0s to train a cleaner classifier on clear outcomes, or train a 3-class model (win/lose/none). A 3-class is harder to get right; a simpler approach is train binary on +1 vs –1 only, and separately train a model or heuristic to decide when to abstain. For example, you might instruct the model to output a probability, and only take a trade if that probability > 0.6; otherwise, treat it as no trade. This effectively creates your own “don’t trade” zone. Many profitable systems trade less than 50% of the time, only acting when the edge is strong.
+
+Avoiding Data Leakage: Be meticulous that your features at time t use only information available at or before t. This is especially important if you generate features that look into the future by accident (e.g. using a rolling mean that isn’t properly lagged). Ensure any indicator or feature is based on past bars only. Also, when doing walk-forward, you likely “freeze” the model after training on past data and test on future – that’s correct. Do not continually update the model within the test period without proper validation (except where your walk-forward schedule dictates retraining).
+
+Feature Selection & Testing: Use your pipeline’s feature importance analysis to drop useless features. One robust method is drop-one-out testing: remove a feature, retrain model, see if validation Sharpe drops significantly. If not, that feature wasn’t contributing. This should be done within each training window ideally. Also watch out for features that might be implicitly leaking target info (for example, if you accidentally included a feature like “max price in next 5 bars” in training – that would directly leak future info; obviously you wouldn’t intentionally, but double-check any complex feature formulas).
+
+Hyperparameter Optimization: Use Optuna or similar during training but apply it within the walk-forward loop each time, or on a separate calibration period. Avoid tuning hyperparams on the entire dataset and then testing on the same – that can leak info. Ideally, each train window does an inner CV to tune hyperparams (with purging). Alternatively, you can use a few years of data as a development set to find a good hyperparam setting (say number of LSTM units, tree depth, etc.), and then fix those params when running the full walk-forward on fresh data. Stability is key – if the optimal params change drastically each window, your model might be overfitting nuances of each period.
+
+Expanding vs Rolling Window: Rolling (moving window) is recommended to ensure the model doesn’t learn from very old data that’s no longer relevant (e.g. pre-2008 crisis data might not help in 2023 regime). Expanding (train on all data up to time t) will give more samples and might improve predictive power if the underlying relationship is stationary. FX, however, has regime shifts (e.g. central bank policy changes, volatility regimes). A compromise is expand to a point and then roll – for example, use up to 5 years of data max; once you have 5 years, drop the oldest year for each new retrain to keep the window size roughly constant. Monitor if model performance deteriorates when using too much old data.
+
+Minimum Trades for Significance: Ensure each out-of-sample test covers enough trades. Because you require 200+ trades in the test period, set your walk-forward test window accordingly. For instance, if your strategy trades ~5 times per week, you’d need ~40 weeks (~10 months) of test data to get 200 trades. It might be better to evaluate performance on a year or multi-year out-of-sample rather than quarter by quarter. You can still retrain more frequently, but aggregate the stats. In any case, gather performance statistics with confidence intervals – e.g. use bootstrapping or look at t-stat of your returns – to ensure your Sharpe isn’t just luck. Marcos Lopez de Prado suggests using deflated Sharpe ratio adjustments when you’ve tried many configurations, to account for data-snooping.
+
+Walk-forward Stability: Look for consistency in your model’s parameters or feature importance across folds. If they wildly change each retrain, the model might be overfitting to each period’s quirks. Some variation is expected, but core features should remain important if the signal is real. Stability gives confidence that the model is detecting a persistent pattern.
+
+In summary, treat model training as if you were simulating live trading. Only give it past data to learn, then test on forward data. Use rigorous cross-validation to tune things, and always keep a final “evaluation” dataset completely untouched by any tuning (this could be the most recent year, for example, that you only evaluate at the end). This way, you’ll have a realistic gauge of out-of-sample performance. Nearly all failures of ML in trading come from inadvertent look-ahead bias or overfitting, which this methodology is designed to prevent. By purging overlapping data and using walk-forward, you’re applying best practices recommended by Lopez de Prado (2018) and others for financial ML.
+
+6. Execution and Risk Management Framework
+
+Even the best predictive model can fail without solid execution and risk controls. We design the trading strategy around the model to ensure that we capitalize on the edge and survive the inevitable rough periods.
+
+Trade Entry/Exit Execution: The model will generate entry signals (buy or sell). When a signal triggers:
+
+Entry timing: Execute as close to the decision bar close as possible. Since you trade via Oanda spot FX, use a market order or a limit order just through the price to ensure fill. Slippage is usually small in major FX, but monitor it. If trading very short-term around news, slippage can be larger – you might consider avoiding market orders during major news spikes.
+
+Exits: Based on our target labeling approach, you likely have a predefined Take Profit (TP) and Stop Loss (SL) for each trade (e.g. 20 pip TP, 10 pip SL, or dynamic based on ATR). Set those immediately upon entry – this enforces the risk/reward profile that the model was trained on. It’s dangerous to deviate from the model’s assumptions; e.g. if model thought you’d take profit at 20 pips but you don’t set it, you might round-trip a winning trade into a loss. Use bracket orders to automatically exit at TP or SL. That said, you can allow managed exits too: if the model gives a real-time exit signal (say it flips direction or confidence drops), you could exit early. But be careful – this introduces complexity and potentially data-snooping (the model might not have been trained on mid-trade exits).
+
+Avoiding flip-flop churn: One risk with ML signals is they might oscillate (“whipsaw”) in uncertain times. To mitigate excessive back-and-forth trading (which racks up costs), build in a modest hysteresis or signal buffer. For example, if the model output is a probability, require it to cross a threshold to open a trade and go sufficiently below 0.5 to close/reverse. The crypto TFT study did something similar by avoiding frequent position flipping on marginal signal changes, which made the backtest more realistic and reduced transaction costs. Concretely, you might say: only flip position if new signal probability > 0.6 in opposite direction, or if the current trade’s stop/TP hit.
+
+Partial positions: If your model outputs a strong vs weak signal, you might enter partial position for weaker signals and full for strong. However, a simpler rule is: trade only when you have an edge. It might be better to skip low-confidence trades entirely than to put on a smaller trade (since a small edge might not overcome cost). This ties into position sizing next.
+
+Position Sizing: This determines how large each trade is (how many lots). Good position sizing can maximize growth while controlling risk. Several approaches:
+
+Fixed Fractional: Risk a fixed percentage of capital per trade (say 1% of equity at risk on the stop loss). This is a popular and straightforward method. For example, if stop is 10 pips, 1% of $100k account is $1,000 risk, so position size = $1,000 / (10 pips * pip value). Pip value for a standard lot on EUR/USD is ~$10, so that would be $1,000/(10*$10) = 10 standard lots. This way, as your equity grows, trade size grows; if equity shrinks, size shrinks – keeping risk proportional and avoiding ruin. You already have formulae for this. Fixed fractional (with a reasonable percent like 0.5%–2%) ensures drawdowns don’t scale up as you lose – it provides an implicit drawdown control.
+
+Kelly Criterion: Kelly sizing uses the model’s estimated edge (win probability and win/loss ratio) to bet optimally for growth. In theory, Kelly fraction = edge/odds. For example, if your model predicts 60% win chance with 2:1 payoff, Kelly might bet ~20% of capital – which is far too high for comfort in practice. Kelly maximizes log-growth but also leads to very high volatility in equity and large drawdowns if the estimates are off. It’s not recommended to use full Kelly for live trading; model probabilities are never certain. If you want to incorporate Kelly ideas, consider a fractional Kelly (e.g. 1/4 Kelly) or use it to rank signal strength but cap at a max risk. For instance, if model probability is 0.55 vs 0.70, you might risk 0.5% on the first and 1.5% on the second. This is a form of confidence-based sizing. Make sure your probability estimates are well-calibrated if you do this.
+
+Model-Predicted Size: If you train a regression model to predict the magnitude of the move, you could size proportional to the predicted return (e.g. larger size for larger expected move). But since our primary model is classification, an analog is sizing by model confidence. One simple scheme: if model output probability > 0.8, trade 2x your base size; if ~0.6, trade 1x; if 0.51 (just above threshold), maybe don’t trade at all. Essentially, have tiers of confidence. This can juice returns when the model is very sure. Just be cautious – often the model can be most wrong when it’s “sure” because of overfitting or regime change. So impose sanity checks (no trade should risk more than e.g. 2% of account).
+
+Volatility Scaling: Another sensible approach is to adjust position size based on market volatility. For example, you could target a fixed dollar volatility for the position. If ATR is high (market swinging more), you trade fewer lots; if ATR is low, you trade more lots, so that e.g. average daily P/L fluctuation is constant. This prevents an overly large position during volatile times that could cause outsized losses. It’s somewhat automatically achieved by fixed % risk on a fixed pip stop, but in case your strategy doesn’t always use the same stop, it’s worth considering.
+
+In practice, a fixed fractional (percent risk) method is robust and easy. Start with that (say 1% risk per trade). If the strategy shows very low volatility of returns, you can consider increasing to 1.5% or 2%. If it’s high volatility, even 0.5% might be prudent. Many professional traders use half-Kelly or less in position sizing to stay safe, given estimation uncertainty.
+
+Incorporating Transaction Costs: All performance assessments and strategy rules must include spread and slippage. For each trade, subtract the spread from your TP distance (effectively need price to move that extra bit). When training the model, as noted, ensure the labeling took spread into account (or at least the backtest does). You should also penalize excessive trading in your strategy. If the model starts flipping too often, transaction costs will erode profitability. One solution: impose a minimum price move threshold to consider a new trade signal. For example, require that the expected move is at least 2–3 times the spread. If your spread is 1 pip and model expects a 5 pip move, that’s a poor trade (net 4 pips, likely not enough after slippage). You can implement this by not acting on signals that forecast very marginal gains. This essentially was suggested in your own question: “If prediction falls into a category for a minimum variation it doesn't worth the trade”. You might create a third class or simply not trade if the model’s expected return is below a threshold.
+
+ 
+
+In backtesting, simulate a realistic spread + slippage (maybe 1–2 pips on majors, more on minors; perhaps more during news). Only count a trade as winning if it clears costs. When optimizing, you could even include cost in the reward function (e.g. maximize net return instead of just accuracy). Some advanced approaches train models with a cost term, but a simpler way is just to be mindful in evaluation – optimize for Net Profit or Sharpe after costs, not raw hit rate.
+
+Drawdown Control: Aim for max drawdown < 20% as per your target. Several layers of defense:
+
+Trade-level stop losses: already in place (e.g. 10 pip stop) – this limits any single trade loss to a known percentage via position sizing. We won’t ever get a 50% DD from one trade like a rogue strategy with no stop.
+
+Daily/Weekly Stop Limit: You can impose a rule: if the strategy loses more than X% in a day or week, stop trading for a cooling-off period. This prevents a spiral of losses (perhaps due to model going haywire in a regime it wasn’t trained on). For example, “if daily loss exceeds 3%, halt trading for rest of day”. Professional trading firms do implement such circuit-breakers.
+
+Drawdown-Based Deleveraging: If the account equity falls by a certain percent from peak (say 10%), you could reduce your trade risk by some factor (e.g. halve position sizes) until you recover. This is a personal preference; it slows recovery but also reduces risk of ruin. Essentially, you’d be dynamically adjusting that 1% risk to maybe 0.5% when in a drawdown. It’s like a built-in caution when things aren’t going well.
+
+Regime filter during drawdown: Often, a drawdown signals the market regime changed and model hasn’t adapted yet. You might, for instance, stop trading if the model’s last N trades show significantly negative performance (model may be out of sync). Then resume when either a new model is trained or conditions normalize. An example from academic research: a reinforcement learning FX system implemented a “cool-down period” after hitting a stop – it would pause trading for a set time. This was to avoid rapid-fire losses in a regime where the model was mispredicting. You could similarly say: after 3 losing trades in a row, skip the next 2 signals (or require a very strong confidence to override).
+
+Ultimately, these measures sacrifice some opportunity but protect against the worst-case. The specific thresholds can be optimized (carefully, not to overfit though). The goal is to make the equity curve smoother. Since you target Sharpe > 1.5, consistent risk management is key – many pure ML models blow up by not managing risk when regime shifts (e.g. trend model keeps buying but market changed to range).
+
+Strategy Refinements:
+
+Avoiding Over-Exposure: If you trade multiple pairs/models, control the aggregate risk. E.g. if EUR/USD and GBP/USD models both give a buy, you effectively have a larger USD-short exposure. You might limit total open risk to, say, 3% across all trades, and prioritize the highest-confidence signals. This ensures diversification doesn’t inadvertently turn into a concentrated bet (especially with correlated pairs).
+
+Slippage/Execution Lag: In live trading, ensure your execution is fast and doesn’t slip significantly. If you notice the model’s edge is a few pips and you’re losing that in execution, you may need to adjust (perhaps use limit orders or trade at more liquid times).
+
+Monitoring and Retraining: Continuously monitor the strategy performance. Use your walk-forward as a template – e.g. retrain the model every month or quarter with the latest data. The pipeline is already set for that. This will help the model adapt to new patterns (like a sudden regime of higher volatility).
+
+By integrating these risk controls, we aim for a strategy that is robust and won’t crater during adversity. Remember, capital preservation comes first. A model-based strategy can have unforeseen failure modes, so these guardrails ensure survivability. For instance, if spreads widen or data feed breaks, a max daily loss rule will stop the bleeding.
+
+ 
+
+Execution example: If the model says buy EUR/USD with 0.7 probability of hitting 20 pip target vs 10 pip stop:
+
+Enter long immediately, set TP = entry+20 pips, SL = entry–10 pips.
+
+Suppose your rule is to risk 1% equity on 10 pip SL, you calculate lot size accordingly (maybe 5 mini lots for a ~$10k account, as an illustration).
+
+If model confidence was 0.9 (very high), maybe you risk 1.5% on that trade instead (optional scaling).
+
+Trade runs... if TP hit, great – model predicted correctly. If SL hit, the loss is 1% (within tolerance). If a string of SL hits happen, and you hit your drawdown limit, you stop and retrain or re-evaluate.
+
+Over many trades, position sizing and cost-awareness should keep the account growing steadily if the model’s edge materializes.
+
+7. Realistic Performance Expectations
+
+It’s important to set realistic expectations for a machine-learning forex strategy. Targets like Sharpe > 1.5, max drawdown < 20%, profitable after costs are ambitious but attainable with a solid edge and discipline. Here’s what you might realistically achieve and how to interpret those metrics:
+
+Sharpe Ratio > 1.5: This implies the strategy’s returns are 1.5 times the volatility of returns. In other words, if annual volatility of returns is 10%, the annual return is >15%. A Sharpe of 1.5 is quite strong in the FX world. Many good professional FX strategies fall in the 1.0–2.0 range. For context, a median out-of-sample Sharpe for backtested strategies often drops by 30-50% from in-sample due to overfitting. So if you can get 1.5 in honest out-of-sample testing (with costs), that’s a robust edge. It might correspond to, say, a 15% annual return with 10% volatility, or 30% return with 20% vol, etc. Keep in mind Sharpe doesn’t account for tail risks, so also monitor drawdowns and worst-case scenarios. To maintain a high Sharpe, your win rate and payoff must be consistent. For example, a strategy that wins ~55-60% of trades with a 1.5:1 reward:risk could achieve Sharpe ~1.5–2 range (depending on trade frequency and independence of trades).
+
+Win Rate and Profit Factor: These are more tangible to intuition. A win rate around 50-60% with winners being about 1.5 to 2 times the size of losers is a healthy profile. Profit factor (gross profit / gross loss) might be around 1.3 to 1.5 in such case. That means for every $1 lost, you make $1.3-$1.5. It sounds small, but over many trades it compounds to a high Sharpe. Don’t aim for extremely high win rate (like 80%) – those often come with tiny wins and huge occasional losses (low Sharpe usually). A balanced approach with controlled losses is better.
+
+Max Drawdown < 20%: This is a risk metric investors care about. Under 20% is quite good for an aggressive strategy (many funds have 20-30% drawdowns occasionally). Keeping DD below this means your leverage/risk per trade is set appropriately and the strategy doesn’t have long losing streaks without recovery. With the position sizing and stop management outlined, a 10% or 15% drawdown might occur in a tough quarter, but you’d hope not much more. If you hit 20% you would likely scale down risk or pause as per the rules. Statistically, if each trade has, say, 55% win chance, the probability of 10 losses in a row is low (~0.45^10 ≈ 0.002, or 0.2%), but over thousands of trades even rare events can happen. So drawdowns will eventually come. The plan ensures you survive them. It’s wise to test the strategy on different market periods (2008 crisis, 2010-2014 low vol, 2020 pandemic volatility, etc. if data is available) to see how bad drawdown could get. Use those stress scenarios to adjust expectations and maybe tighten risk if needed.
+
+Return after Costs: The strategy must overcome the spread and commission. If your average trade net profit is only a couple pips, it won’t survive real spreads. Ideally, the strategy should yield a decent number of pips per trade on average after costs. For example, if average win ~15 pips, average loss ~10 pips, and spread 1 pip, then net win ~14, net loss ~11. That still gives a positive edge. If you find net profit per trade is very slim, you may need to refine the model to pick better spots or increase target distance slightly. After accounting for costs, a good ML strategy might hit, say, 10%+ annual return on margin with low volatility if Sharpe is 1.5+. With a bit of leverage (if used prudently), that could be scaled up, but it’s better to first achieve it on a 1:1 basis.
+
+Consistency: Expect that the strategy won’t make money every week or month. There will be flat or losing periods. A Sharpe 1.5 strategy might lose money 4 months out of 12, for instance, but the up months gain more than the down months lose. The key is the positive expectancy and keeping losses small. As long as the thesis of your model holds (market inefficiency it exploits is still there), it should perform over the long run. Regularly check if any structural market changes are hurting it (e.g. if volatility regime shifts, maybe your TP/SL need adjustment or model retraining with more recent data).
+
+Key References to Build On: To further guide implementation and refinement, consider these resources:
+
+Marcos Lopez de Prado’s “Advances in Financial Machine Learning” (2018) – Chapters on labeling, cross-validation, and feature importance are directly applicable. He illustrates triple-barrier labeling and purged CV, which we utilized.
+
+Lin et al. (2024), Enhancing Exchange Rate Forecasting Accuracy with XGBoost – Demonstrates how integrating many features (fundamental + technical) and adding constraints can improve FX prediction. It provides a template for feature engineering and the impact of macro variables.
+
+“A Systematic Survey of AI in Financial Market Forecasting for Profitability” by Khattak et al. (2023) – Reviews many ML approaches in trading; notes the popularity of LSTM and hybrid models and highlights that many studies lack true out-of-sample profit evaluation. It reinforces focusing on profitability metrics, not just accuracy.
+
+Recent academic works on transformers for time-series (e.g. Zhang et al. 2023) – show how attention mechanisms can improve forecasting of market data. If interested in cutting-edge, look at Temporal Fusion Transformer usage in finance (e.g. the 2025 crypto study by Lee et al.).
+
+Open-source implementations: Libraries like Hudson & Thames’ MlFinLab (in Python) implement many of Lopez de Prado’s techniques (triple barrier, purged CV, bet sizing). Although not free, their papers/blogs (e.g. on triple barrier and meta-labeling) are insightful. Also, forums like QuantConnect (as you’ve seen) have community projects – e.g. an XGBoost FX strategy by a user which might shed light on practical challenges.
+
+Finally, don’t neglect classic trading literature for ideas: e.g. “Trading and Exchanges” by Harris (for microstructure insights) or “Systematic Trading” by Urban (for risk management techniques) – these aren’t ML-focused but will deepen understanding of market behavior that your model is trying to capture.
+
+By synthesizing these sources and rigorously testing your strategy, you position yourself to achieve a robust, profitable algorithmic FX system driven primarily by machine learning. The journey will involve a lot of experimentation and fine-tuning, but with the structured approach above, you’ll be applying state-of-the-art techniques to glean an edge in the FX markets. Good luck, and may your out-of-sample results mirror the promise shown in development!
+
+ 
+
+Sources:
+
+Lopez de Prado, M. (2018). Advances in Financial Machine Learning. (for triple-barrier labeling, purged CV, etc.)
+
+Lin, C.H. et al. (2024). Boosted Trees for Exchange Rate Forecasting – showed improved FX prediction and returns with XGBoost.
+
+Papapolyzos, T. & Choumas, S. (2021). Machine Learning in FX Trading – e-Forex Magazine. (described ML daily classification for direction/regime).
+
+Khattak, B.H.A. et al. (2023). AI in Financial Forecasting Survey, IEEE Access. (noted success of LSTM hybrids and need for profitability focus).
+
+Recent study: Algorithmic Crypto Trading with Triple Barrier and Transformers (Financial Innovation, 2025) – demonstrated that info-driven bars + triple barrier + deep learning yielded profitable strategies.
+
+Chan, E. (2012). Order flow as a predictor of return (blog) – discusses how order flow predicts FX returns, and challenges for retail.
+
+QuantConnect Forum (2020). XGBoost Forex Strategy – community discussion on implementing an ML FX strategy with proper position sizing and risk management.
+
+Sources

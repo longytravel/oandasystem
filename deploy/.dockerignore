@@ -1,0 +1,18 @@
+# Ignore everything not needed for live trading
+__pycache__
+*.pyc
+.git
+.github
+.claude
+catboost_info
+results/
+docs/
+data/*.parquet
+data/*.csv
+data/state/
+*.md
+*.log
+.env.local
+nul
+instances/
+deploy/nssm/
