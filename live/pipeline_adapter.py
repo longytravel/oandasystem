@@ -151,9 +151,7 @@ class PipelineStrategyAdapter(Strategy):
             return signals
 
         except Exception as e:
-            logger.error(f"Signal generation failed: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.exception(f"Signal generation failed: {e}")
             return []
 
     def manage_positions(

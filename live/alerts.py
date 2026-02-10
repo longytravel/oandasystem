@@ -333,12 +333,12 @@ alerts = TelegramAlerts()
 
 if __name__ == "__main__":
     # Test alerts
-    print("Testing Telegram alerts...")
+    logger.info("Testing Telegram alerts...")
 
     if not alerts.enabled:
-        print("Telegram not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in .env")
+        logger.warning("Telegram not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in .env")
     else:
         if alerts.test_connection():
-            print("Test message sent successfully!")
+            logger.info("Test message sent successfully!")
         else:
-            print("Failed to send test message")
+            logger.error("Failed to send test message")

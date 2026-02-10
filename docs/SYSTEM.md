@@ -1,6 +1,6 @@
 # OANDA Trading System - Developer Guide
 
-**Last Updated:** 2026-02-07
+**Last Updated:** 2026-02-10
 
 ---
 
@@ -20,6 +20,9 @@ python scripts/run_pipeline.py --pair GBP_USD --timeframe H1 --strategy rsi_full
 # Run with custom config
 python scripts/run_pipeline.py --pair GBP_USD --timeframe H1 --strategy rsi_full_v3 \
   --trials 5000 --test-months 6
+
+# Run paper trading with pipeline-optimized params
+python scripts/run_live.py --strategy rsi_v3 --from-run GBP_USD_M15_20260210_063223
 ```
 
 **IMPORTANT:** `--test-months` defaults to 3 in CLI, overriding config.py's default of 6. Always specify explicitly.
@@ -39,6 +42,17 @@ python scripts/run_pipeline.py --pair GBP_USD --timeframe H1 --strategy rsi_full
 |  Stage 5: MONTE CARLO   Shuffle + bootstrap + permutation testing      |
 |  Stage 6: CONFIDENCE    Scoring (0-100) -> RED/YELLOW/GREEN            |
 |  Stage 7: REPORT        7-tab interactive HTML dashboard               |
++-----------------------------------------------------------------------+
+         |
+         v  (best candidate params)
++-----------------------------------------------------------------------+
+|                        LIVE TRADING ENGINE                              |
++-----------------------------------------------------------------------+
+|  PipelineStrategyAdapter  ->  LiveTrader  ->  OANDA API                |
+|  (wraps FastStrategy)         (candle loop)   (order execution)        |
+|                               RiskManager     PositionManager          |
+|                               (7 pre-trade    (state tracking,         |
+|                                risk checks)    broker sync)            |
 +-----------------------------------------------------------------------+
 ```
 
@@ -62,10 +76,17 @@ oandasystem/
 |   |   +-- s6_confidence.py     # Confidence scoring
 |   |   +-- s7_report.py         # Report orchestrator
 |   +-- report/                  # Report generation package
-|       +-- style.py             # CSS/theme (dark theme)
-|       +-- data_collector.py    # Gathers data from all stages
-|       +-- chart_generators.py  # Plotly chart generation
-|       +-- html_builder.py      # 7-tab HTML dashboard builder
+|   |   +-- style.py             # CSS/theme (dark theme)
+|   |   +-- data_collector.py    # Gathers data from all stages
+|   |   +-- chart_generators.py  # Plotly chart generation
+|   |   +-- html_builder.py      # 7-tab HTML dashboard builder
+|   +-- ml_exit/                 # ML exit model package (concluded neutral)
+|       +-- features.py          # 14-feature computation
+|       +-- labeling.py          # Trade outcome labeling
+|       +-- dataset_builder.py   # Training dataset construction
+|       +-- train.py             # CatBoost/sklearn model training
+|       +-- inference.py         # Per-bar score generation
+|       +-- policy.py            # Exit decision policy
 |
 +-- optimization/                # CORE: Fast backtesting engine
 |   +-- numba_backtest.py        # Numba JIT backtester (3 functions)
@@ -84,22 +105,25 @@ oandasystem/
 |   +-- rsi_full_v3.py           # V3: Stability-hardened (32 params) RECOMMENDED
 |   +-- rsi_full_v4.py           # V4: + BE/trail chaining (34 params)
 |   +-- rsi_full_v5.py           # V5: + chandelier/stale exit (37 params)
-|   +-- ema_cross_ml.py          # V6: EMA cross + ML exit (17 params)
+|   +-- ema_cross_ml.py          # V6: EMA cross (6 params)
 |   +-- rsi_divergence.py        # Legacy (not used by pipeline)
 |   +-- rsi_fast.py              # Strategy registry helper
 |   +-- trend_simple.py          # Simple trend (6 params, baseline)
 |
 +-- live/                        # Live/paper trading
 |   +-- oanda_client.py          # OANDA v20 API wrapper
-|   +-- trader.py                # Live execution engine
-|   +-- position_manager.py      # Position tracking
-|   +-- risk_manager.py          # Risk controls
-|   +-- alerts.py                # Notifications
+|   +-- trader.py                # Live execution engine (candle loop)
+|   +-- pipeline_adapter.py      # Bridges FastStrategy -> Strategy interface
+|   +-- position_manager.py      # Position tracking + broker sync
+|   +-- risk_manager.py          # 7 pre-trade risk checks
+|   +-- health.py                # Heartbeat JSON writer for monitoring
+|   +-- alerts.py                # Telegram notifications (not yet wired in)
 |
 +-- scripts/                     # CLI entry points
 |   +-- run_pipeline.py          # Single pair pipeline (MAIN)
 |   +-- run_multi_symbol.py      # Multi-symbol parallel testing
-|   +-- run_live.py              # Live trading
+|   +-- run_live.py              # Live/paper trading
+|   +-- run_monitor.py           # Instance health monitoring
 |   +-- download_data.py         # Data management
 |   +-- plot_equity.py           # Equity curve visualization
 |   +-- plot_stability.py        # Stability chart visualization
@@ -108,6 +132,10 @@ oandasystem/
 |
 +-- backtesting/                 # Legacy backtest engine (NOT used by pipeline)
 |   +-- engine.py                # Old Python backtester
+|
++-- config/                      # Configuration
+|   +-- settings.py              # Global settings from .env
+|   +-- live_GBP_USD_M15.json    # Exported live trading parameters
 |
 +-- results/                     # Output directory
 |   +-- pipelines/               # Pipeline run artifacts
@@ -122,10 +150,10 @@ oandasystem/
 |   +-- SYSTEM.md                # This file
 |   +-- STRATEGY_EVOLUTION.md    # V1-V6 history and results
 |   +-- KNOWN_ISSUES.md          # Bug tracker
-|   +-- ML_EXIT_PROGRAM.md       # ML exit development plan
+|   +-- LIVE_TRADING.md          # Live trading & VPS deployment guide
 |   +-- QUALITY_ASSESSMENT.md    # Pipeline quality grade
-|   +-- EXIT_FIRST_ML_DEVELOPMENT_WRITEUP.md  # Original ML writeup
-|   +-- archive/                 # Historical docs
+|   +-- ML_TRADING_RESEARCH_BRIEF.md  # ML research summary
+|   +-- archive/                 # Historical docs (ML programs, old handovers)
 |
 +-- .claude/                     # AI agent configuration
     +-- skills/                  # User-invocable workflows
@@ -166,15 +194,26 @@ oandasystem/
 | `pipeline/report/html_builder.py` | 7-tab HTML dashboard with lazy rendering |
 | `pipeline/report/style.py` | Dark theme CSS |
 
+### 5. Live Trading
+| File | Purpose |
+|------|---------|
+| `live/pipeline_adapter.py` | Wraps FastStrategy for LiveTrader (signal generation + position management) |
+| `live/trader.py` | Main trading loop: wait for candle -> generate signals -> risk check -> execute |
+| `live/risk_manager.py` | 7 pre-trade checks (daily trades, daily loss, drawdown, positions, spread) |
+| `live/position_manager.py` | Track positions, sync with broker, daily stats |
+| `live/health.py` | Write heartbeat JSON for monitoring |
+| `scripts/run_live.py` | CLI entry point with `--from-run` to load pipeline params |
+| `scripts/run_monitor.py` | Health monitoring across multiple instances |
+
 ---
 
 ## Configuration
 
 ### Environment Variables (.env)
 ```
+OANDA_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+OANDA_ACCOUNT_TYPE=practice
 OANDA_ACCOUNT_ID=xxx-xxx-xxxxxxx-xxx
-OANDA_ACCESS_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-OANDA_ENVIRONMENT=practice
 ```
 
 ### Pipeline Config (pipeline/config.py) - Key Values
@@ -206,6 +245,17 @@ min_forward_ratio = 0.15   # Forward/back minimum (see QUALITY_ASSESSMENT for di
 forward_rank_weight = 2.0  # Forward weighted 2x in ranking
 ```
 
+### Risk Management Settings (config/settings.py)
+```python
+MAX_RISK_PER_TRADE = 1.0      # % of equity per trade
+MAX_DAILY_LOSS_PCT = 3.0      # Daily loss circuit breaker
+MAX_DRAWDOWN_PCT = 25.0       # Hard stop - all trading halted
+PAUSE_DRAWDOWN_PCT = 15.0     # Warning level
+MAX_DAILY_TRADES = 5
+MAX_OPEN_POSITIONS = 3
+MAX_SPREAD_PIPS = 3.0
+```
+
 ---
 
 ## Adding a New Strategy
@@ -224,15 +274,38 @@ See [STRATEGY_EVOLUTION.md](STRATEGY_EVOLUTION.md) for detailed examples and les
 
 ---
 
+## Live Trading Architecture
+
+See [LIVE_TRADING.md](LIVE_TRADING.md) for full deployment guide. Key points:
+
+### Trading Loop
+```
+Every candle close:
+  1. Wait for candle boundary (e.g., :00, :15, :30, :45 for M15)
+  2. Fetch N candles from OANDA API
+  3. Run strategy.generate_signals(df) -> signals on latest bar
+  4. For each signal: risk_manager.can_trade() -> 7 checks
+  5. If passed: calculate position size -> market order with SL/TP
+  6. Manage open positions (trailing stop, breakeven)
+  7. Sync positions with broker (detect SL/TP hits)
+  8. Write health.json heartbeat
+```
+
+### PipelineStrategyAdapter
+Bridges the gap between pipeline's `FastStrategy` (vectorized, numba-based) and live's `Strategy` (bar-by-bar signals). On each candle:
+- Calls `precompute_for_dataset(df)` to generate all signals
+- Calls `get_all_arrays(params, ...)` to filter with optimized params
+- Returns `Signal` objects only for the latest bar
+- Also provides `manage_positions()` for trailing stop + breakeven
+
+---
+
 ## Numba Backtest Signature
 
 The numba functions accept a large parameter signature. V4+ added trade management chaining. V5 added chandelier/stale exit. V6 added ML arrays. All are backward compatible (pass zeros/False to disable).
 
 Key parameters after the standard ones:
 ```
-# V4 additions
-chain_be_to_trail    # Replaced in V5 by trail_mode
-
 # V5 additions
 trail_mode           # 0=standard, 1=chandelier
 chandelier_atr_mult  # ATR multiplier for chandelier
@@ -255,15 +328,16 @@ ml_threshold         # ML score threshold for exit
 ```
 OnTester = Profit * R-squared * ProfitFactor * sqrt(Trades) / (MaxDrawdown + 5)
 ```
+**Warning:** Uses absolute dollar profit with compound sizing. Breaks with >200 trades. For high-frequency strategies (M15+), use Sharpe ratio for candidate ranking instead.
 
 ### Confidence Score (0-100)
 Weighted combination of 6 components:
-- Walk-forward pass rate (25%)
+- Walk-forward pass rate (25%) - includes Sharpe consistency adjustment
 - Forward/back performance ratio (15%)
 - Stability score (15%)
 - Monte Carlo results (15%)
 - Backtest quality (15%)
-- Forward Sharpe (15%)
+- Forward Sharpe (15%) - uses WF mean Sharpe, not just optimization-phase Sharpe
 
 Rating: RED (0-40), YELLOW (40-70), GREEN (70+)
 

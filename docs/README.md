@@ -1,6 +1,6 @@
 # OANDA Trading System
 
-Automated trading strategy validation pipeline using OANDA data.
+Automated trading strategy validation pipeline using OANDA data, with live/paper trading support.
 
 ## What It Does
 
@@ -12,6 +12,8 @@ Tests trading strategies through a rigorous 7-stage pipeline:
 5. **Monte Carlo** - Stress test with trade randomization + bootstrap
 6. **Confidence** - Score 0-100 (RED/YELLOW/GREEN)
 7. **Report** - Generate interactive 7-tab HTML dashboard
+
+Then deploys validated strategies to paper or live trading with full risk management.
 
 ## Quick Start
 
@@ -29,6 +31,9 @@ python scripts/run_pipeline.py --pair GBP_USD --timeframe H1
 # Specify strategy version
 python scripts/run_pipeline.py --pair GBP_USD --timeframe H1 --strategy rsi_full_v3
 
+# Run paper trading with optimized params
+python scripts/run_live.py --strategy rsi_v3 --from-run GBP_USD_M15_20260210_063223
+
 # Run multi-symbol test
 python scripts/run_multi_symbol.py --strategy Simple_Trend
 ```
@@ -40,14 +45,19 @@ python scripts/run_multi_symbol.py --strategy Simple_Trend
 | **[SYSTEM.md](SYSTEM.md)** | Developer guide - architecture, code structure, key files |
 | **[STRATEGY_EVOLUTION.md](STRATEGY_EVOLUTION.md)** | Strategy V1-V6 history, results, lessons learned |
 | **[KNOWN_ISSUES.md](KNOWN_ISSUES.md)** | Consolidated bug tracker with status |
-| **[ML_EXIT_PROGRAM.md](ML_EXIT_PROGRAM.md)** | ML exit development program (our adapted plan) |
-| **[HANDOVER.md](HANDOVER.md)** | Sprint 5 execution handover for RSI V3 ML exits |
-| **[EXIT_FIRST_ML_DEVELOPMENT_WRITEUP.md](EXIT_FIRST_ML_DEVELOPMENT_WRITEUP.md)** | Original ML exit writeup (reference) |
+| **[LIVE_TRADING.md](LIVE_TRADING.md)** | Live/paper trading setup, VPS deployment, monitoring |
 | **[QUALITY_ASSESSMENT.md](QUALITY_ASSESSMENT.md)** | Pipeline quality grade (56/100) and improvement priorities |
+| **[ML_TRADING_RESEARCH_BRIEF.md](ML_TRADING_RESEARCH_BRIEF.md)** | ML research summary and conclusions |
 
 ### Archived (Historical Reference)
 | Doc | Purpose |
 |-----|---------|
+| [archive/ML_EXIT_PROGRAM.md](archive/ML_EXIT_PROGRAM.md) | ML exit development program (concluded: neutral) |
+| [archive/ML_EXIT_V2.md](archive/ML_EXIT_V2.md) | ML exit V2 research (concluded: neutral) |
+| [archive/ML_ENTRY_FILTER.md](archive/ML_ENTRY_FILTER.md) | ML entry filter experiments (concluded: neutral) |
+| [archive/HANDOVER_sprint5.md](archive/HANDOVER_sprint5.md) | Sprint 5 ML exit handover |
+| [archive/EXIT_FIRST_ML_DEVELOPMENT_WRITEUP.md](archive/EXIT_FIRST_ML_DEVELOPMENT_WRITEUP.md) | Original ML exit writeup (reference) |
+| [archive/chatGPTMLresearch.txt](archive/chatGPTMLresearch.txt) | ChatGPT ML research notes |
 | [archive/PROJECT_PLAN.md](archive/PROJECT_PLAN.md) | Original project plan (2026-02-01) |
 | [archive/HANDOVER.md](archive/HANDOVER.md) | Development session notes (2026-02-02/03) |
 | [archive/V2_IMPROVEMENTS.md](archive/V2_IMPROVEMENTS.md) | V2 strategy features (superseded by V3+) |
@@ -62,18 +72,19 @@ python scripts/run_multi_symbol.py --strategy Simple_Trend
 - `strategies/` - Trading strategies (6 versions)
 - `scripts/` - CLI entry points
 - `live/` - Paper/live trading infrastructure
+- `config/` - Settings and exported parameter files
 - `docs/` - All project documentation
 
 ## Current Strategies
 
-| Strategy | File | Params | Best Score | Notes |
-|----------|------|--------|------------|-------|
-| RSI Divergence v1 | `rsi_full.py` | 35 | 93/100 GREEN | Original, best single score |
-| RSI Divergence v2 | `rsi_full_v2.py` | 35 | - | Stability fixes |
-| RSI Divergence v3 | `rsi_full_v3.py` | 32 | 89.8/100 GREEN | Stability-hardened, recommended |
-| RSI Divergence v4 | `rsi_full_v4.py` | 34 | 81.5/100 GREEN | Trade management optimization |
-| RSI Divergence v5 | `rsi_full_v5.py` | 37 | 71.8/100 GREEN | Chandelier + stale exit |
-| EMA Cross + ML Exit | `ema_cross_ml.py` | 17 | Not tested | ML-based exit signals |
+| Strategy | File | Params | Best Score (H1) | Best Score (M15) | Notes |
+|----------|------|--------|-----------------|-------------------|-------|
+| RSI Divergence v1 | `rsi_full.py` | 35 | 93/100 GREEN | - | Original, fragile params |
+| RSI Divergence v2 | `rsi_full_v2.py` | 35 | - | - | Stability fixes |
+| RSI Divergence v3 | `rsi_full_v3.py` | 32 | 89.8/100 GREEN | 87.2/100 GREEN | **Recommended** - stability-hardened |
+| RSI Divergence v4 | `rsi_full_v4.py` | 34 | 81.5/100 GREEN | - | Trade management optimization |
+| RSI Divergence v5 | `rsi_full_v5.py` | 37 | 71.8/100 GREEN | - | Chandelier + stale exit |
+| EMA Cross v6 | `ema_cross_ml.py` | 6 | 72.8/100 GREEN | - | EMA crossover, weaker than RSI |
 
 ## Status
 
@@ -86,9 +97,14 @@ python scripts/run_multi_symbol.py --strategy Simple_Trend
 - [x] Confidence scoring (0-100, RED/YELLOW/GREEN)
 - [x] HTML report generation (7-tab interactive dashboard)
 - [x] Multi-symbol parallel testing
-- [x] Paper trading infrastructure
-- [ ] ML exit model (in development - see ML_EXIT_PROGRAM.md)
-- [ ] Production live trading
+- [x] Paper/live trading infrastructure
+- [x] ML exit model (concluded: neutral across 5 A/B tests)
+- [x] ML entry filter (concluded: neutral across 7 A/B tests)
+- [x] VPS deployment (Windows Server)
+- [ ] Telegram alerts (implemented, not wired in)
+- [ ] Multi-pair simultaneous trading
+- [ ] News/session time filters
+- [ ] Auto-reconnection on API errors
 
 ## License
 

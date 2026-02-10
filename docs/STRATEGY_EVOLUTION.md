@@ -1,21 +1,21 @@
 # Strategy Evolution - V1 to V6
 
-**Last Updated:** 2026-02-07
+**Last Updated:** 2026-02-10
 
-This document tracks the evolution of trading strategies, their results, and the lessons learned at each stage. All results are on GBP_USD H1 with 3yr data, 6mo train/6mo test windows, 3mo roll.
+This document tracks the evolution of trading strategies, their results, and the lessons learned at each stage.
 
 ---
 
 ## Summary Table
 
-| Version | Score | WF Pass | Stability | MC | Key Change | Lesson |
-|---------|-------|---------|-----------|-----|------------|--------|
-| V1 | 93/100 GREEN | 100% | - | - | Original RSI divergence | Lucky candidate, fragile params |
-| V2 | - | - | - | - | Regime + quality filters | Added complexity, no improvement |
-| V3 | 89.8/100 GREEN | 100% | 87.9% | 77.4 | Multi-period RSI, hardened defaults | Simplicity wins, defaults matter |
-| V4 | 81.5/100 GREEN | 83.3% | 95.2% | 59.7 | BE->trail chaining, partial close | Optimizer turned OFF headline feature |
-| V5 | 71.8/100 GREEN | 100% | 97.2% | 0.0 | Chandelier, stale exit, wider mgmt | Optimizer disabled ALL management |
-| V6 | Not tested | - | - | - | EMA cross entry + ML exit | Fundamentally different approach |
+| Version | Score (H1) | Score (M15) | WF Pass | Stability | MC | Key Change | Lesson |
+|---------|-----------|-------------|---------|-----------|-----|------------|--------|
+| V1 | 93/100 GREEN | - | 100% | - | - | Original RSI divergence | Lucky candidate, fragile params |
+| V2 | - | - | - | - | - | Regime + quality filters | Added complexity, no improvement |
+| V3 | 89.8/100 GREEN | 87.2/100 GREEN | 100% | 87.9% | 77.4 | Multi-period RSI, hardened defaults | **Best strategy** - simplicity wins |
+| V4 | 81.5/100 GREEN | - | 83.3% | 95.2% | 59.7 | BE->trail chaining, partial close | Optimizer turned OFF headline feature |
+| V5 | 71.8/100 GREEN | - | 100% | 97.2% | 0.0 | Chandelier, stale exit, wider mgmt | Optimizer disabled ALL management |
+| V6.1 | 72.8/100 GREEN | - | 100% | - | - | EMA cross entry | Weaker signal than RSI divergence |
 
 **Key finding: V3 (simplest hardened version) > V4 > V5 (most complex). More management params does NOT equal better results.**
 
@@ -65,7 +65,7 @@ Adding more filters and scoring doesn't help if the core signal is fragile. Bett
 
 ---
 
-## V3 - Stability-Hardened (2026-02-06)
+## V3 - Stability-Hardened (2026-02-06) - RECOMMENDED
 
 **File:** `strategies/rsi_full_v3.py` | **Params:** 32 (-3 vs V1)
 
@@ -82,11 +82,19 @@ Adding more filters and scoring doesn't help if the core signal is fragile. Bett
 - All filters/management OFF by default (signal stage tests pure signal quality)
 - Signal stage FAILS with `tp_mode='fixed'` (negative expectancy)
 
-### Best Result
+### Best Result (H1)
 - **Score: 89.8/100 GREEN**
 - Candidate #9: F/B 83.5%, WF 100%, Stability 87.9%, MC 77.4
 - 14/20 WF windows passed (vs 1/20 for V1), ALL 14 GREEN, 0 fragile params
 - Run: `results/pipelines/GBP_USD_H1_20260206_151217/`
+
+### Best Result (M15)
+- **Score: 87.2/100 GREEN** - 50/50 candidates GREEN
+- 4yr data, 30mo train / 12mo test, 99,506 M15 candles
+- 2,100+ trades, 84-86% win rate, Forward Sharpe 1.15, F/B ratio 0.844
+- Best params: sl_mode=atr(300%), tp_mode=rr(7.5:1), trailing=ON(50/8pip), BE=ON(0.3x/+5pip)
+- Run: `results/pipelines/GBP_USD_M15_20260210_063223/`
+- **Note:** Required Sharpe-based scoring fix (see M15 Timeframe section below)
 
 ### Lesson
 Hardcoding known-good values (multi-period RSI, adaptive swings) and reducing the parameter space produces far more robust results than optimizing more parameters.
@@ -171,36 +179,65 @@ The optimizer turned OFF the headline feature (`chain_be_to_trail=FALSE`). Indep
 
 ---
 
-## V6 - EMA Cross + ML Exit (2026-02-07)
+## V6 - EMA Cross (2026-02-07, updated 2026-02-09)
 
-**File:** `strategies/ema_cross_ml.py` | **Params:** 17
+**File:** `strategies/ema_cross_ml.py` | **Params:** 6 (V6.1, down from 17 in V6.0)
 
 ### Design (Fundamentally Different)
 - **Entry:** EMA fast/slow crossover (not RSI divergence)
   - Fast EMA options: [8, 13, 21]
   - Slow EMA options: [34, 55, 89]
   - All combos pre-computed for speed
-- **Exit:** ML scoring with 8 OHLC features and Optuna-optimized weights
-  - Features computed ONCE per dataset
-  - Scores recomputed per trial (cheap vectorized multiply)
-  - Direction-aware: long features flipped for short positions
+- **Risk:** Standard SL/TP (same as V3)
 
-### New Files
-- `strategies/ema_cross_ml.py` - EMACrossMLStrategy
-- `optimization/ml_features.py` - `compute_ml_features` (@njit) + `compute_ml_scores` (numpy)
+### V6.0 -> V6.1 Fixes
+V6.0 was broken: `tp_atr_mult` defaulted to 0 (no TP), ml_exit group had 8 weights all=0.
 
-### Parameter Groups
-- Signal (3): ema_fast_period, ema_slow_period, min_ema_spread
-- Risk (3): sl_mode, sl_fixed_pips, tp_mode + related
-- ML Exit (11): 8 feature weights + use_ml_exit, ml_min_hold, ml_threshold
+V6.1 fixes:
+- Removed ml_exit group entirely (17 -> 6 params)
+- Fixed `tp_atr_mult` default to 4.0
+- Added 5 crossover-quality features (ema_separation, ema_fast_slope, ema_slow_slope, cross_velocity, bars_since_last_cross)
 
-### Status
-- **Implemented and verified** (imports, numba compilation, backward compat)
-- **NOT pipeline-tested** - needs `run_pipeline.py --strategy ema_cross_ml`
-- **Superseded by ML Exit Program** - the V6 approach (Optuna-optimized linear weights) is too simple. The ML Exit Program proposes proper supervised models (CatBoost/LightGBM) trained on labeled trade data.
+### V6.1 Results
+
+**Baseline (no ML):** 72.8/100 GREEN
+- Run: `results/pipelines/GBP_USD_H1_20260209_182619/`
+
+**With ML entry filter:** 71.7/100 GREEN (marginally worse)
+- ML SKILL DETECTED on 4/7 windows (AUC 0.613-0.761) but NO SKILL on OOS window
+- ML filter actively hurts by removing good candidates on out-of-sample data
+- Run: `results/pipelines/GBP_USD_H1_20260209_190306/`
 
 ### Lesson
-V6 was a good experiment that confirmed the architecture works (ML arrays in numba, features pre-computed). But optimizing ML weights inside Optuna alongside entry params conflates two different problems. The ML Exit Program correctly separates model training from pipeline optimization.
+EMA crossover is fundamentally weaker than RSI divergence on GBP_USD H1 (72.8 vs 89.8). ML entry filter can't fix a weak underlying signal. V3 RSI divergence remains the best strategy.
+
+---
+
+## M15 Timeframe (2026-02-10)
+
+Testing V3 RSI divergence on M15 (15-minute candles) required a critical scoring bug fix.
+
+### Scoring Bug Fix
+The `ontester_score` uses absolute dollar profit with compound position sizing. On M15 with 480+ trades, this compounds to billions, making the forward/back ratio ~0 regardless of actual edge. **Fix:** Changed forward filter and candidate ratio from `ontester_score` to **Sharpe ratio** in `unified_optimizer.py` and `s2_optimization.py`. This is essential for any strategy with >200 trades.
+
+### V3 RSI M15 Results
+- **Score: 87.2/100 GREEN** - 50/50 candidates GREEN
+- 4yr data, 30mo train / 12mo test, 99,506 M15 candles
+- 2,100+ trades, 84-86% win rate, Forward Sharpe 1.15, F/B ratio 0.844
+- MC: all p=0.0000, Bootstrap Sharpe CI [2.84, 7.02], 95% DD 16-20%
+- Best params: sl_mode=atr(300%), tp_mode=rr(7.5:1), trailing=ON(50/8pip), BE=ON(0.3x/+5pip)
+- Run: `results/pipelines/GBP_USD_M15_20260210_063223/` (166 min)
+
+### ML Entry Filter A/B (M15)
+- **Baseline:** 87.2/100 GREEN
+- **ML entry filter:** 87.2/100 GREEN (identical)
+- CatBoost detected marginal skill (val_AUC 0.572-0.578), kept 61-67% of signals
+- Every metric identical: same scores, same Sharpe, same trades, same F/B ratio
+- 7th consecutive A/B test showing ML is neutral
+- Run: `results/pipelines/GBP_USD_M15_20260210_063230/` (177 min)
+
+### Lesson
+Sharpe ratio comparison is essential for high-frequency strategies. With 85% base win rate, ML entry filter can't improve — there's too little room for a classifier to add value.
 
 ---
 
@@ -209,6 +246,8 @@ V6 was a good experiment that confirmed the architecture works (ML arrays in num
 1. **Simplicity wins.** V3 (32 params, hardened defaults) outperformed V4 (34) and V5 (37).
 2. **Defaults determine signal stage success.** If default SL/TP gives negative expectancy, signal optimization finds 0 valid results.
 3. **The optimizer is the truth detector.** It consistently turns OFF features that don't help (V4 chaining, V5 everything).
-4. **RSI divergence + GBP_USD H1** is the proven edge. EUR_USD has zero forward performance.
-5. **ML exits need proper ML.** Linear weight optimization in Optuna is not enough. Need supervised models with train/predict separation.
+4. **RSI divergence + GBP_USD** is the proven edge. EUR_USD has zero forward performance.
+5. **ML can't fix a weak signal.** 7 A/B tests (entry filter) and 5 A/B tests (exit model) all neutral.
 6. **More trades != better strategy.** V1 had 30 forward trades but scored 93; V4 had 93 trades but scored 81.5.
+7. **Use Sharpe for scoring, not dollar profit.** Compound position sizing breaks with >200 trades.
+8. **M15 works.** Same strategy (V3) validates well on both H1 (89.8) and M15 (87.2).

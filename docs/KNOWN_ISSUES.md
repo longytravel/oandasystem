@@ -1,6 +1,6 @@
 # Known Issues Tracker
 
-**Last Updated:** 2026-02-08
+**Last Updated:** 2026-02-10
 **Sources:** Consolidated from REVIEW_FEEDBACK.md, PLAN_CALC_AUDIT.md, PLAN-dashboard-fixes.md
 
 ---
@@ -134,13 +134,24 @@
 **Source:** ML Exit V2 analysis | **Status:** FIXED
 **File:** `optimization/numba_backtest.py`
 **Problem:** When ML closes a trade early, position is freed, new signals fire on bars that were previously blocked. Pass1=90 trades becomes Pass3=123. Extra trades are unoptimized garbage entries that drag performance down.
-**Fix applied:** Added `ml_exit_cooldown_bars` parameter (default 10). After ML exit, new entries are blocked for N bars. Wired through config.py → run_pipeline.py → s3_walkforward.py.
+**Fix applied:** Added `ml_exit_cooldown_bars` parameter (default 10). After ML exit, new entries are blocked for N bars. Wired through config.py -> run_pipeline.py -> s3_walkforward.py.
 
 ### KI-19: ML exit wrong labeling (V1)
 **Source:** ML Exit V2 research | **Status:** FIXED
 **File:** `pipeline/ml_exit/train.py`, `pipeline/ml_exit/labeling.py`
 **Problem:** V1 used `future_r_change_5bar` (5-bar lookahead) as regression target. Too noisy — R² consistently near 0. Model couldn't learn per-bar exit decisions.
 **Fix applied:** V2 trains on `remaining_pnl_r = final_R - current_R` (optimal stopping formulation). Answers "will this trade get better or worse from here?" Falls back to V1 target for old datasets.
+
+### KI-20: VPS numba import chain failure
+**Source:** VPS deployment | **Status:** FIXED
+**File:** `pipeline/__init__.py`, various import paths
+**Problem:** On VPS (no numba needed for live trading), importing `strategies` triggered the full numba import chain, causing failures.
+**Fix applied:** Made optimization imports lazy in `pipeline/__init__.py` so live trading modules don't require numba.
+
+### KI-21: .env not deployed to VPS
+**Source:** VPS deployment | **Status:** FIXED (documented)
+**Problem:** `.env` is in `.gitignore`, so `git pull` on VPS doesn't create it. OANDA credentials missing on first deploy.
+**Fix:** Documented in LIVE_TRADING.md - manually create `.env` on VPS after first clone.
 
 ---
 
