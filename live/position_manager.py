@@ -304,14 +304,16 @@ class PositionManager:
         """Get all open positions."""
         return list(self.positions.values())
 
-    def sync_with_broker(self, broker_trades: List[dict]):
+    def sync_with_broker(self, broker_trades: List[dict], oanda_client=None):
         """
         Sync local positions with broker state.
 
         Detects trades that were closed externally (SL/TP hit).
+        If oanda_client is provided, fetches real exit price and P&L from OANDA.
 
         Args:
             broker_trades: List of open trades from broker
+            oanda_client: Optional OandaClient to fetch closed trade details
         """
         broker_trade_ids = {t['id'] for t in broker_trades}
         local_trade_ids = set(self.positions.keys())
@@ -323,12 +325,41 @@ class PositionManager:
             position = self.positions[trade_id]
             logger.info(f"Trade {trade_id} closed externally (SL/TP hit)")
 
-            # We don't have exact exit info, mark as external close
+            # Try to get real exit details from OANDA
+            exit_price = position.entry_price
+            realized_pnl = 0.0
+            exit_reason = "EXTERNAL"
+
+            if oanda_client:
+                try:
+                    trade_details = oanda_client.get_trade(trade_id)
+                    if trade_details:
+                        realized_pnl = float(trade_details.get('realizedPL', 0.0))
+                        exit_price = float(trade_details.get('averageClosePrice', position.entry_price))
+
+                        # Determine exit reason from trade state/stopLossOrder/takeProfitOrder
+                        state = trade_details.get('state', '')
+                        if state == 'CLOSED':
+                            # Check if SL or TP was filled
+                            sl_order = trade_details.get('stopLossOrder', {})
+                            tp_order = trade_details.get('takeProfitOrder', {})
+                            if sl_order.get('state') == 'FILLED':
+                                exit_reason = "SL"
+                            elif tp_order.get('state') == 'FILLED':
+                                exit_reason = "TP"
+                            else:
+                                exit_reason = "CLOSED"
+
+                        logger.info(f"Trade {trade_id}: exit_price={exit_price:.5f}, "
+                                   f"P&L={realized_pnl:+.2f}, reason={exit_reason}")
+                except Exception as e:
+                    logger.warning(f"Could not fetch trade details for {trade_id}: {e}")
+
             self.remove_position(
                 trade_id=trade_id,
-                exit_price=position.entry_price,  # We don't know actual exit
-                realized_pnl=0.0,  # Will be updated from account
-                exit_reason="EXTERNAL"
+                exit_price=exit_price,
+                realized_pnl=realized_pnl,
+                exit_reason=exit_reason,
             )
 
         # Update unrealized P&L for open positions

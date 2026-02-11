@@ -314,7 +314,7 @@ class LiveTrader:
         """Sync local positions with broker."""
         try:
             broker_trades = self.client.get_open_trades()
-            self.position_manager.sync_with_broker(broker_trades)
+            self.position_manager.sync_with_broker(broker_trades, oanda_client=self.client)
         except Exception as e:
             logger.error(f"Position sync failed: {e}")
 
@@ -338,6 +338,9 @@ class LiveTrader:
             self.position_manager.initialize_daily_stats(account_info['balance'])
             self.position_manager.update_balance(account_info['nav'])
 
+            # Sync positions BEFORE risk check so stale positions get cleared
+            self._sync_positions()
+
             # Get current spread
             spread_pips = self._get_current_spread()
 
@@ -350,8 +353,8 @@ class LiveTrader:
             )
 
             if not can_trade:
-                logger.warning(f"Risk check failed: {reason}")
-                result['error'] = reason
+                logger.info(f"Trading blocked: {reason}")
+                result['blocked'] = reason
                 return result
 
             # Fetch candles
@@ -446,7 +449,7 @@ class LiveTrader:
 
                 if result.get('error'):
                     self.error_count += 1
-                else:
+                elif not result.get('blocked'):
                     self.error_count = 0
 
                 self._write_heartbeat(

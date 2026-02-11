@@ -348,6 +348,18 @@ class OandaClient:
         )
         return response.get("trades", [])
 
+    def get_trade(self, trade_id: str) -> Dict:
+        """
+        Get details for a single trade (open or closed).
+
+        Returns trade with realizedPL, averageClosePrice, closeTime, state, etc.
+        """
+        response = self._request(
+            "GET",
+            f"/v3/accounts/{self.account_id}/trades/{trade_id}"
+        )
+        return response.get("trade", {})
+
     def close_trade(self, trade_id: str, units: Optional[str] = None) -> Dict:
         """Close a specific trade."""
         data = {"units": units or "ALL"}
