@@ -85,27 +85,67 @@ if errorlevel 1 (
     exit /b 1
 )
 
-:: Download NSSM if not present
+:: Find NSSM - check local copy, then PATH, then try to download
 echo.
 if exist "deploy\nssm\nssm.exe" (
     echo [OK] NSSM already downloaded
-) else (
-    echo Downloading NSSM (service manager)...
+    goto :nssm_ready
+)
+
+:: Check if nssm is already in PATH (e.g. installed via winget/choco)
+where nssm >nul 2>&1
+if not errorlevel 1 (
+    echo [OK] NSSM found in PATH
     if not exist "deploy\nssm" mkdir deploy\nssm
-    powershell -Command "Invoke-WebRequest -Uri 'https://nssm.cc/release/nssm-2.24.zip' -OutFile 'deploy\nssm\nssm.zip'"
-    if errorlevel 1 (
-        echo ERROR: Failed to download NSSM.
-        echo   Download manually from https://nssm.cc/download
-        echo   Put nssm.exe in deploy\nssm\
-        pause
-        exit /b 1
+    REM Copy to local dir so install_services.py can find it
+    for /f "delims=" %%i in ('where nssm') do copy "%%i" "deploy\nssm\nssm.exe" >nul
+    goto :nssm_ready
+)
+
+:: Try winget install first (built-in Windows package manager)
+echo NSSM not found. Attempting install...
+echo.
+echo [Try 1/3] winget install nssm...
+winget install nssm --accept-package-agreements --accept-source-agreements >nul 2>&1
+if not errorlevel 1 (
+    REM winget may put it in PATH - check again
+    where nssm >nul 2>&1
+    if not errorlevel 1 (
+        if not exist "deploy\nssm" mkdir deploy\nssm
+        for /f "delims=" %%i in ('where nssm') do copy "%%i" "deploy\nssm\nssm.exe" >nul
+        echo [OK] NSSM installed via winget
+        goto :nssm_ready
     )
+)
+
+:: Try direct download from nssm.cc
+echo [Try 2/3] Downloading from nssm.cc...
+if not exist "deploy\nssm" mkdir deploy\nssm
+powershell -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://nssm.cc/release/nssm-2.24.zip' -OutFile 'deploy\nssm\nssm.zip' -UseBasicParsing" >nul 2>&1
+if not errorlevel 1 (
     powershell -Command "Expand-Archive -Path 'deploy\nssm\nssm.zip' -DestinationPath 'deploy\nssm\temp' -Force"
     copy "deploy\nssm\temp\nssm-2.24\win64\nssm.exe" "deploy\nssm\nssm.exe" >nul
     rmdir /s /q "deploy\nssm\temp"
     del "deploy\nssm\nssm.zip"
-    echo [OK] NSSM downloaded
+    if exist "deploy\nssm\nssm.exe" (
+        echo [OK] NSSM downloaded from nssm.cc
+        goto :nssm_ready
+    )
 )
+
+:: All automatic methods failed - give manual instructions
+echo [Try 3/3] Automatic install failed.
+echo.
+echo   Please install NSSM manually:
+echo     Option A: choco install nssm  (if Chocolatey is installed)
+echo     Option B: Download https://nssm.cc/release/nssm-2.24.zip
+echo               Extract nssm-2.24\win64\nssm.exe to deploy\nssm\nssm.exe
+echo.
+echo   Then re-run this script.
+pause
+exit /b 1
+
+:nssm_ready
 
 :: Hand off to Python to install all strategies from strategies.json
 echo.
