@@ -392,9 +392,14 @@ class LiveTrader:
                         atr_pips = 30.0
 
                     current_price = float(df['close'].iloc[-1])
+                    # Pass bar high/low so BE/trailing checks use intra-bar
+                    # excursions, matching the backtest engine behavior
+                    bar_high = float(df['high'].iloc[-1])
+                    bar_low = float(df['low'].iloc[-1])
                     mgmt_client = self.client if not self.dry_run else None
                     actions = self.strategy.manage_positions(
-                        positions, current_price, atr_pips, client=mgmt_client
+                        positions, current_price, atr_pips, client=mgmt_client,
+                        bar_high=bar_high, bar_low=bar_low,
                     )
                     if actions:
                         result['management_actions'] = actions

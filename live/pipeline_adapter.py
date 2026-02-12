@@ -160,22 +160,34 @@ class PipelineStrategyAdapter(Strategy):
         current_price: float,
         atr_pips: float,
         client=None,
+        bar_high: float = None,
+        bar_low: float = None,
     ) -> List[Dict[str, Any]]:
         """
         Manage open positions: trailing stop and breakeven.
 
         Called by the trading loop on each candle close for each open position.
+        Uses bar_high/bar_low for BE/trailing triggers to match backtest behavior
+        (backtest checks intra-bar excursions, not just close price).
 
         Args:
             positions: List of LivePosition objects
-            current_price: Current market price
+            current_price: Current market price (candle close)
             atr_pips: Current ATR in pips (for breakeven calculation)
             client: OandaClient for modifying trades (None for dry run)
+            bar_high: High of current candle (for BE/trailing trigger check)
+            bar_low: Low of current candle (for BE/trailing trigger check)
 
         Returns:
             List of management actions taken
         """
         actions = []
+
+        # Fall back to current_price if high/low not provided
+        if bar_high is None:
+            bar_high = current_price
+        if bar_low is None:
+            bar_low = current_price
 
         for pos in positions:
             if pos.instrument != self.pair:
@@ -185,11 +197,14 @@ class PipelineStrategyAdapter(Strategy):
             entry_price = pos.entry_price
             current_sl = pos.stop_loss
 
-            # Calculate unrealized profit in pips
+            # Use bar_high for longs, bar_low for shorts to check max favorable excursion
+            # This matches the backtest engine which uses intra-bar highs/lows
             if is_long:
-                profit_pips = (current_price - entry_price) / self._pip_size
+                best_price = bar_high
+                profit_pips = (best_price - entry_price) / self._pip_size
             else:
-                profit_pips = (entry_price - current_price) / self._pip_size
+                best_price = bar_low
+                profit_pips = (entry_price - best_price) / self._pip_size
 
             new_sl = None
 
@@ -209,6 +224,7 @@ class PipelineStrategyAdapter(Strategy):
                             'old_sl': current_sl,
                             'new_sl': new_sl,
                             'profit_pips': profit_pips,
+                            'trigger': f'bar_high={bar_high:.5f}',
                         })
                     elif not is_long and current_sl > be_sl:
                         new_sl = be_sl
@@ -218,10 +234,13 @@ class PipelineStrategyAdapter(Strategy):
                             'old_sl': current_sl,
                             'new_sl': new_sl,
                             'profit_pips': profit_pips,
+                            'trigger': f'bar_low={bar_low:.5f}',
                         })
 
             # --- Trailing Stop ---
             if self.use_trailing and profit_pips >= self.trail_start_pips:
+                # For trailing, use current_price (close) to set the new SL level
+                # but use bar_high/low for the activation check (matching backtest)
                 if is_long:
                     trail_sl = current_price - self.trail_step_pips * self._pip_size
                     if trail_sl > current_sl and (new_sl is None or trail_sl > new_sl):
