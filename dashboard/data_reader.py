@@ -191,7 +191,7 @@ def collect_instance(strategy: dict, instances_dir: Path) -> InstanceStatus:
     pos_state = _read_json_safe(instance_dir / "state" / "position_state.json")
     if pos_state:
         inst.unrealized_pnl = pos_state.get("unrealized_pnl", 0)
-        daily = pos_state.get("daily_stats", {})
+        daily = pos_state.get("daily_stats") or {}
         inst.daily_pnl = daily.get("gross_profit", 0) + daily.get("gross_loss", 0)
         inst.daily_trades = daily.get("trades_closed", 0)
         inst.daily_wins = daily.get("wins", 0)
