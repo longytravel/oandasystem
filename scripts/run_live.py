@@ -34,6 +34,7 @@ from config.settings import settings
 
 # Pipeline strategy map: name -> (module, class)
 PIPELINE_STRATEGIES = {
+    "rsi_v1": ("strategies.rsi_full", "RSIDivergenceFullFast"),
     "rsi_v3": ("strategies.rsi_full_v3", "RSIDivergenceFullFastV3"),
     "rsi_v4": ("strategies.rsi_full_v4", "RSIDivergenceFullFastV4"),
     "rsi_v5": ("strategies.rsi_full_v5", "RSIDivergenceFullFastV5"),
@@ -153,6 +154,7 @@ def create_strategy(args):
         timeframe = run_data['timeframe']
         # Map pipeline strategy_name to our key
         name_map = {
+            'RSI_Divergence_Full': 'rsi_v1',
             'RSI_Divergence_v3': 'rsi_v3',
             'RSI_Divergence_v4': 'rsi_v4',
             'RSI_Divergence_v5': 'rsi_v5',

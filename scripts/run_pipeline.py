@@ -107,8 +107,8 @@ Examples:
     parser.add_argument(
         '--top-n',
         type=int,
-        default=20,
-        help='Top N candidates to validate (default: 20)'
+        default=50,
+        help='Top N candidates to validate (default: 50)'
     )
 
     # Walk-forward settings
@@ -204,6 +204,16 @@ Examples:
         help='Human-readable run description (shown in leaderboard and report header)'
     )
 
+    # Spread and slippage
+    parser.add_argument(
+        '--spread', type=float, default=None,
+        help='Spread in pips (default: auto from config, typically 1.5)'
+    )
+    parser.add_argument(
+        '--slippage', type=float, default=None,
+        help='Slippage in pips (default: 0.5)'
+    )
+
     # Speed presets
     parser.add_argument(
         '--fast',
@@ -275,6 +285,12 @@ def build_config(args) -> PipelineConfig:
     # Output config
     if args.output_dir:
         config.output_dir = args.output_dir
+
+    # Spread and slippage overrides
+    if args.spread is not None:
+        config.spread_pips = args.spread
+    if args.slippage is not None:
+        config.slippage_pips = args.slippage
 
     # Description
     config.description = args.description

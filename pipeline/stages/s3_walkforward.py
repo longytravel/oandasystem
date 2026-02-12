@@ -482,8 +482,8 @@ class WalkForwardStage:
             w_raw_prices = all_entry_prices[sig_mask]
             w_entry_prices = np.where(
                 w_directions == 1,
-                w_raw_prices + self.config.spread_pips * pip_size,
-                w_raw_prices - self.config.spread_pips * pip_size,
+                w_raw_prices + (self.config.spread_pips + self.config.slippage_pips) * pip_size,
+                w_raw_prices - (self.config.spread_pips + self.config.slippage_pips) * pip_size,
             )
 
             # Slice management arrays
@@ -1111,8 +1111,8 @@ class WalkForwardStage:
                 'entry_bars': all_entry_bars[sig_mask] - bar_start,
                 'entry_prices': np.where(
                     signal_arrays_full['directions'][sig_mask] == 1,
-                    signal_arrays_full['entry_prices'][sig_mask] + self.config.spread_pips * pip_size,
-                    signal_arrays_full['entry_prices'][sig_mask] - self.config.spread_pips * pip_size,
+                    signal_arrays_full['entry_prices'][sig_mask] + (self.config.spread_pips + self.config.slippage_pips) * pip_size,
+                    signal_arrays_full['entry_prices'][sig_mask] - (self.config.spread_pips + self.config.slippage_pips) * pip_size,
                 ),
                 'directions': signal_arrays_full['directions'][sig_mask],
                 'sl_prices': signal_arrays_full['sl_prices'][sig_mask],
@@ -1229,8 +1229,8 @@ class WalkForwardStage:
             t_raw_prices = all_entry_prices[train_sig_mask]
             t_entry_prices = np.where(
                 t_directions == 1,
-                t_raw_prices + self.config.spread_pips * pip_size,
-                t_raw_prices - self.config.spread_pips * pip_size,
+                t_raw_prices + (self.config.spread_pips + self.config.slippage_pips) * pip_size,
+                t_raw_prices - (self.config.spread_pips + self.config.slippage_pips) * pip_size,
             )
 
             # Slice management arrays for training signals
@@ -1490,8 +1490,8 @@ class WalkForwardStage:
             t_raw_prices = all_entry_prices[train_sig_mask]
             t_entry_prices = np.where(
                 t_directions == 1,
-                t_raw_prices + self.config.spread_pips * pip_size,
-                t_raw_prices - self.config.spread_pips * pip_size,
+                t_raw_prices + (self.config.spread_pips + self.config.slippage_pips) * pip_size,
+                t_raw_prices - (self.config.spread_pips + self.config.slippage_pips) * pip_size,
             )
 
             # Slice management arrays
@@ -1845,8 +1845,8 @@ class WalkForwardStage:
         pip_size = 0.01 if 'JPY' in self.config.pair else 0.0001
         entry_prices = np.where(
             signal_arrays['directions'] == 1,
-            signal_arrays['entry_prices'] + self.config.spread_pips * pip_size,
-            signal_arrays['entry_prices'] - self.config.spread_pips * pip_size
+            signal_arrays['entry_prices'] + (self.config.spread_pips + self.config.slippage_pips) * pip_size,
+            signal_arrays['entry_prices'] - (self.config.spread_pips + self.config.slippage_pips) * pip_size
         )
 
         # Get management arrays

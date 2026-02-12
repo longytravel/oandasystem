@@ -25,7 +25,7 @@ class OptimizationConfig:
     final_trials: int = 10000
     min_trades: int = 20
     min_back_sharpe: float = 1.0
-    top_n_candidates: int = 20
+    top_n_candidates: int = 50
     min_forward_ratio: float = 0.40  # FIX V4: 0.15 too permissive, allows heavily overfitted candidates
     forward_rank_weight: float = 2.0
     n_jobs: int = 1  # Parallel workers for Optuna (-1 = all cores)
@@ -128,6 +128,7 @@ class PipelineConfig:
     initial_capital: float = 10000.0
     risk_per_trade: float = 1.0
     spread_pips: float = 1.5
+    slippage_pips: float = 0.5
 
     # Output settings
     output_dir: Optional[Path] = None
@@ -159,6 +160,7 @@ class PipelineConfig:
             'initial_capital': self.initial_capital,
             'risk_per_trade': self.risk_per_trade,
             'spread_pips': self.spread_pips,
+            'slippage_pips': self.slippage_pips,
             'output_dir': str(self.output_dir) if self.output_dir else None,
             'save_intermediate': self.save_intermediate,
             'data': {
@@ -250,6 +252,7 @@ class PipelineConfig:
             initial_capital=data.get('initial_capital', 10000.0),
             risk_per_trade=data.get('risk_per_trade', 1.0),
             spread_pips=data.get('spread_pips', 1.5),
+            slippage_pips=data.get('slippage_pips', 0.5),
             save_intermediate=data.get('save_intermediate', True),
         )
 

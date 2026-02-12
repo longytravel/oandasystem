@@ -19,6 +19,16 @@
       "enabled": true,
       "from_run": "GBP_USD_H1_20260206_151217",
       "description": "V3 RSI H1 - 89.8 GREEN"
+    },
+    {
+      "id": "rsi_v1_USD_CHF_H1",
+      "strategy": "rsi_v1",
+      "pair": "USD_CHF",
+      "timeframe": "H1",
+      "risk_pct": 1.0,
+      "enabled": true,
+      "from_run": "USD_CHF_H1_20260212_122528",
+      "description": "V1 RSI H1 - 97.4 GREEN"
     }
   ],
   "dashboard": {

@@ -401,8 +401,8 @@ class MonteCarloStage:
         # Apply spread
         entry_prices = np.where(
             signal_arrays['directions'] == 1,
-            signal_arrays['entry_prices'] + self.config.spread_pips * pip_size,
-            signal_arrays['entry_prices'] - self.config.spread_pips * pip_size
+            signal_arrays['entry_prices'] + (self.config.spread_pips + self.config.slippage_pips) * pip_size,
+            signal_arrays['entry_prices'] - (self.config.spread_pips + self.config.slippage_pips) * pip_size
         )
 
         # Get management arrays
@@ -596,8 +596,8 @@ class MonteCarloStage:
         directions = signal_arrays['directions']
         entry_prices = np.where(
             directions == 1,
-            signal_arrays['entry_prices'] + self.config.spread_pips * pip_size,
-            signal_arrays['entry_prices'] - self.config.spread_pips * pip_size
+            signal_arrays['entry_prices'] + (self.config.spread_pips + self.config.slippage_pips) * pip_size,
+            signal_arrays['entry_prices'] - (self.config.spread_pips + self.config.slippage_pips) * pip_size
         )
 
         n = len(signal_arrays['entry_bars'])
