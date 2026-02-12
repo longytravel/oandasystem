@@ -61,6 +61,9 @@ class InstanceStatus:
     # Live performance (computed from trade_history)
     live_performance: Optional[LivePerformance] = None
 
+    # Heartbeat threshold (timeframe-aware)
+    max_heartbeat_age: float = 300
+
     # Data availability
     has_health: bool = False
     has_config: bool = False
@@ -146,18 +149,26 @@ def read_trade_history(instance_dir: Path, limit: int = 50) -> list:
     return []
 
 
+HEARTBEAT_THRESHOLDS = {
+    'M1': 180, 'M5': 180, 'M15': 300, 'M30': 600,
+    'H1': 5400, 'H4': 18000, 'D': 90000,
+}
+
+
 def collect_instance(strategy: dict, instances_dir: Path) -> InstanceStatus:
     """Collect all data for a single instance."""
     sid = strategy["id"]
+    tf = strategy.get("timeframe", "")
     inst = InstanceStatus(
         id=sid,
         strategy=strategy.get("strategy", ""),
         pair=strategy.get("pair", ""),
-        timeframe=strategy.get("timeframe", ""),
+        timeframe=tf,
         risk_pct=strategy.get("risk_pct", 1.0),
         enabled=strategy.get("enabled", True),
         description=strategy.get("description", ""),
         from_run=strategy.get("from_run", ""),
+        max_heartbeat_age=HEARTBEAT_THRESHOLDS.get(tf, 300),
     )
 
     instance_dir = instances_dir / sid
@@ -222,7 +233,7 @@ def get_daily_summary(instances: list) -> dict:
     total_unrealized = sum(i.unrealized_pnl for i in instances)
     total_trades = sum(i.daily_trades for i in instances)
     open_positions = sum(i.positions for i in instances)
-    running = sum(1 for i in instances if i.status == "running" and i.heartbeat_age_seconds < 300)
+    running = sum(1 for i in instances if i.status == "running" and i.heartbeat_age_seconds < i.max_heartbeat_age)
     errors = sum(1 for i in instances if i.errors > 0 or i.status == "error")
 
     return {

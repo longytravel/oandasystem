@@ -9,6 +9,7 @@ import json
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
@@ -34,6 +35,27 @@ def service_exists(name: str) -> bool:
     return result.returncode != 3  # 3 = service not found
 
 
+def wait_for_removal(svc_name: str, timeout: float = 10.0) -> bool:
+    """Wait until Windows fully removes the service."""
+    start = time.time()
+    while time.time() - start < timeout:
+        if not service_exists(svc_name):
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def remove_service(svc_name: str):
+    """Stop and remove a service, waiting for Windows to release it."""
+    run_nssm("stop", svc_name)
+    run_nssm("remove", svc_name, "confirm")
+    if not wait_for_removal(svc_name):
+        print(f"  [WARN] Service {svc_name} slow to remove, retrying...")
+        time.sleep(2)
+        run_nssm("remove", svc_name, "confirm")
+        wait_for_removal(svc_name, timeout=5.0)
+
+
 def install_strategy(strategy: dict, python_path: str) -> bool:
     """Install a single strategy as a Windows service."""
     sid = strategy["id"]
@@ -46,8 +68,7 @@ def install_strategy(strategy: dict, python_path: str) -> bool:
         # If disabled but service exists, stop and remove it
         if service_exists(svc_name):
             print(f"  Stopping disabled strategy...")
-            run_nssm("stop", svc_name)
-            run_nssm("remove", svc_name, "confirm")
+            remove_service(svc_name)
             print(f"  [OK] Service removed (disabled in strategies.json)")
         else:
             print(f"  [SKIP] Disabled")
@@ -91,8 +112,7 @@ def install_strategy(strategy: dict, python_path: str) -> bool:
     # Remove existing service if present
     if service_exists(svc_name):
         print(f"  Updating existing service...")
-        run_nssm("stop", svc_name)
-        run_nssm("remove", svc_name, "confirm")
+        remove_service(svc_name)
 
     # Install
     result = run_nssm("install", svc_name, python_path, app_args)
@@ -141,8 +161,7 @@ def install_dashboard(config: dict, python_path: str) -> bool:
     # Remove existing service if present
     if service_exists(svc_name):
         print(f"  Updating existing dashboard service...")
-        run_nssm("stop", svc_name)
-        run_nssm("remove", svc_name, "confirm")
+        remove_service(svc_name)
 
     # Install
     result = run_nssm("install", svc_name, python_path, app_args)

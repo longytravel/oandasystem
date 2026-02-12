@@ -70,7 +70,7 @@ def _instance_to_dict(inst) -> dict:
             d["heartbeat_display"] = f"{int(age / 60)}m ago"
         else:
             d["heartbeat_display"] = f"{age / 3600:.1f}h ago"
-        d["heartbeat_ok"] = age < 300
+        d["heartbeat_ok"] = age < d.get("max_heartbeat_age", 300)
     else:
         d["heartbeat_display"] = "N/A"
         d["heartbeat_ok"] = False
