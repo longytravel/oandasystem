@@ -78,7 +78,7 @@ def run_pipeline_subprocess(
     spread: float,
     fast: bool = True,
     years: float = 3.0,
-    strategy: str = 'RSI_Divergence_Full',
+    strategy: str = 'RSI_Divergence_v3',
 ) -> dict:
     """
     Run pipeline for a single pair/timeframe via subprocess.
@@ -385,8 +385,8 @@ def main():
                         help='Use full pipeline mode (overrides --fast)')
     parser.add_argument('--years', type=float, default=3.0,
                         help='Years of data (default: 3.0)')
-    parser.add_argument('--strategy', '-s', default='RSI_Divergence_Full',
-                        help='Strategy name (default: RSI_Divergence_Full)')
+    parser.add_argument('--strategy', '-s', default='RSI_Divergence_v3',
+                        help='Strategy name (default: RSI_Divergence_v3)')
 
     args = parser.parse_args()
 

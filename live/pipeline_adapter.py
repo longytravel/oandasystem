@@ -56,6 +56,9 @@ class PipelineStrategyAdapter(Strategy):
         self.be_atr_mult = optimized_params.get('be_atr_mult', 0.5)
         self.be_offset_pips = optimized_params.get('be_offset_pips', 5)
 
+        # Trail high/low tracking per trade (matches backtest pos_trail_high)
+        self._trail_highs: Dict[str, float] = {}
+
         # Initialize base Strategy (needed for LiveTrader compatibility)
         self.params = optimized_params
 
@@ -211,8 +214,9 @@ class PipelineStrategyAdapter(Strategy):
             # --- Breakeven ---
             if self.use_break_even and profit_pips > 0:
                 be_trigger_pips = self.be_atr_mult * atr_pips
-                be_sl = entry_price + (self.be_offset_pips * self._pip_size if is_long
-                                       else -self.be_offset_pips * self._pip_size)
+                effective_offset = min(self.be_offset_pips, be_trigger_pips)  # Cap offset at trigger
+                be_sl = entry_price + (effective_offset * self._pip_size if is_long
+                                       else -effective_offset * self._pip_size)
 
                 if profit_pips >= be_trigger_pips:
                     # Check if SL hasn't already been moved to breakeven or better
@@ -238,11 +242,12 @@ class PipelineStrategyAdapter(Strategy):
                         })
 
             # --- Trailing Stop ---
+            # Track bar high/low extremes per trade to match backtest pos_trail_high behavior
             if self.use_trailing and profit_pips >= self.trail_start_pips:
-                # For trailing, use current_price (close) to set the new SL level
-                # but use bar_high/low for the activation check (matching backtest)
+                tid = pos.trade_id
                 if is_long:
-                    trail_sl = current_price - self.trail_step_pips * self._pip_size
+                    self._trail_highs[tid] = max(self._trail_highs.get(tid, bar_high), bar_high)
+                    trail_sl = self._trail_highs[tid] - self.trail_step_pips * self._pip_size
                     if trail_sl > current_sl and (new_sl is None or trail_sl > new_sl):
                         new_sl = trail_sl
                         actions.append({
@@ -253,7 +258,8 @@ class PipelineStrategyAdapter(Strategy):
                             'profit_pips': profit_pips,
                         })
                 else:
-                    trail_sl = current_price + self.trail_step_pips * self._pip_size
+                    self._trail_highs[tid] = min(self._trail_highs.get(tid, bar_low), bar_low)
+                    trail_sl = self._trail_highs[tid] + self.trail_step_pips * self._pip_size
                     if trail_sl < current_sl and (new_sl is None or trail_sl < new_sl):
                         new_sl = trail_sl
                         actions.append({
@@ -275,5 +281,11 @@ class PipelineStrategyAdapter(Strategy):
                     )
                 except Exception as e:
                     logger.error(f"Failed to modify trade {pos.trade_id}: {e}")
+
+        # Clean up trail tracking for closed positions
+        active_ids = {pos.trade_id for pos in positions if pos.instrument == self.pair}
+        for tid in list(self._trail_highs.keys()):
+            if tid not in active_ids:
+                del self._trail_highs[tid]
 
         return actions

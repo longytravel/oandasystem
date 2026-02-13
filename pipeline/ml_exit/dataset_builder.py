@@ -104,12 +104,7 @@ def build_exit_dataset(
         logger.warning(f'Too few signals ({n_signals}) to build dataset')
         return pd.DataFrame()
 
-    # --- Apply spread to entry prices (same as s5_montecarlo) ---
-    entry_prices = np.where(
-        signal_arrays['directions'] == 1,
-        signal_arrays['entry_prices'] + config.spread_pips * pip_size,
-        signal_arrays['entry_prices'] - config.spread_pips * pip_size,
-    )
+    # Spread is now deducted in engine via PnL deduction, no entry price adjustment needed
 
     # --- Prepare management arrays (same pattern as s5_montecarlo._get_trade_pnls) ---
     n = n_signals
@@ -139,7 +134,7 @@ def build_exit_dataset(
     # --- Run backtest with telemetry ---
     result = full_backtest_with_telemetry(
         signal_arrays['entry_bars'],
-        entry_prices,
+        signal_arrays['entry_prices'],
         signal_arrays['directions'],
         signal_arrays['sl_prices'],
         signal_arrays['tp_prices'],
@@ -157,6 +152,7 @@ def build_exit_dataset(
         params.get('max_daily_loss_pct', 0.0),
         quality_mult,
         get_quote_conversion_rate(pair, 'USD'),
+        spread_pips=config.spread_pips,
     )
 
     # Unpack telemetry

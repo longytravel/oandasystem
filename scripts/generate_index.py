@@ -761,6 +761,12 @@ var COMPARE_DATA = {compare_data_json};
             rows.sort(function(a, b) {{
                 var aText = a.cells[col] ? a.cells[col].textContent.replace(/[$,%m]/g, '').trim() : '';
                 var bText = b.cells[col] ? b.cells[col].textContent.replace(/[$,%m]/g, '').trim() : '';
+
+                // ISO date detection (e.g. 2026-02-13T15:42:33)
+                if (/^\d{{4}}-\d{{2}}-\d{{2}}T/.test(aText) && /^\d{{4}}-\d{{2}}-\d{{2}}T/.test(bText)) {{
+                    return dir === 'asc' ? aText.localeCompare(bText) : bText.localeCompare(aText);
+                }}
+
                 var aNum = parseFloat(aText);
                 var bNum = parseFloat(bText);
 

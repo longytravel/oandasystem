@@ -150,7 +150,7 @@ def read_trade_history(instance_dir: Path, limit: int = 50) -> list:
 
 
 HEARTBEAT_THRESHOLDS = {
-    'M1': 180, 'M5': 180, 'M15': 300, 'M30': 600,
+    'M1': 180, 'M5': 180, 'M15': 900, 'M30': 600,
     'H1': 5400, 'H4': 18000, 'D': 90000,
 }
 

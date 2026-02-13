@@ -142,7 +142,7 @@ class OptimizationStage:
                 'candidates': [],
                 'optimizer': optimizer,
                 'stage_results': {},
-                'summary': {'n_candidates': 0, 'best_ontester': 0},
+                'summary': {'n_candidates': 0, 'best_sharpe': 0},
             }
 
         # Print results summary
@@ -163,8 +163,8 @@ class OptimizationStage:
         summary = {
             'n_candidates': len(candidates),
             'n_total_results': len(results),
-            'best_ontester': best.get('back_ontester', 0),
-            'best_forward_ontester': best.get('forward_ontester', 0),
+            'best_sharpe': best.get('back_sharpe', 0),
+            'best_forward_sharpe': best.get('forward_sharpe', 0),
             'best_combined_rank': best.get('combined_rank', 999),
         }
 
@@ -184,8 +184,8 @@ class OptimizationStage:
         logger.info(f"\nOptimization complete: {len(candidates)} candidates")
         if candidates:
             logger.info(f"Best combined rank: {candidates[0]['combined_rank']}")
-            logger.info(f"Best back OnTester: {candidates[0]['back_ontester']:.1f}")
-            logger.info(f"Best forward OnTester: {candidates[0]['forward_ontester']:.1f}")
+            logger.info(f"Best back Sharpe: {candidates[0]['back_sharpe']:.3f}")
+            logger.info(f"Best forward Sharpe: {candidates[0]['forward_sharpe']:.3f}")
 
         return {
             'candidates': candidates,

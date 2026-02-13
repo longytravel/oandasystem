@@ -398,11 +398,11 @@ class MonteCarloStage:
         if len(signal_arrays['entry_bars']) < 3:
             return np.array([], dtype=np.float64), np.array([], dtype=np.float64)
 
-        # Apply spread
+        # Apply slippage to entry prices (spread is deducted in engine via PnL)
         entry_prices = np.where(
             signal_arrays['directions'] == 1,
-            signal_arrays['entry_prices'] + (self.config.spread_pips + self.config.slippage_pips) * pip_size,
-            signal_arrays['entry_prices'] - (self.config.spread_pips + self.config.slippage_pips) * pip_size
+            signal_arrays['entry_prices'] + self.config.slippage_pips * pip_size,
+            signal_arrays['entry_prices'] - self.config.slippage_pips * pip_size
         )
 
         # Get management arrays
@@ -455,6 +455,7 @@ class MonteCarloStage:
             params.get('max_daily_loss_pct', 0.0),
             quality_mult,
             get_quote_conversion_rate(self.config.pair, 'USD'),
+            spread_pips=self.config.spread_pips,
         )
 
         pnls, equity = result[0], result[1]
@@ -594,10 +595,11 @@ class MonteCarloStage:
             return None
 
         directions = signal_arrays['directions']
+        # Apply slippage to entry prices (spread is deducted in engine via PnL)
         entry_prices = np.where(
             directions == 1,
-            signal_arrays['entry_prices'] + (self.config.spread_pips + self.config.slippage_pips) * pip_size,
-            signal_arrays['entry_prices'] - (self.config.spread_pips + self.config.slippage_pips) * pip_size
+            signal_arrays['entry_prices'] + self.config.slippage_pips * pip_size,
+            signal_arrays['entry_prices'] - self.config.slippage_pips * pip_size
         )
 
         n = len(signal_arrays['entry_bars'])
@@ -649,6 +651,7 @@ class MonteCarloStage:
             params.get('max_daily_loss_pct', 0.0),
             quality_mult,
             get_quote_conversion_rate(self.config.pair, 'USD'),
+            spread_pips=self.config.spread_pips,
         )
 
         return result, signal_arrays, entry_prices

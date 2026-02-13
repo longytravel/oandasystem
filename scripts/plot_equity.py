@@ -264,7 +264,7 @@ def main():
     parser.add_argument("--results", required=True, help="Path to optimization results JSON")
     parser.add_argument("--pair", default="EUR_USD", help="Currency pair")
     parser.add_argument("--timeframe", default="M1", help="Timeframe")
-    parser.add_argument("--strategy", default="rsi_full", help="Strategy name")
+    parser.add_argument("--strategy", default="rsi_v3", help="Strategy name")
     parser.add_argument("--capital", type=float, default=10000, help="Initial capital")
     parser.add_argument("--risk", type=float, default=1.0, help="Risk per trade (%)")
     parser.add_argument("--save", default="equity_curve.png", help="Save plot to file")

@@ -74,16 +74,16 @@ Examples:
     )
     parser.add_argument(
         '--strategy', '-s',
-        default='RSI_Divergence_Full',
-        help='Strategy name (default: RSI_Divergence_Full)'
+        default='RSI_Divergence_v3',
+        help='Strategy name (default: RSI_Divergence_v3)'
     )
 
     # Data settings
     parser.add_argument(
         '--years',
         type=float,
-        default=2.0,
-        help='Years of historical data (default: 2.0)'
+        default=4.0,
+        help='Years of historical data (default: 4.0)'
     )
     parser.add_argument(
         '--force-download',
@@ -121,8 +121,8 @@ Examples:
     parser.add_argument(
         '--test-months',
         type=int,
-        default=3,
-        help='Test window months (default: 3)'
+        default=6,
+        help='Test window months (default: 6)'
     )
 
     # Monte Carlo settings

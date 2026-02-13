@@ -9,7 +9,7 @@ from pathlib import Path
 @dataclass
 class DataConfig:
     """Stage 1: Data configuration."""
-    years: float = 3.0
+    years: float = 4.0
     force_download: bool = False
     min_candles: int = 5000  # Minimum candles required
     max_gap_hours: int = 24  # Maximum allowed gap in data
@@ -121,7 +121,7 @@ class PipelineConfig:
     # Basic settings
     pair: str = "GBP_USD"
     timeframe: str = "H1"
-    strategy_name: str = "RSI_Divergence_Full"
+    strategy_name: str = "RSI_Divergence_v3"
     description: str = ''
 
     # Account settings
@@ -247,7 +247,7 @@ class PipelineConfig:
         config = cls(
             pair=data.get('pair', 'GBP_USD'),
             timeframe=data.get('timeframe', 'H1'),
-            strategy_name=data.get('strategy_name', 'RSI_Divergence_Full'),
+            strategy_name=data.get('strategy_name', 'RSI_Divergence_v3'),
             description=data.get('description', ''),
             initial_capital=data.get('initial_capital', 10000.0),
             risk_per_trade=data.get('risk_per_trade', 1.0),

@@ -605,6 +605,9 @@ class RSIDivergenceFullFast(FastStrategy):
         else:  # fallback to RR
             tp_pips = sl_pips * params['tp_rr_ratio']
 
+        # Ensure TP >= SL (at least 1:1 R:R)
+        tp_pips = max(tp_pips, sl_pips)
+
         # Calculate prices
         if signal.direction == 1:  # Buy
             sl = signal.price - sl_pips * pip_size

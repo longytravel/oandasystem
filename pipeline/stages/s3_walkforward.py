@@ -478,12 +478,12 @@ class WalkForwardStage:
             w_sl_prices = all_sl_prices[sig_mask]
             w_tp_prices = all_tp_prices[sig_mask]
 
-            # Apply spread to entry prices
+            # Apply slippage to entry prices (spread is deducted in engine via PnL)
             w_raw_prices = all_entry_prices[sig_mask]
             w_entry_prices = np.where(
                 w_directions == 1,
-                w_raw_prices + (self.config.spread_pips + self.config.slippage_pips) * pip_size,
-                w_raw_prices - (self.config.spread_pips + self.config.slippage_pips) * pip_size,
+                w_raw_prices + self.config.slippage_pips * pip_size,
+                w_raw_prices - self.config.slippage_pips * pip_size,
             )
 
             # Slice management arrays
@@ -679,6 +679,7 @@ class WalkForwardStage:
                 quote_rate,
                 5544.0,  # bars_per_year
                 cooldown,
+                spread_pips=self.config.spread_pips,
             )
 
             metrics = Metrics(*result)
@@ -874,6 +875,7 @@ class WalkForwardStage:
                 params.get('max_daily_loss_pct', 0.0),
                 quality_mult,
                 quote_rate,
+                spread_pips=self.config.spread_pips,
             )
 
             # Unpack telemetry:
@@ -1106,13 +1108,13 @@ class WalkForwardStage:
                 logger.warning("  ML: no signals in test window")
                 return None
 
-            # Build window-local signal arrays (re-indexed to window start, spread applied)
+            # Build window-local signal arrays (re-indexed to window start, slippage applied; spread via engine PnL)
             w_signal_arrays = {
                 'entry_bars': all_entry_bars[sig_mask] - bar_start,
                 'entry_prices': np.where(
                     signal_arrays_full['directions'][sig_mask] == 1,
-                    signal_arrays_full['entry_prices'][sig_mask] + (self.config.spread_pips + self.config.slippage_pips) * pip_size,
-                    signal_arrays_full['entry_prices'][sig_mask] - (self.config.spread_pips + self.config.slippage_pips) * pip_size,
+                    signal_arrays_full['entry_prices'][sig_mask] + self.config.slippage_pips * pip_size,
+                    signal_arrays_full['entry_prices'][sig_mask] - self.config.slippage_pips * pip_size,
                 ),
                 'directions': signal_arrays_full['directions'][sig_mask],
                 'sl_prices': signal_arrays_full['sl_prices'][sig_mask],
@@ -1225,12 +1227,12 @@ class WalkForwardStage:
             t_sl_prices = all_sl_prices[train_sig_mask]
             t_tp_prices = all_tp_prices[train_sig_mask]
 
-            # Apply spread
+            # Apply slippage (spread is deducted in engine via PnL)
             t_raw_prices = all_entry_prices[train_sig_mask]
             t_entry_prices = np.where(
                 t_directions == 1,
-                t_raw_prices + (self.config.spread_pips + self.config.slippage_pips) * pip_size,
-                t_raw_prices - (self.config.spread_pips + self.config.slippage_pips) * pip_size,
+                t_raw_prices + self.config.slippage_pips * pip_size,
+                t_raw_prices - self.config.slippage_pips * pip_size,
             )
 
             # Slice management arrays for training signals
@@ -1281,6 +1283,7 @@ class WalkForwardStage:
                 params.get('max_daily_loss_pct', 0.0),
                 quality_mult,
                 quote_rate,
+                spread_pips=self.config.spread_pips,
             )
 
             # Unpack telemetry
@@ -1490,8 +1493,8 @@ class WalkForwardStage:
             t_raw_prices = all_entry_prices[train_sig_mask]
             t_entry_prices = np.where(
                 t_directions == 1,
-                t_raw_prices + (self.config.spread_pips + self.config.slippage_pips) * pip_size,
-                t_raw_prices - (self.config.spread_pips + self.config.slippage_pips) * pip_size,
+                t_raw_prices + self.config.slippage_pips * pip_size,
+                t_raw_prices - self.config.slippage_pips * pip_size,
             )
 
             # Slice management arrays
@@ -1540,6 +1543,7 @@ class WalkForwardStage:
                 params.get('max_daily_loss_pct', 0.0),
                 quality_mult,
                 quote_rate,
+                spread_pips=self.config.spread_pips,
             )
 
             # Unpack telemetry (index 6=mfe_r, 7=mae_r, 8=signal_indices, 9=n_trades)
@@ -1841,12 +1845,12 @@ class WalkForwardStage:
         if len(signal_arrays['entry_bars']) < 3:
             return Metrics(0, 0, 0, 0, 0, 0, 0, 0)
 
-        # Apply spread
+        # Apply slippage (spread is deducted in engine via PnL)
         pip_size = 0.01 if 'JPY' in self.config.pair else 0.0001
         entry_prices = np.where(
             signal_arrays['directions'] == 1,
-            signal_arrays['entry_prices'] + (self.config.spread_pips + self.config.slippage_pips) * pip_size,
-            signal_arrays['entry_prices'] - (self.config.spread_pips + self.config.slippage_pips) * pip_size
+            signal_arrays['entry_prices'] + self.config.slippage_pips * pip_size,
+            signal_arrays['entry_prices'] - self.config.slippage_pips * pip_size
         )
 
         # Get management arrays
@@ -1899,6 +1903,7 @@ class WalkForwardStage:
             params.get('max_daily_loss_pct', 0.0),
             quality_mult,
             get_quote_conversion_rate(self.config.pair, 'USD'),
+            spread_pips=self.config.spread_pips,
         )
 
         return Metrics(*result)

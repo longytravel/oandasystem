@@ -675,12 +675,12 @@ def _build_leaderboard(candidates: List[Dict]) -> str:
         rows.append(f"""<tr>
             <td>{rank}</td>
             <td class="{score_cls}">{score:.1f}</td>
-            <td>{c.get('back_ontester', 0):.0f}</td>
-            <td>{c.get('forward_ontester', 0):.0f}</td>
-            <td>{c.get('back_trades', 0)}</td>
-            <td>{c.get('forward_trades', 0)}</td>
             <td>{c.get('back_sharpe', 0):.2f}</td>
             <td>{c.get('forward_sharpe', 0):.2f}</td>
+            <td>{c.get('back_trades', 0)}</td>
+            <td>{c.get('forward_trades', 0)}</td>
+            <td>{c.get('back_win_rate', 0)*100:.0f}%</td>
+            <td>{c.get('forward_win_rate', 0)*100:.0f}%</td>
             <td>{c.get('back_max_dd', 0):.1f}%</td>
             <td>{c.get('forward_back_ratio', 0):.2f}</td>
         </tr>""")
@@ -692,8 +692,8 @@ def _build_leaderboard(candidates: List[Dict]) -> str:
             <div class="table-scroll">
                 <table class="data-table" id="leaderboard">
                     <thead><tr>
-                        <th>Rank</th><th>Score</th><th>Back OT</th><th>Fwd OT</th>
-                        <th>Back Tr</th><th>Fwd Tr</th><th>Back Sh</th><th>Fwd Sh</th>
+                        <th>Rank</th><th>Score</th><th>Back Sh</th><th>Fwd Sh</th>
+                        <th>Back Tr</th><th>Fwd Tr</th><th>Back WR</th><th>Fwd WR</th>
                         <th>Max DD</th><th>F/B Ratio</th>
                     </tr></thead>
                     <tbody>{''.join(rows)}</tbody>

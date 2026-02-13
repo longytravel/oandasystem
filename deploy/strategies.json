@@ -7,8 +7,8 @@
       "timeframe": "M15",
       "risk_pct": 1.0,
       "enabled": true,
-      "from_run": "GBP_USD_M15_20260210_063223",
-      "description": "V3 RSI M15 - 87.2 GREEN"
+      "from_run": "GBP_USD_M15_20260213_154233",
+      "description": "V3 RSI M15 - 72.8 GREEN (Sharpe-optimized)"
     },
     {
       "id": "rsi_v3_GBP_USD_H1",

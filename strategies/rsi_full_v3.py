@@ -582,6 +582,9 @@ class RSIDivergenceFullFastV3(FastStrategy):
         else:
             tp_pips = sl_pips * params.get('tp_rr_ratio', 2.0)
 
+        # Ensure TP >= SL (at least 1:1 R:R)
+        tp_pips = max(tp_pips, sl_pips)
+
         if signal.direction == 1:
             sl = signal.price - sl_pips * pip_size
             tp = signal.price + tp_pips * pip_size
@@ -770,6 +773,9 @@ class RSIDivergenceFullFastV3(FastStrategy):
             tp_pips = np.full(n, params.get('tp_fixed_pips', 30), dtype=np.float64)
         else:
             tp_pips = sl_pips * params.get('tp_rr_ratio', 2.0)
+
+        # Ensure TP >= SL (at least 1:1 R:R)
+        tp_pips = np.maximum(tp_pips, sl_pips)
 
         # Compute SL/TP prices based on direction
         is_long = directions == 1

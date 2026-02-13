@@ -200,6 +200,9 @@ def full_backtest_numba(
 
     # === V6.2: ML exit cooldown ===
     ml_exit_cooldown_bars: int = 0,  # Bars to skip after ML exit (0=disabled)
+
+    # === Spread modeling ===
+    spread_pips: float = 0.0,  # Bid-ask spread in pips (deducted from PnL per trade)
 ) -> Tuple[int, float, float, float, float, float, float, float]:
     """
     Full-featured Numba-compiled backtest engine.
@@ -342,6 +345,7 @@ def full_backtest_numba(
                 if use_breakeven[pos_signal_idx] and not pos_be_triggered:
                     be_trigger = be_trigger_pips[pos_signal_idx] * pip_size
                     be_offset = be_offset_pips[pos_signal_idx] * pip_size
+                    be_offset = min(be_offset, be_trigger)  # Cap offset at trigger distance
 
                     if pos_dir == 1:  # Long
                         if bar_high - pos_entry >= be_trigger:
@@ -362,6 +366,7 @@ def full_backtest_numba(
                         # === Fixed pip trailing (V4 behavior) ===
                         trail_start = trail_start_pips[pos_signal_idx] * pip_size
                         trail_step = trail_step_pips[pos_signal_idx] * pip_size
+                        trail_step = min(trail_step, trail_start)  # Cap step at start distance
 
                         if pos_dir == 1:  # Long
                             current_profit = bar_high - pos_entry
@@ -414,6 +419,7 @@ def full_backtest_numba(
                         if bar_high - pos_entry >= partial_target:
                             partial_close_size = pos_size * pct
                             partial_pnl = partial_target * partial_close_size * pip_value
+                            partial_pnl -= spread_pips * pip_size * partial_close_size * pip_value  # Spread cost
 
                             # Accumulate partial PnL - will be added to final exit trade
                             pos_partial_pnl += partial_pnl
@@ -432,6 +438,7 @@ def full_backtest_numba(
                         if pos_entry - bar_low >= partial_target:
                             partial_close_size = pos_size * pct
                             partial_pnl = partial_target * partial_close_size * pip_value
+                            partial_pnl -= spread_pips * pip_size * partial_close_size * pip_value  # Spread cost
 
                             pos_partial_pnl += partial_pnl
                             equity += partial_pnl
@@ -452,6 +459,7 @@ def full_backtest_numba(
                     pnl = (exit_price - pos_entry) * pos_remaining_size * pip_value
                 else:
                     pnl = (pos_entry - exit_price) * pos_remaining_size * pip_value
+                pnl -= spread_pips * pip_size * pos_remaining_size * pip_value  # Spread cost
 
                 # Fix Finding 2: record combined PnL (partial + remainder) as one trade
                 # Note: equity already includes pos_partial_pnl from earlier, so only
@@ -539,6 +547,7 @@ def full_backtest_numba(
             pnl = (exit_price - pos_entry) * pos_remaining_size * pip_value
         else:
             pnl = (pos_entry - exit_price) * pos_remaining_size * pip_value
+        pnl -= spread_pips * pip_size * pos_remaining_size * pip_value  # Spread cost
         # Fix Finding 2: include accumulated partial PnL in single trade record
         pnls[n_trades] = pnl + pos_partial_pnl
         equity += pnl
@@ -618,6 +627,7 @@ def basic_backtest_numba(
     pip_size: float = 0.0001,  # FIX: Added pip_size parameter for JPY pairs
     quote_conversion_rate: float = 1.0,  # FIX V3: Quote currency to account currency rate
     bars_per_year: float = 5544.0,  # Fix Finding 11: configurable for different timeframes
+    spread_pips: float = 0.0,  # Bid-ask spread in pips (deducted from PnL per trade)
 ) -> Tuple[int, float, float, float, float, float, float, float]:
     """
     Basic Numba backtest - SL/TP only, maximum speed.
@@ -682,6 +692,7 @@ def basic_backtest_numba(
                     pnl = (exit_price - pos_entry) * pos_size * pip_value
                 else:
                     pnl = (pos_entry - exit_price) * pos_size * pip_value
+                pnl -= spread_pips * pip_size * pos_size * pip_value  # Spread cost
 
                 pnls[n_trades] = pnl
                 equity += pnl
@@ -722,6 +733,7 @@ def basic_backtest_numba(
             pnl = (exit_price - pos_entry) * pos_size * pip_value
         else:
             pnl = (pos_entry - exit_price) * pos_size * pip_value
+        pnl -= spread_pips * pip_size * pos_size * pip_value  # Spread cost
         pnls[n_trades] = pnl
         equity += pnl
         equity_curve[n_trades] = equity
@@ -836,6 +848,9 @@ def full_backtest_with_trades(
 
     # === Fix Finding 11: configurable bars_per_year for Sharpe annualization ===
     bars_per_year: float = 5544.0,  # H1 default (252 days * ~22 hours)
+
+    # === Spread modeling ===
+    spread_pips: float = 0.0,  # Bid-ask spread in pips (deducted from PnL per trade)
 ) -> Tuple[np.ndarray, np.ndarray, int, float, float, float, float, float, float, float]:
     """
     Full-featured backtest that RETURNS trade PnL array for Monte Carlo analysis.
@@ -965,6 +980,7 @@ def full_backtest_with_trades(
                 if use_breakeven[pos_signal_idx] and not pos_be_triggered:
                     be_trigger = be_trigger_pips[pos_signal_idx] * pip_size
                     be_offset = be_offset_pips[pos_signal_idx] * pip_size
+                    be_offset = min(be_offset, be_trigger)  # Cap offset at trigger distance
 
                     if pos_dir == 1:
                         if bar_high - pos_entry >= be_trigger:
@@ -985,6 +1001,7 @@ def full_backtest_with_trades(
                         # === Fixed pip trailing (V4 behavior) ===
                         trail_start = trail_start_pips[pos_signal_idx] * pip_size
                         trail_step = trail_step_pips[pos_signal_idx] * pip_size
+                        trail_step = min(trail_step, trail_start)  # Cap step at start distance
 
                         if pos_dir == 1:
                             current_profit = bar_high - pos_entry
@@ -1037,6 +1054,7 @@ def full_backtest_with_trades(
                         if bar_high - pos_entry >= partial_target:
                             partial_close_size = pos_size * pct
                             partial_pnl = partial_target * partial_close_size * pip_value
+                            partial_pnl -= spread_pips * pip_size * partial_close_size * pip_value  # Spread cost
 
                             pos_partial_pnl += partial_pnl
                             equity += partial_pnl
@@ -1054,6 +1072,7 @@ def full_backtest_with_trades(
                         if pos_entry - bar_low >= partial_target:
                             partial_close_size = pos_size * pct
                             partial_pnl = partial_target * partial_close_size * pip_value
+                            partial_pnl -= spread_pips * pip_size * partial_close_size * pip_value  # Spread cost
 
                             pos_partial_pnl += partial_pnl
                             equity += partial_pnl
@@ -1074,6 +1093,7 @@ def full_backtest_with_trades(
                     pnl = (exit_price - pos_entry) * pos_remaining_size * pip_value
                 else:
                     pnl = (pos_entry - exit_price) * pos_remaining_size * pip_value
+                pnl -= spread_pips * pip_size * pos_remaining_size * pip_value  # Spread cost
 
                 # Fix Finding 2: record combined PnL (partial + remainder) as one trade
                 pnls[n_trades] = pnl + pos_partial_pnl
@@ -1143,6 +1163,7 @@ def full_backtest_with_trades(
             pnl = (exit_price - pos_entry) * pos_remaining_size * pip_value
         else:
             pnl = (pos_entry - exit_price) * pos_remaining_size * pip_value
+        pnl -= spread_pips * pip_size * pos_remaining_size * pip_value  # Spread cost
         # Fix Finding 2: include accumulated partial PnL in single trade record
         pnls[n_trades] = pnl + pos_partial_pnl
         equity += pnl
@@ -1260,6 +1281,9 @@ def full_backtest_with_telemetry(
 
     # === V6.2: ML exit cooldown ===
     ml_exit_cooldown_bars: int = 0,  # Bars to skip after ML exit (0=disabled)
+
+    # === Spread modeling ===
+    spread_pips: float = 0.0,  # Bid-ask spread in pips (deducted from PnL per trade)
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray,
            np.ndarray, np.ndarray, np.ndarray, int, float, float, float, float, float, float, float]:
     """
@@ -1437,6 +1461,7 @@ def full_backtest_with_telemetry(
                 if use_breakeven[pos_signal_idx] and not pos_be_triggered:
                     be_trigger = be_trigger_pips[pos_signal_idx] * pip_size
                     be_offset = be_offset_pips[pos_signal_idx] * pip_size
+                    be_offset = min(be_offset, be_trigger)  # Cap offset at trigger distance
 
                     if pos_dir == 1:
                         if bar_high - pos_entry >= be_trigger:
@@ -1457,6 +1482,7 @@ def full_backtest_with_telemetry(
                         # Fixed pip trailing
                         trail_start = trail_start_pips[pos_signal_idx] * pip_size
                         trail_step = trail_step_pips[pos_signal_idx] * pip_size
+                        trail_step = min(trail_step, trail_start)  # Cap step at start distance
 
                         if pos_dir == 1:
                             current_profit = bar_high - pos_entry
@@ -1508,6 +1534,7 @@ def full_backtest_with_telemetry(
                         if bar_high - pos_entry >= partial_target:
                             partial_close_size = pos_size * pct
                             partial_pnl = partial_target * partial_close_size * pip_value
+                            partial_pnl -= spread_pips * pip_size * partial_close_size * pip_value  # Spread cost
 
                             pos_partial_pnl += partial_pnl
                             equity += partial_pnl
@@ -1525,6 +1552,7 @@ def full_backtest_with_telemetry(
                         if pos_entry - bar_low >= partial_target:
                             partial_close_size = pos_size * pct
                             partial_pnl = partial_target * partial_close_size * pip_value
+                            partial_pnl -= spread_pips * pip_size * partial_close_size * pip_value  # Spread cost
 
                             pos_partial_pnl += partial_pnl
                             equity += partial_pnl
@@ -1545,6 +1573,7 @@ def full_backtest_with_telemetry(
                     pnl = (exit_price - pos_entry) * pos_remaining_size * pip_value
                 else:
                     pnl = (pos_entry - exit_price) * pos_remaining_size * pip_value
+                pnl -= spread_pips * pip_size * pos_remaining_size * pip_value  # Spread cost
 
                 pnls[n_trades] = pnl + pos_partial_pnl
                 equity += pnl
@@ -1645,6 +1674,7 @@ def full_backtest_with_telemetry(
             pnl = (exit_price - pos_entry) * pos_remaining_size * pip_value
         else:
             pnl = (pos_entry - exit_price) * pos_remaining_size * pip_value
+        pnl -= spread_pips * pip_size * pos_remaining_size * pip_value  # Spread cost
         pnls[n_trades] = pnl + pos_partial_pnl
         equity += pnl
         equity_curve[n_trades] = equity

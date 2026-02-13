@@ -181,13 +181,6 @@ class UnifiedOptimizer:
         if len(entry_bars) < 3:
             return Metrics(0, 0, 0, 0, 0, 0, 0, 0)
 
-        # Apply spread
-        entry_prices = np.where(
-            directions == 1,
-            entry_prices + self.spread_pips * self.pip_size,
-            entry_prices - self.spread_pips * self.pip_size
-        )
-
         result = basic_backtest_numba(
             entry_bars, entry_prices, directions,
             sl_prices, tp_prices,
@@ -198,6 +191,8 @@ class UnifiedOptimizer:
             self.risk_per_trade,
             self.pip_size,
             self.quote_conversion_rate,  # V3 FIX: Pass quote conversion rate
+            5544.0,  # bars_per_year (positional required for numba)
+            self.spread_pips,
         )
 
         return Metrics(*result)
@@ -214,13 +209,6 @@ class UnifiedOptimizer:
 
         if len(signal_arrays['entry_bars']) < 3:
             return Metrics(0, 0, 0, 0, 0, 0, 0, 0)
-
-        # Apply spread
-        entry_prices = np.where(
-            signal_arrays['directions'] == 1,
-            signal_arrays['entry_prices'] + self.spread_pips * self.pip_size,
-            signal_arrays['entry_prices'] - self.spread_pips * self.pip_size
-        )
 
         # Get management arrays (with defaults if not provided)
         n = len(signal_arrays['entry_bars'])
@@ -262,7 +250,7 @@ class UnifiedOptimizer:
 
         result = full_backtest_numba(
             signal_arrays['entry_bars'],
-            entry_prices,
+            signal_arrays['entry_prices'],
             signal_arrays['directions'],
             signal_arrays['sl_prices'],
             signal_arrays['tp_prices'],
@@ -283,6 +271,9 @@ class UnifiedOptimizer:
             params.get('max_daily_loss_pct', 0.0),
             quality_mult,  # V2: Quality-based position sizing
             self.quote_conversion_rate,  # V3 FIX: Quote currency conversion
+            5544.0,  # bars_per_year (positional required for numba)
+            0,  # ml_exit_cooldown_bars (positional required for numba)
+            self.spread_pips,
         )
 
         return Metrics(*result)
@@ -377,6 +368,16 @@ class UnifiedOptimizer:
             for key, values in param_space.items():
                 params[key] = trial.suggest_categorical(key, values)
 
+            # Prune invalid parameter combinations early
+            if params.get('use_trailing', False):
+                if params.get('trail_step_pips', 10) > params.get('trail_start_pips', 50):
+                    return -200  # trail_step > trail_start is invalid
+            if params.get('use_break_even', False):
+                be_offset = params.get('be_offset_pips', 5)
+                be_trigger = params.get('be_atr_mult', 0.5) * params.get('atr_pips', 35.0)
+                if be_offset > be_trigger:
+                    return -200  # BE offset > trigger is invalid
+
             metrics = run_trial(params, self.back_arrays)
 
             trial.set_user_attr('params', params)
@@ -385,8 +386,8 @@ class UnifiedOptimizer:
             if metrics.trades < self.min_trades:
                 return -100 + metrics.trades
 
-            # Optimize for OnTester score (MT5-style)
-            return metrics.ontester_score
+            # Optimize for Sharpe ratio (time-normalized, avoids compound inflation)
+            return metrics.sharpe
 
         sampler = optuna.samplers.TPESampler(seed=42, multivariate=True)
         study = optuna.create_study(direction='maximize', sampler=sampler)
@@ -488,9 +489,9 @@ class UnifiedOptimizer:
                 base_params=base_params,
             )
 
-            # Get best result by OnTester score
+            # Get best result by Sharpe ratio
             if back_results:
-                back_results.sort(key=lambda x: x['back'].ontester_score, reverse=True)
+                back_results.sort(key=lambda x: x['back'].sharpe, reverse=True)
                 best = back_results[0]
 
                 # Lock params from this group
@@ -499,7 +500,7 @@ class UnifiedOptimizer:
                     logger.info(f"  Locked: {param_name} = {self.locked_params[param_name]}")
 
                 self.stage_results[group_name] = {
-                    'best_ontester': best['back'].ontester_score,
+                    'best_sharpe': best['back'].sharpe,
                     'best_r2': best['back'].r_squared,
                     'n_valid': len(back_results),
                     'n_trials': trials_per_stage,
@@ -625,13 +626,13 @@ class UnifiedOptimizer:
             else:
                 logger.warning(f"Forward threshold filter rejected ALL results - disabling filter")
 
-        # Rank by back OnTester score (1 = best, highest score)
-        valid.sort(key=lambda x: x['back'].ontester_score, reverse=True)
+        # Rank by back Sharpe ratio (1 = best, highest Sharpe)
+        valid.sort(key=lambda x: x['back'].sharpe, reverse=True)
         for i, r in enumerate(valid):
             r['back_rank'] = i + 1
 
-        # Rank by forward OnTester score (1 = best, highest score)
-        valid.sort(key=lambda x: x['forward'].ontester_score, reverse=True)
+        # Rank by forward Sharpe ratio (1 = best, highest Sharpe)
+        valid.sort(key=lambda x: x['forward'].sharpe, reverse=True)
         for i, r in enumerate(valid):
             r['forward_rank'] = i + 1
 
@@ -758,7 +759,7 @@ class UnifiedOptimizer:
         if self.min_forward_ratio > 0:
             print(f"Min Forward Ratio: {self.min_forward_ratio:.1%}")
         print("=" * 130)
-        print(f"{'Comb':<6} {'Back#':<7} {'Fwd#':<7} {'BackScore':<12} {'FwdScore':<12} "
+        print(f"{'Comb':<6} {'Back#':<7} {'Fwd#':<7} {'BackSharpe':<12} {'FwdSharpe':<12} "
               f"{'BackR²':<8} {'FwdR²':<8} {'BackTr':<8} {'FwdTr':<8} {'BackDD%':<9} {'FwdDD%':<9}")
         print("-" * 130)
 
@@ -769,8 +770,8 @@ class UnifiedOptimizer:
             print(f"{r['combined_rank']:<6} "
                   f"{r['back_rank']:<7} "
                   f"{r['forward_rank']:<7} "
-                  f"{back.ontester_score:<12.1f} "
-                  f"{fwd.ontester_score:<12.1f} "
+                  f"{back.sharpe:<12.3f} "
+                  f"{fwd.sharpe:<12.3f} "
                   f"{back.r_squared:<8.3f} "
                   f"{fwd.r_squared:<8.3f} "
                   f"{back.trades:<8} "
@@ -793,11 +794,12 @@ class UnifiedOptimizer:
         print("\n" + "="*80)
         print("STAGE SUMMARY")
         print("="*80)
-        print(f"{'Stage':<20} {'Best OnTester':<15} {'Best R²':<10} {'Valid/Trials':<20}")
+        print(f"{'Stage':<20} {'Best Sharpe':<15} {'Best R²':<10} {'Valid/Trials':<20}")
         print("-"*80)
 
         for name, result in self.stage_results.items():
-            print(f"{name:<20} {result['best_ontester']:<15.1f} "
+            best_key = 'best_sharpe' if 'best_sharpe' in result else 'best_ontester'
+            print(f"{name:<20} {result[best_key]:<15.3f} "
                   f"{result['best_r2']:<10.3f} "
                   f"{result['n_valid']}/{result['n_trials']}")
 
@@ -855,19 +857,19 @@ class UnifiedOptimizer:
         self.strategy._precomputed_signals = self.back_signals
         run_trial = self._run_full_trial if use_full else self._run_basic_trial
 
-        # Get baseline performance
+        # Get baseline performance (use Sharpe for stability comparison)
         base_back = run_trial(params, self.back_arrays)
-        base_score = base_back.ontester_score
+        base_score = base_back.sharpe
 
         base_fwd = None
         base_fwd_score = 0
         if test_forward and self.fwd_signals:
             self.strategy._precomputed_signals = self.fwd_signals
             base_fwd = run_trial(params, self.fwd_arrays)
-            base_fwd_score = base_fwd.ontester_score
+            base_fwd_score = base_fwd.sharpe
             self.strategy._precomputed_signals = self.back_signals
 
-        logger.info(f"Baseline: Back={base_score:.1f}, Forward={base_fwd_score:.1f}")
+        logger.info(f"Baseline: Back Sharpe={base_score:.3f}, Forward Sharpe={base_fwd_score:.3f}")
 
         # Get parameter space for neighbor testing
         groups = self.strategy.get_parameter_groups()
@@ -948,7 +950,7 @@ class UnifiedOptimizer:
                 test_params[param_name] = clamped
 
                 metrics = run_trial(test_params, self.back_arrays)
-                neighbor_scores.append(metrics.ontester_score)
+                neighbor_scores.append(metrics.sharpe)
 
             if neighbor_scores and base_score > 0:
                 # Calculate stability as ratio of neighbor avg to base
@@ -1109,8 +1111,8 @@ class UnifiedOptimizer:
             best = stable_results[0]
             logger.info(f"\nBest Robust Result:")
             logger.info(f"  Combined Rank:    {best['combined_rank']}")
-            logger.info(f"  Back OnTester:    {best['back'].ontester_score:.1f}")
-            logger.info(f"  Forward OnTester: {best['forward'].ontester_score:.1f}")
+            logger.info(f"  Back Sharpe:      {best['back'].sharpe:.3f}")
+            logger.info(f"  Forward Sharpe:   {best['forward'].sharpe:.3f}")
             logger.info(f"  Stability:        {best['stability']['overall']['mean_stability']:.1%}")
             logger.info(f"  Rating:           {best['stability']['overall']['rating']}")
 

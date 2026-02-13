@@ -8,7 +8,7 @@ This is crucial for validating that a strategy has a real edge
 
 Usage:
     # Test RSI V3 on all 20 pairs
-    python scripts/run_multi_symbol.py --strategy RSI_Divergence_Full
+    python scripts/run_multi_symbol.py --strategy RSI_Divergence_v3
 
     # Test on specific pairs with multiple timeframes
     python scripts/run_multi_symbol.py --pairs GBP_USD EUR_USD --timeframes H1 M15
@@ -148,7 +148,7 @@ def run_pipeline(pair: str, strategy: str, timeframe: str, trials: int,
 
 def main():
     parser = argparse.ArgumentParser(description='Run pipeline on multiple symbols in parallel')
-    parser.add_argument('--strategy', '-s', default='RSI_Divergence_Full', help='Strategy to test')
+    parser.add_argument('--strategy', '-s', default='RSI_Divergence_v3', help='Strategy to test')
     parser.add_argument('--pairs', nargs='+', default=ALL_PAIRS, help='Pairs to test')
     parser.add_argument('--timeframes', nargs='+', default=['H1'],
                         choices=['M15', 'M30', 'H1', 'H4'],
