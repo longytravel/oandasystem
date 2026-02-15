@@ -1128,6 +1128,11 @@ def main():
 
     print(f"Open: file://{os.path.abspath(output_path)}")
 
+    # Also generate web JSON data
+    from build_web import build_web_data
+    web_output = str(project_root / 'web' / 'data' / 'leaderboard.json')
+    build_web_data(pipelines_dir, web_output)
+
 
 if __name__ == '__main__':
     main()
