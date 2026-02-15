@@ -39,6 +39,16 @@
       "enabled": true,
       "from_run": "EUR_JPY_H1_20260215_074906",
       "description": "Fair Price MA H1 - 87.6 GREEN"
+    },
+    {
+      "id": "fpma_EUR_AUD_H1",
+      "strategy": "fair_price_ma",
+      "pair": "EUR_AUD",
+      "timeframe": "H1",
+      "risk_pct": 1.0,
+      "enabled": true,
+      "from_run": "EUR_AUD_H1_20260215_140708",
+      "description": "Fair Price MA H1 - 92.9 GREEN"
     }
   ],
   "dashboard": {

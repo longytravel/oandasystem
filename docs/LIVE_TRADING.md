@@ -14,6 +14,7 @@ This guide covers deploying and running the OANDA trading system in paper or liv
 | 2 | rsi_v3_GBP_USD_H1 | RSI Divergence V3 | GBP_USD | H1 | 0.5% | 89.8 GREEN | GBP_USD_H1_20260206_151217 | 2026-02-06 |
 | 3 | rsi_v1_USD_CHF_H1 | RSI Divergence V1 | USD_CHF | H1 | 1.0% | 97.4 GREEN | USD_CHF_H1_20260212_122528 | 2026-02-12 |
 | 4 | fpma_EUR_JPY_H1 | Fair Price MA | EUR_JPY | H1 | 1.0% | 87.6 GREEN | EUR_JPY_H1_20260215_074906 | 2026-02-15 |
+| 5 | fpma_EUR_AUD_H1 | Fair Price MA | EUR_AUD | H1 | 1.0% | 92.9 GREEN | EUR_AUD_H1_20260215_140708 | 2026-02-15 |
 
 **VPS**: 104.128.63.239:5909 (VNC) | **Dashboard**: http://104.128.63.239:8080 | **Account**: 101-004-38418172-001 (practice)
 
@@ -31,6 +32,21 @@ Mean-reversion grid strategy. Fast EMA(200) + Slow EMA(400) detect trend. Entry 
 | Return | 19.8% | 90.9% |
 
 Confidence: WF 100%, Stability 92.3%, MC 100%, F/B ratio 4.72
+
+### Fair Price MA (EUR_AUD H1) - Deployed 2026-02-15
+
+Mean-reversion grid strategy. Fast EMA(50) + Slow EMA(400) detect trend. Entry on pullback 150 pips from fast EMA, grid of 10 orders across 75 pip range. SL ATR 2.0x, TP 1.5:1 R:R. Trailing at 30 pips (8 pip step). No break-even, no time filter, no max hold.
+
+| Metric | Forward Test | Backtest |
+|--------|-------------|----------|
+| Win Rate | 81.8% | - |
+| Profit Factor | 6.35 | - |
+| Sharpe | 4.03 | - |
+| Max Drawdown | 2.1% | 17.8% |
+| Trades/Month | 1.8 | - |
+| F/B Ratio | 2.06 | - |
+
+Confidence: WF 91.4% (1 OOS window), Stability 100%, MC 91.7%, F/B ratio 2.06
 
 ---
 

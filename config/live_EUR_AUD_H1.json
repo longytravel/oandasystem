@@ -1,0 +1,41 @@
+{
+  "run_id": "EUR_AUD_H1_20260215_140708",
+  "strategy": "fair_price_ma",
+  "pair": "EUR_AUD",
+  "timeframe": "H1",
+  "score": 92.9,
+  "rating": "GREEN",
+  "rank": 15,
+  "params": {
+    "fast_ema_period": 50,
+    "slow_ema_period": 400,
+    "trigger_pips": 150,
+    "grid_orders": 10,
+    "grid_range_pips": 75,
+    "sl_mode": "atr",
+    "sl_fixed_pips": 75,
+    "sl_atr_mult": 2.0,
+    "tp_mode": "rr",
+    "tp_rr_ratio": 1.5,
+    "use_time_filter": false,
+    "trade_start_hour": 4,
+    "trade_end_hour": 22,
+    "use_trailing": true,
+    "trail_start_pips": 30,
+    "trail_step_pips": 8,
+    "use_break_even": false,
+    "max_hold_bars": 0
+  },
+  "expectations": {
+    "win_rate": 0.8182,
+    "sharpe": 4.033,
+    "profit_factor": 6.353,
+    "avg_trades_per_month": 1.8,
+    "max_drawdown_pct": 2.06,
+    "forward_return_pct": 11.01,
+    "back_win_rate": 0.7123,
+    "back_sharpe": 3.539,
+    "forward_trades": 11,
+    "forward_months": 6
+  }
+}
