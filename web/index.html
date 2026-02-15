@@ -214,6 +214,25 @@
   .mono { font-family: 'JetBrains Mono', monospace; }
   .text-right { text-align: right; }
   .footer { text-align: center; padding: 16px; color: #5a6a80; font-size: 0.7rem; border-top: 1px solid #1e293b; margin-top: 20px; }
+
+  /* Run detail panel */
+  .run-detail {
+    display: none; margin: 16px 16px 0; padding: 24px;
+    background: #111827; border: 1px solid #1e293b; border-radius: 8px;
+  }
+  .run-detail.visible { display: block; }
+  .run-detail-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .run-detail-title { font-size: 1.1rem; font-weight: 700; }
+  .run-detail-meta { font-size: 0.75rem; color: #5a6a80; margin-top: 4px; }
+  .run-metrics-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 10px; margin-bottom: 20px;
+  }
+  .run-metric { background: #0d1320; border-radius: 6px; padding: 10px; }
+  .run-metric-label { font-size: 0.65rem; text-transform: uppercase; color: #5a6a80; letter-spacing: 0.04em; }
+  .run-metric-value { font-size: 1rem; font-weight: 600; font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
+  #leaderboard tr[data-run] { cursor: pointer; }
+  .runid-col a { cursor: pointer; }
 </style>
 </head>
 <body>
@@ -303,6 +322,22 @@
     <div class="compare-chart-panel">
       <div class="compare-chart-header">Metrics Comparison</div>
       <div id="compare-metrics" style="padding:0"></div>
+    </div>
+  </div>
+
+  <!-- Run Detail Panel -->
+  <div class="run-detail" id="run-detail">
+    <div class="run-detail-header">
+      <div>
+        <div class="run-detail-title" id="rd-title"></div>
+        <div class="run-detail-meta" id="rd-meta"></div>
+      </div>
+      <button class="compare-close" onclick="closeRunDetail()">Close</button>
+    </div>
+    <div class="run-metrics-grid" id="rd-metrics"></div>
+    <div class="compare-chart-panel">
+      <div class="compare-chart-header">Equity Curve</div>
+      <div id="rd-chart" style="height:400px"></div>
     </div>
   </div>
 
@@ -578,8 +613,8 @@ function buildLB() {
     var npStr = np != null ? '$' + np.toLocaleString(undefined, {maximumFractionDigits:0}) : '-';
     var fb = r.forward_back_ratio;
 
-    return '<tr data-pair="'+r.pair+'" data-tf="'+r.timeframe+'" data-strategy="'+r.strategy+'" data-status="'+r.status+'" data-rating="'+r.rating+'" data-run="'+r.run_id+'">' +
-      '<td'+cbOpacity+'><input type="checkbox" class="compare-check" data-run="'+r.run_id+'"'+cbDisabled+'></td>' +
+    return '<tr data-pair="'+r.pair+'" data-tf="'+r.timeframe+'" data-strategy="'+r.strategy+'" data-status="'+r.status+'" data-rating="'+r.rating+'" data-run="'+r.run_id+'" onclick="showRunDetail(\''+r.run_id+'\')">' +
+      '<td'+cbOpacity+' onclick="event.stopPropagation()"><input type="checkbox" class="compare-check" data-run="'+r.run_id+'"'+cbDisabled+'></td>' +
       '<td>'+esc(r.pair)+'</td>' +
       '<td>'+esc(r.timeframe)+'</td>' +
       '<td class="strategy-col">'+esc(r.strategy)+'</td>' +
@@ -597,7 +632,7 @@ function buildLB() {
       '<td>'+(fb||0).toFixed(2)+'</td>' +
       '<td>'+((r.win_rate||0)*100).toFixed(0)+'%</td>' +
       '<td>'+(r.total_time_min||0).toFixed(1)+'m</td>' +
-      '<td class="runid-col">'+esc(r.run_id)+'</td>' +
+      '<td class="runid-col"><a onclick="event.stopPropagation();showRunDetail(\''+r.run_id+'\')">'+esc(r.run_id)+'</a></td>' +
     '</tr>';
   }).join('');
 
@@ -812,6 +847,98 @@ function buildMetricsTable(container, allData) {
   });
 
   container.innerHTML = '<table class="compare-metrics-table"><thead><tr>'+headerCells+'</tr></thead><tbody>'+bodyRows+'</tbody></table>';
+}
+
+// ── Run Detail ──
+var currentDetailRun = null;
+function showRunDetail(runId) {
+  if (currentDetailRun === runId) { closeRunDetail(); return; }
+  currentDetailRun = runId;
+  var run = lbData.runs.find(function(r) { return r.run_id === runId; });
+  var comp = (lbData.compare || {})[runId];
+  if (!run) return;
+
+  var panel = document.getElementById('run-detail');
+  document.getElementById('rd-title').textContent = run.pair + ' ' + run.timeframe + ' \u2014 ' + run.strategy;
+  document.getElementById('rd-meta').textContent = run.run_id + ' \u00B7 ' + (run.description || '') + ' \u00B7 ' + (run.created || '');
+
+  var ratingBg = run.rating === 'GREEN' ? '#065f46' : run.rating === 'YELLOW' ? '#78350f' : '#7f1d1d';
+  var ratingFg = run.rating === 'GREEN' ? '#10b981' : run.rating === 'YELLOW' ? '#f59e0b' : '#ef4444';
+  var fb = run.forward_back_ratio;
+
+  var metricsData = [
+    ['Score', run.score > 0 ? run.score.toFixed(1) : '-', ratingFg],
+    ['Rating', '<span style="background:'+ratingBg+';color:'+ratingFg+';padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:600">'+run.rating+'</span>', ''],
+    ['Back Return', (run.back_return||0).toFixed(1) + '%', (run.back_return||0) > 0 ? '#10b981' : '#ef4444'],
+    ['Fwd Return', (run.forward_return||0).toFixed(1) + '%', (run.forward_return||0) > 0 ? '#10b981' : '#ef4444'],
+    ['F/B Ratio', fb ? (fb*100).toFixed(1) + '%' : '\u2014', ''],
+    ['Back Trades', run.back_trades || 0, ''],
+    ['Fwd Trades', run.forward_trades || 0, ''],
+    ['Win Rate', ((run.win_rate||0)*100).toFixed(1) + '%', ''],
+    ['Max DD', (run.back_max_dd||0).toFixed(1) + '%', ''],
+    ['Back Sharpe', (run.back_sharpe||0).toFixed(2), ''],
+    ['Fwd Sharpe', (run.forward_sharpe||0).toFixed(2), ''],
+    ['Candidates', run.n_candidates || 0, ''],
+  ];
+  if (comp) {
+    if (comp.back_r_squared) metricsData.push(['Back R\u00B2', comp.back_r_squared.toFixed(3), '']);
+    if (comp.forward_r_squared) metricsData.push(['Fwd R\u00B2', comp.forward_r_squared.toFixed(3), '']);
+    if (comp.profit_factor) metricsData.push(['Profit Factor', comp.profit_factor.toFixed(2), '']);
+    if (comp.stability_mean) metricsData.push(['Stability', (comp.stability_mean*100).toFixed(1) + '%', '']);
+  }
+
+  document.getElementById('rd-metrics').innerHTML = metricsData.map(function(m) {
+    var style = m[2] ? ' style="color:'+m[2]+'"' : '';
+    return '<div class="run-metric"><div class="run-metric-label">'+m[0]+'</div><div class="run-metric-value"'+style+'>'+m[1]+'</div></div>';
+  }).join('');
+
+  // Chart
+  var chartDiv = document.getElementById('rd-chart');
+  if (comp && (comp.back_equity || comp.forward_equity)) {
+    var traces = [];
+    var initCap = comp.initial_capital || 10000;
+    if (comp.back_equity && comp.back_equity.length) {
+      traces.push({
+        x: comp.back_equity.map(function(p) { return p.timestamp; }),
+        y: comp.back_equity.map(function(p) { return p.equity - initCap; }),
+        name: 'Backtest (R\u00B2=' + (comp.back_r_squared||0).toFixed(3) + ')',
+        line: { color: '#3b82f6', width: 2 }, type: 'scatter'
+      });
+    }
+    if (comp.forward_equity && comp.forward_equity.length) {
+      traces.push({
+        x: comp.forward_equity.map(function(p) { return p.timestamp; }),
+        y: comp.forward_equity.map(function(p) { return p.equity - initCap; }),
+        name: 'Forward (R\u00B2=' + (comp.forward_r_squared||0).toFixed(3) + ')',
+        line: { color: '#10b981', width: 2, dash: 'dash' }, type: 'scatter'
+      });
+    }
+    var shapes = [];
+    if (comp.back_equity && comp.back_equity.length && comp.forward_equity && comp.forward_equity.length) {
+      var splitTime = comp.back_equity[comp.back_equity.length-1].timestamp;
+      shapes.push({ type:'line', x0:splitTime, x1:splitTime, y0:0, y1:1, yref:'paper', line:{color:'#3b82f6',width:1,dash:'dot'}, opacity:0.5 });
+    }
+    Plotly.newPlot(chartDiv, traces, {
+      paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+      font: { color: '#8896ab', family: 'Inter, system-ui, sans-serif', size: 12 },
+      xaxis: { gridcolor: 'rgba(42,58,82,0.4)', zerolinecolor: '#2a3a52', tickfont: { color: '#5a6a80' } },
+      yaxis: { title: 'Profit ($)', gridcolor: 'rgba(42,58,82,0.4)', zerolinecolor: '#2a3a52', tickfont: { color: '#5a6a80' } },
+      margin: { l: 60, r: 30, t: 20, b: 50 },
+      legend: { orientation: 'h', y: -0.15, x: 0.5, xanchor: 'center', font: { size: 11 } },
+      hoverlabel: { bgcolor: '#111827', bordercolor: '#2a3a52', font: { color: '#e2e8f0', size: 12 } },
+      shapes: shapes,
+    }, { responsive: true, displayModeBar: false });
+  } else {
+    chartDiv.innerHTML = '<div style="text-align:center;padding:60px;color:#5a6a80">No equity data available for this run</div>';
+  }
+
+  panel.classList.add('visible');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function closeRunDetail() {
+  currentDetailRun = null;
+  document.getElementById('run-detail').classList.remove('visible');
 }
 
 // ═══════════════════════════════════════
