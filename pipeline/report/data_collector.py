@@ -38,7 +38,10 @@ def collect_report_data(
     best = state.best_candidate or (candidates[0] if candidates else {})
     trade_details = best.get('trade_details', {})
 
-    # Regenerate trade_details if missing (e.g. after resume)
+    # Regenerate trade_details if missing.
+    # MC puts trade_details on the best-combined-rank candidate, but the
+    # confidence-best candidate (state.best_candidate) may be different.
+    # Always regenerate for the actual best candidate's params.
     if not trade_details and best.get('params') and data_result.get('df_back') is not None:
         trade_details = _regenerate_trade_details(best, data_result, config)
         best['trade_details'] = trade_details

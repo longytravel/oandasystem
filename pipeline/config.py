@@ -133,7 +133,7 @@ class PipelineConfig:
     description: str = ''
 
     # Account settings
-    initial_capital: float = 10000.0
+    initial_capital: float = 3000.0
     risk_per_trade: float = 1.0
     spread_pips: float = 1.5
     slippage_pips: float = 0.5

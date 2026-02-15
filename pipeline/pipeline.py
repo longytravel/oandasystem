@@ -290,16 +290,9 @@ class Pipeline:
                 }
                 logger.debug("Trimmed optimization results")
 
-        # After MC: release back/forward DataFrames if trade_details are available
-        # (report only needs them as fallback for trade_details regeneration)
-        if completed_stage == 'montecarlo':
-            data_result = self.results.get('data', {})
-            candidates = self.results.get('montecarlo', {}).get('candidates', self.state.candidates)
-            if candidates and candidates[0].get('trade_details'):
-                for key in ['df_back', 'df_forward']:
-                    if key in data_result:
-                        del data_result[key]
-                logger.debug("Released back/forward DataFrames (trade_details available)")
+        # Keep df_back/df_forward after MC — the report stage needs them
+        # as fallback when the confidence-best candidate differs from the
+        # combined-rank-best candidate (which is the one MC puts trade_details on).
 
         gc.collect()
 
