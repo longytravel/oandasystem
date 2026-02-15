@@ -217,7 +217,8 @@ def run_backtest_verification(config: dict, df: pd.DataFrame, start_date: dateti
 
     (pnls, equity_curve, exit_reasons, bars_held, entry_bar_indices,
      exit_bar_indices, mfe_r, mae_r, signal_indices,
-     n_trades, win_rate, pf, sharpe, max_dd, total_ret, r_sq, ontester) = result
+     n_trades, win_rate, pf, sharpe, max_dd, total_ret, r_sq, ontester,
+     sortino, ulcer) = result
 
     # Build trade list
     bar_times = df.index.tolist()

@@ -110,7 +110,7 @@ def score_breakdown_bar(confidence: Dict) -> str:
          confidence.get('weights', {}).get('stability', 0.15), style.YELLOW),
         ('Monte Carlo', confidence.get('montecarlo_score', 0),
          confidence.get('weights', {}).get('montecarlo', 0.15), style.ORANGE),
-        ('Sharpe', confidence.get('sharpe_score', 0),
+        ('Quality Score', confidence.get('sharpe_score', 0),
          confidence.get('weights', {}).get('sharpe', 0.15), style.PURPLE),
     ]
 
@@ -518,29 +518,29 @@ def walkforward_bars(window_results: List[Dict]) -> str:
 
 
 def walkforward_consistency(window_results: List[Dict]) -> str:
-    """Horizontal bar: each window's OnTester score vs pass threshold."""
+    """Horizontal bar: each window's Quality Score vs pass threshold."""
     if not window_results:
         return chart_to_json([], _base_layout(height=250))
 
     windows = [f"W{wr.get('window', i+1)}" for i, wr in enumerate(window_results)]
-    ontester_vals = [wr.get('ontester', 0) for wr in window_results]
+    quality_vals = [wr.get('quality_score', 0) for wr in window_results]
     passed = [wr.get('passed', False) for wr in window_results]
     colors = [style.GREEN if p else style.RED for p in passed]
 
     data = [{
         'type': 'bar',
         'y': windows,
-        'x': ontester_vals,
+        'x': quality_vals,
         'orientation': 'h',
         'marker': {'color': colors},
-        'hovertemplate': '%{y}: OnTester = %{x:.1f}<extra></extra>',
+        'hovertemplate': '%{y}: Quality = %{x:.2f}<extra></extra>',
     }]
 
     layout = _base_layout(
         height=max(200, len(windows) * 40 + 60),
-        title={'text': 'OnTester Score per Window', 'font': {'size': 13}},
+        title={'text': 'Quality Score per Window', 'font': {'size': 13}},
         showlegend=False,
-        xaxis={'title': 'OnTester Score'},
+        xaxis={'title': 'Quality Score'},
         yaxis={'autorange': 'reversed'},
     )
 

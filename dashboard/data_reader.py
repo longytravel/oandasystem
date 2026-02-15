@@ -227,6 +227,11 @@ def collect_all_instances(strategies_file: Path, instances_dir: Path) -> list:
     return [collect_instance(s, instances_dir) for s in strategies]
 
 
+def read_scan_progress(results_dir: Path) -> dict:
+    """Read scan progress from scan_progress.json."""
+    return _read_json_safe(results_dir / "scan_progress.json") or {"status": "no_scan", "results": []}
+
+
 def get_daily_summary(instances: list) -> dict:
     """Aggregate summary across all instances."""
     total_pnl = sum(i.daily_pnl for i in instances)

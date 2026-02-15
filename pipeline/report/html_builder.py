@@ -240,8 +240,9 @@ def _build_performance_tab(data, charts, trade_summary):
         {_metric('Expected Payoff', f'${expected:,.2f}')}
         {_metric('Max DD ($)', f'${max_dd_abs:,.0f}')}
         {_metric('Recovery Factor', f'{data.get("recovery_factor", 0):.2f}')}
-        {_metric('Back Sharpe', f'{best.get("back_sharpe", 0):.2f}')}
+        {_metric('Back Sortino', f'{best.get("back_sortino", 0):.2f}')}
         {_metric('Forward Sharpe', f'{best.get("forward_sharpe", 0):.2f}')}
+        {_metric('Ulcer Index', f'{best.get("back_ulcer", 0):.2f}')}
     </div>
 
     <div class="chart-panel">
@@ -345,7 +346,7 @@ def _build_walkforward_tab(data, charts, wf_results):
     </div>
 
     <div class="chart-panel">
-        <div class="chart-panel-header">OnTester per Window</div>
+        <div class="chart-panel-header">Quality Score per Window</div>
         <div class="chart-panel-body"><div id="chart-wf-consistency" style="height:{max(200, len(wf_results)*40+60)}px"></div></div>
     </div>
 
@@ -676,12 +677,13 @@ def _build_leaderboard(candidates: List[Dict]) -> str:
             <td>{rank}</td>
             <td class="{score_cls}">{score:.1f}</td>
             <td>{c.get('back_sharpe', 0):.2f}</td>
+            <td>{c.get('back_sortino', 0):.2f}</td>
             <td>{c.get('forward_sharpe', 0):.2f}</td>
             <td>{c.get('back_trades', 0)}</td>
             <td>{c.get('forward_trades', 0)}</td>
             <td>{c.get('back_win_rate', 0)*100:.0f}%</td>
-            <td>{c.get('forward_win_rate', 0)*100:.0f}%</td>
             <td>{c.get('back_max_dd', 0):.1f}%</td>
+            <td>{c.get('back_ulcer', 0):.2f}</td>
             <td>{c.get('forward_back_ratio', 0):.2f}</td>
         </tr>""")
 
@@ -692,9 +694,9 @@ def _build_leaderboard(candidates: List[Dict]) -> str:
             <div class="table-scroll">
                 <table class="data-table" id="leaderboard">
                     <thead><tr>
-                        <th>Rank</th><th>Score</th><th>Back Sh</th><th>Fwd Sh</th>
-                        <th>Back Tr</th><th>Fwd Tr</th><th>Back WR</th><th>Fwd WR</th>
-                        <th>Max DD</th><th>F/B Ratio</th>
+                        <th>Rank</th><th>Score</th><th>Back Sh</th><th>Sortino</th><th>Fwd Sh</th>
+                        <th>Back Tr</th><th>Fwd Tr</th><th>Back WR</th>
+                        <th>Max DD</th><th>Ulcer</th><th>F/B Ratio</th>
                     </tr></thead>
                     <tbody>{''.join(rows)}</tbody>
                 </table>
@@ -756,11 +758,14 @@ def _build_wf_table(wf_results: List[Dict]) -> str:
         rows.append(f"""<tr>
             <td>W{wr.get('window', '?')}</td>
             <td>{wr.get('trades', 0)}</td>
-            <td>{wr.get('ontester', 0):.1f}</td>
+            <td>{wr.get('quality_score', 0):.2f}</td>
             <td>{wr.get('sharpe', 0):.2f}</td>
+            <td>{wr.get('sortino', 0):.2f}</td>
+            <td>{wr.get('r_squared', 0):.3f}</td>
             <td>{wr.get('return', 0):.1f}%</td>
             <td>{wr.get('win_rate', 0)*100:.0f}%</td>
             <td>{wr.get('max_dd', 0):.1f}%</td>
+            <td>{wr.get('ulcer', 0):.2f}</td>
             <td class="{status_cls}">{status_text}</td>
         </tr>""")
 
@@ -770,8 +775,8 @@ def _build_wf_table(wf_results: List[Dict]) -> str:
         <div class="chart-panel-body">
             <table class="data-table">
                 <thead><tr>
-                    <th>Window</th><th>Trades</th><th>OnTester</th><th>Sharpe</th>
-                    <th>Return</th><th>Win Rate</th><th>Max DD</th><th>Status</th>
+                    <th>Window</th><th>Trades</th><th>Quality</th><th>Sharpe</th><th>Sortino</th><th>R²</th>
+                    <th>Return</th><th>Win Rate</th><th>Max DD</th><th>Ulcer</th><th>Status</th>
                 </tr></thead>
                 <tbody>{''.join(rows)}</tbody>
             </table>

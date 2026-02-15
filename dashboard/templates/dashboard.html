@@ -646,6 +646,51 @@
     </div>
 </div>
 
+<!-- SCAN RESULTS -->
+<div class="section" id="scan-section" style="display:none">
+    <div class="section-title">Pipeline Scanner</div>
+    <div class="summary-row" style="padding:0 0 12px 0">
+        <div class="summary-card">
+            <div class="summary-label">Phase</div>
+            <div class="summary-value" id="scan-phase" style="font-size:1rem">--</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-label">Progress</div>
+            <div class="summary-value" id="scan-progress">--</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-label">GREEN</div>
+            <div class="summary-value positive" id="scan-green">0</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-label">Strategy</div>
+            <div class="summary-value" id="scan-strategy" style="font-size:0.9rem">--</div>
+        </div>
+    </div>
+    <!-- Progress bar -->
+    <div style="background:var(--bg-input);border-radius:4px;height:6px;margin-bottom:12px;overflow:hidden">
+        <div id="scan-bar" style="background:var(--green);height:100%;width:0%;transition:width 0.5s"></div>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Pair</th>
+                    <th>TF</th>
+                    <th style="text-align:right">Score</th>
+                    <th>Rating</th>
+                    <th style="text-align:right">WF%</th>
+                    <th style="text-align:right">Sharpe</th>
+                    <th style="text-align:right">Stability</th>
+                    <th style="text-align:right">Time</th>
+                </tr>
+            </thead>
+            <tbody id="scan-body"></tbody>
+        </table>
+    </div>
+</div>
+
 <!-- FOOTER -->
 <div class="footer">
     OANDA Trading System &mdash; Auto-refresh: {{ refresh_seconds }}s &mdash;
@@ -828,9 +873,50 @@ function toggleTrades(instanceId) {
         });
 }
 
+function refreshScan() {
+    fetch('/api/scan')
+        .then(r => r.json())
+        .then(data => {
+            const section = document.getElementById('scan-section');
+            if (data.status === 'no_scan') { section.style.display = 'none'; return; }
+            section.style.display = 'block';
+
+            document.getElementById('scan-phase').textContent = data.phase || '--';
+            document.getElementById('scan-strategy').textContent = data.strategy || '--';
+
+            const total = data.total_combos || 0;
+            const done = data.completed || 0;
+            document.getElementById('scan-progress').textContent = done + '/' + total;
+            document.getElementById('scan-bar').style.width = (total > 0 ? (done/total*100) : 0) + '%';
+
+            const results = (data.results || []).slice().sort((a,b) => (b.score||0) - (a.score||0));
+            document.getElementById('scan-green').textContent = results.filter(r => r.rating === 'GREEN').length;
+
+            const tbody = document.getElementById('scan-body');
+            let html = '';
+            results.forEach((r, i) => {
+                const ratingColor = r.rating === 'GREEN' ? 'var(--green)' : r.rating === 'YELLOW' ? 'var(--yellow)' : 'var(--red)';
+                html += '<tr>';
+                html += '<td>' + (i+1) + '</td>';
+                html += '<td style="font-weight:500">' + (r.pair||'') + '</td>';
+                html += '<td style="color:var(--text-muted)">' + (r.timeframe||'') + '</td>';
+                html += '<td style="text-align:right">' + (r.score||0).toFixed(1) + '</td>';
+                html += '<td style="color:' + ratingColor + ';font-weight:600">' + (r.rating||'--') + '</td>';
+                html += '<td style="text-align:right">' + ((r.wf_pass_rate||0)*100).toFixed(0) + '%</td>';
+                html += '<td style="text-align:right">' + (r.sharpe||0).toFixed(2) + '</td>';
+                html += '<td style="text-align:right">' + ((r.stability||0)*100).toFixed(1) + '%</td>';
+                html += '<td style="text-align:right">' + (r.elapsed_minutes||0).toFixed(0) + 'm</td>';
+                html += '</tr>';
+            });
+            tbody.innerHTML = html;
+        })
+        .catch(() => {});
+}
+
 // Initialize
 updateTime();
-refreshTimer = setInterval(refreshNow, REFRESH_SECONDS * 1000);
+refreshScan();
+refreshTimer = setInterval(() => { refreshNow(); refreshScan(); }, REFRESH_SECONDS * 1000);
 </script>
 
 </body>

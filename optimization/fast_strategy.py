@@ -425,3 +425,28 @@ class FastStrategy(ABC):
     def supports_full_management(self) -> bool:
         """Check if strategy supports full trade management features."""
         return self.get_parameter_groups() is not None
+
+    def supports_grid(self) -> bool:
+        """Check if strategy supports multiple concurrent positions (grid trading).
+
+        Override and return True in grid strategies. When True, the optimizer
+        and pipeline stages will use grid_backtest_numba instead of the
+        single-position engines.
+        """
+        return False
+
+    def get_grid_arrays(
+        self,
+        params: Dict[str, Any],
+        highs: np.ndarray,
+        lows: np.ndarray,
+        closes: np.ndarray,
+    ) -> Optional[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
+        """Get signal arrays with group_ids for grid backtesting.
+
+        Returns:
+            (entry_bars, entry_prices, directions, sl_prices, tp_prices, group_ids)
+            where group_ids links signals from the same grid setup.
+            Returns None if strategy doesn't support grid.
+        """
+        return None

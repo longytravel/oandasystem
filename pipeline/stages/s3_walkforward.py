@@ -17,7 +17,7 @@ from loguru import logger
 
 from optimization.unified_optimizer import UnifiedOptimizer
 from optimization.fast_strategy import FastStrategy
-from optimization.numba_backtest import Metrics, get_quote_conversion_rate
+from optimization.numba_backtest import Metrics, get_quote_conversion_rate, calculate_quality_score, grid_backtest_numba
 from pipeline.config import PipelineConfig
 from pipeline.state import PipelineState
 from pipeline.stages.s2_optimization import get_strategy
@@ -462,8 +462,10 @@ class WalkForwardStage:
                     'train_candles': 0,
                     'test_candles': n_bars,
                     'trades': 0,
+                    'quality_score': 0.0,
                     'ontester': 0.0,
                     'sharpe': 0.0,
+                    'r_squared': 0.0,
                     'return': 0.0,
                     'max_dd': 0.0,
                     'win_rate': 0.0,
@@ -583,8 +585,10 @@ class WalkForwardStage:
                             'train_candles': 0,
                             'test_candles': n_bars,
                             'trades': 0,
+                            'quality_score': 0.0,
                             'ontester': 0.0,
                             'sharpe': 0.0,
+                            'r_squared': 0.0,
                             'return': 0.0,
                             'max_dd': 0.0,
                             'win_rate': 0.0,
@@ -657,30 +661,66 @@ class WalkForwardStage:
             # V6.2: Pass cooldown when ML exit is active
             cooldown = self.config.ml_exit.ml_exit_cooldown_bars if ml_exit_enabled and ml_result is not None else 0
 
-            result = full_backtest_numba(
-                w_entry_bars,
-                w_entry_prices,
-                w_directions,
-                w_sl_prices,
-                w_tp_prices,
-                w_use_trailing, w_trail_start, w_trail_step,
-                w_use_be, w_be_trigger, w_be_offset,
-                w_use_partial, w_partial_pct, w_partial_target,
-                w_max_bars,
-                w_trail_mode, w_chandelier_atr_mult, w_atr_pips_arr, w_stale_exit_bars,
-                w_ml_long, w_ml_short, w_use_ml, w_ml_min_hold, w_ml_threshold,
-                w_highs, w_lows, w_closes, w_days,
-                self.config.initial_capital,
-                self.config.risk_per_trade,
-                pip_size,
-                params.get('max_daily_trades', 0),
-                params.get('max_daily_loss_pct', 0.0),
-                quality_mult,
-                quote_rate,
-                5544.0,  # bars_per_year
-                cooldown,
-                spread_pips=self.config.spread_pips,
-            )
+            # Grid strategies use grid_backtest_numba instead of full_backtest_numba
+            if strategy.supports_grid():
+                # Get grid arrays with group_ids for this window
+                grid_result = strategy.get_grid_arrays(
+                    params, full_highs, full_lows, full_closes
+                )
+                if grid_result is not None:
+                    g_entry_bars, g_entry_prices, g_directions, g_sl_prices, g_tp_prices, g_group_ids = grid_result
+                    # Filter to this window's bar range
+                    g_mask = (g_entry_bars >= bar_start) & (g_entry_bars < bar_end)
+                    g_entry_bars_w = g_entry_bars[g_mask] - bar_start
+                    g_entry_prices_w = g_entry_prices[g_mask]
+                    g_directions_w = g_directions[g_mask]
+                    g_sl_prices_w = g_sl_prices[g_mask]
+                    g_tp_prices_w = g_tp_prices[g_mask]
+                    g_group_ids_w = g_group_ids[g_mask]
+
+                    max_concurrent = params.get('grid_orders', 0) + 1
+                    if max_concurrent < 2:
+                        max_concurrent = 11
+
+                    result = grid_backtest_numba(
+                        g_entry_bars_w, g_entry_prices_w, g_directions_w,
+                        g_sl_prices_w, g_tp_prices_w, g_group_ids_w,
+                        w_highs, w_lows, w_closes,
+                        self.config.initial_capital,
+                        self.config.risk_per_trade,
+                        pip_size,
+                        max_concurrent,
+                        quote_rate,
+                        5544.0,
+                        self.config.spread_pips,
+                    )
+                else:
+                    result = (0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+            else:
+                result = full_backtest_numba(
+                    w_entry_bars,
+                    w_entry_prices,
+                    w_directions,
+                    w_sl_prices,
+                    w_tp_prices,
+                    w_use_trailing, w_trail_start, w_trail_step,
+                    w_use_be, w_be_trigger, w_be_offset,
+                    w_use_partial, w_partial_pct, w_partial_target,
+                    w_max_bars,
+                    w_trail_mode, w_chandelier_atr_mult, w_atr_pips_arr, w_stale_exit_bars,
+                    w_ml_long, w_ml_short, w_use_ml, w_ml_min_hold, w_ml_threshold,
+                    w_highs, w_lows, w_closes, w_days,
+                    self.config.initial_capital,
+                    self.config.risk_per_trade,
+                    pip_size,
+                    params.get('max_daily_trades', 0),
+                    params.get('max_daily_loss_pct', 0.0),
+                    quality_mult,
+                    quote_rate,
+                    5544.0,  # bars_per_year
+                    cooldown,
+                    spread_pips=self.config.spread_pips,
+                )
 
             metrics = Metrics(*result)
 
@@ -696,9 +736,13 @@ class WalkForwardStage:
                 ml_window_info['trade_count_changed'] = (pass3_n_trades != pass1_n_trades)
 
             min_trades = self.config.walkforward.min_trades_per_window
+            qs = calculate_quality_score(
+                metrics.sortino, metrics.r_squared, metrics.profit_factor,
+                metrics.trades, metrics.max_dd, metrics.total_return, metrics.ulcer,
+            )
             window_passed = (
                 metrics.trades >= min_trades and
-                metrics.ontester_score > 0
+                qs > 0
             )
 
             window_result = {
@@ -707,8 +751,12 @@ class WalkForwardStage:
                 'train_candles': 0,
                 'test_candles': n_bars,
                 'trades': metrics.trades,
+                'quality_score': qs,
                 'ontester': metrics.ontester_score,
                 'sharpe': metrics.sharpe,
+                'sortino': metrics.sortino,
+                'ulcer': metrics.ulcer,
+                'r_squared': metrics.r_squared,
                 'return': metrics.total_return,
                 'max_dd': metrics.max_dd,
                 'win_rate': metrics.win_rate,
@@ -881,7 +929,7 @@ class WalkForwardStage:
             # Unpack telemetry:
             # (pnls, equity_curve, exit_reasons, bars_held, entry_bar_indices,
             #  exit_bar_indices, mfe_r, mae_r, signal_indices,
-            #  n_trades, win_rate, pf, sharpe, max_dd, total_return, r_squared, ontester)
+            #  n_trades, win_rate, pf, sharpe, max_dd, total_return, r_squared, ontester, sortino, ulcer)
             entry_bar_indices = result[4]
             exit_bar_indices = result[5]
             signal_indices_arr = result[8]
@@ -1797,9 +1845,13 @@ class WalkForwardStage:
             )
 
             min_trades = self.config.walkforward.min_trades_per_window
+            qs = calculate_quality_score(
+                metrics.sortino, metrics.r_squared, metrics.profit_factor,
+                metrics.trades, metrics.max_dd, metrics.total_return, metrics.ulcer,
+            )
             window_passed = (
                 metrics.trades >= min_trades and
-                metrics.ontester_score > 0
+                qs > 0
             )
 
             results.append({
@@ -1808,8 +1860,12 @@ class WalkForwardStage:
                 'train_candles': len(df_train),
                 'test_candles': len(df_test),
                 'trades': metrics.trades,
+                'quality_score': qs,
                 'ontester': metrics.ontester_score,
                 'sharpe': metrics.sharpe,
+                'sortino': metrics.sortino,
+                'ulcer': metrics.ulcer,
+                'r_squared': metrics.r_squared,
                 'return': metrics.total_return,
                 'max_dd': metrics.max_dd,
                 'win_rate': metrics.win_rate,
@@ -1843,7 +1899,7 @@ class WalkForwardStage:
         )
 
         if len(signal_arrays['entry_bars']) < 3:
-            return Metrics(0, 0, 0, 0, 0, 0, 0, 0)
+            return Metrics(0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
 
         # Apply slippage (spread is deducted in engine via PnL)
         pip_size = 0.01 if 'JPY' in self.config.pair else 0.0001
@@ -1917,6 +1973,7 @@ class WalkForwardStage:
                 'n_windows': 0,
                 'n_passed': 0,
                 'pass_rate': 0.0,
+                'mean_quality_score': 0.0,
                 'mean_sharpe': 0.0,
                 'mean_ontester': 0.0,
                 'mean_return': 0.0,
@@ -1929,6 +1986,7 @@ class WalkForwardStage:
 
         passed = [r for r in completed if r.get('passed', False)]
 
+        quality_scores = [r.get('quality_score', 0) for r in completed]
         sharpes = [r['sharpe'] for r in completed]
         ontesters = [r['ontester'] for r in completed]
         returns = [r['return'] for r in completed]
@@ -1942,6 +2000,7 @@ class WalkForwardStage:
             'n_windows': len(completed),
             'n_passed': len(passed),
             'pass_rate': len(passed) / len(completed) if completed else 0,
+            'mean_quality_score': np.mean(quality_scores),
             'mean_sharpe': np.mean(sharpes),
             'std_sharpe': np.std(sharpes),
             'min_sharpe': min(sharpes),
@@ -1960,7 +2019,9 @@ class WalkForwardStage:
 
         if oos_completed:
             oos_sharpes = [r['sharpe'] for r in oos_completed]
+            oos_quality_scores = [r.get('quality_score', 0) for r in oos_completed]
             stats['oos_mean_sharpe'] = np.mean(oos_sharpes)
+            stats['oos_mean_quality_score'] = np.mean(oos_quality_scores)
 
         return stats
 

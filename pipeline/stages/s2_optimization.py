@@ -4,6 +4,7 @@ Stage 2: Initial Optimization
 Runs staged Optuna optimization with MT5-style combined ranking.
 Produces top N candidates for further validation.
 """
+import gc
 import pandas as pd
 import numpy as np
 from typing import Dict, Any, List, Optional
@@ -13,6 +14,7 @@ from loguru import logger
 
 from optimization.unified_optimizer import UnifiedOptimizer
 from optimization.fast_strategy import FastStrategy
+from optimization.numba_backtest import quality_score_from_metrics
 from pipeline.config import PipelineConfig
 from pipeline.state import PipelineState
 
@@ -27,6 +29,7 @@ def get_strategy(strategy_name: str) -> FastStrategy:
     from strategies.rsi_full_v5 import RSIDivergenceFullFastV5
     from strategies.ema_cross_ml import EMACrossMLStrategy
     from strategies.trend_simple import SimpleTrendStrategy
+    from strategies.fair_price_ma import FairPriceMAStrategy
 
     strategies = {
         # V1 - Original RSI Divergence
@@ -57,6 +60,11 @@ def get_strategy(strategy_name: str) -> FastStrategy:
         'Simple_Trend': SimpleTrendStrategy,
         'SimpleTrendStrategy': SimpleTrendStrategy,
         'trend_simple': SimpleTrendStrategy,
+        # Fair Price MA (converted from fairPriceMP v4.0 EA, grid strategy)
+        'Fair_Price_MA': FairPriceMAStrategy,
+        'FairPriceMA': FairPriceMAStrategy,
+        'FairPriceMAStrategy': FairPriceMAStrategy,
+        'fair_price_ma': FairPriceMAStrategy,
     }
 
     if strategy_name not in strategies:
@@ -91,7 +99,6 @@ class OptimizationStage:
         Returns:
             Dict with keys:
             - candidates: Top N candidates with metrics
-            - optimizer: The optimizer instance (for later use)
             - stage_results: Per-stage optimization results
         """
         logger.info("\n" + "=" * 70)
@@ -123,6 +130,8 @@ class OptimizationStage:
             n_jobs=self.config.optimization.n_jobs,  # Parallel workers
             pair=self.config.pair,  # For pip value calculation
             account_currency='USD',
+            max_dd_hard_limit=self.config.optimization.max_dd_hard_limit,
+            min_r2_hard=self.config.optimization.min_r2_hard,
         )
 
         # Run optimization
@@ -140,7 +149,6 @@ class OptimizationStage:
             logger.error("Optimization produced no valid results!")
             return {
                 'candidates': [],
-                'optimizer': optimizer,
                 'stage_results': {},
                 'summary': {'n_candidates': 0, 'best_sharpe': 0},
             }
@@ -163,6 +171,7 @@ class OptimizationStage:
         summary = {
             'n_candidates': len(candidates),
             'n_total_results': len(results),
+            'best_quality_score': best.get('back_quality_score', 0),
             'best_sharpe': best.get('back_sharpe', 0),
             'best_forward_sharpe': best.get('forward_sharpe', 0),
             'best_combined_rank': best.get('combined_rank', 999),
@@ -184,13 +193,28 @@ class OptimizationStage:
         logger.info(f"\nOptimization complete: {len(candidates)} candidates")
         if candidates:
             logger.info(f"Best combined rank: {candidates[0]['combined_rank']}")
+            logger.info(f"Best back QS: {candidates[0].get('back_quality_score', 0):.3f}")
             logger.info(f"Best back Sharpe: {candidates[0]['back_sharpe']:.3f}")
             logger.info(f"Best forward Sharpe: {candidates[0]['forward_sharpe']:.3f}")
 
+        # Extract what we need before releasing the optimizer
+        stage_results = optimizer.stage_results
+        param_importance = optimizer.param_importance
+
+        # Release optimizer's heavy data (DataFrames, arrays, signals)
+        optimizer.df_back = None
+        optimizer.df_forward = None
+        optimizer.back_arrays = {}
+        optimizer.fwd_arrays = {}
+        optimizer.back_signals = None
+        optimizer.fwd_signals = None
+        optimizer.strategy = None
+        gc.collect()
+
         return {
             'candidates': candidates,
-            'optimizer': optimizer,
-            'stage_results': optimizer.stage_results,
+            'stage_results': stage_results,
+            'param_importance': param_importance,
             'summary': summary,
         }
 
@@ -363,6 +387,8 @@ class OptimizationStage:
         for i, r in enumerate(results):
             back = r['back']
             fwd = r['forward']
+            back_qs = quality_score_from_metrics(back)
+            fwd_qs = quality_score_from_metrics(fwd)
 
             candidate = {
                 'rank': i + 1,
@@ -374,9 +400,12 @@ class OptimizationStage:
 
                 # Back metrics
                 'back_trades': back.trades,
+                'back_quality_score': back_qs,
                 'back_ontester': back.ontester_score,
                 'back_r_squared': back.r_squared,
                 'back_sharpe': back.sharpe,
+                'back_sortino': back.sortino,
+                'back_ulcer': back.ulcer,
                 'back_win_rate': back.win_rate,
                 'back_profit_factor': back.profit_factor,
                 'back_max_dd': back.max_dd,
@@ -384,16 +413,19 @@ class OptimizationStage:
 
                 # Forward metrics
                 'forward_trades': fwd.trades,
+                'forward_quality_score': fwd_qs,
                 'forward_ontester': fwd.ontester_score,
                 'forward_r_squared': fwd.r_squared,
                 'forward_sharpe': fwd.sharpe,
+                'forward_sortino': fwd.sortino,
+                'forward_ulcer': fwd.ulcer,
                 'forward_win_rate': fwd.win_rate,
                 'forward_profit_factor': fwd.profit_factor,
                 'forward_max_dd': fwd.max_dd,
                 'forward_return': fwd.total_return,
 
-                # Derived metrics - use Sharpe ratio (time-normalized, not inflated by compounding)
-                'forward_back_ratio': fwd.sharpe / back.sharpe if back.sharpe > 0 else 0,
+                # Derived - quality_score ratio (universal, not inflated by compounding)
+                'forward_back_ratio': fwd_qs / back_qs if back_qs > 0 else 0,
             }
 
             candidates.append(candidate)

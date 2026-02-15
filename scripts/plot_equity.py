@@ -141,7 +141,7 @@ def run_backtest(strategy, df, params, initial_capital=10000, risk_pct=1.0, spre
         5.0,  # max_daily_loss_pct
     )
 
-    n_trades, win_rate, pf, sharpe, max_dd, total_ret, r_squared, ontester = result
+    n_trades, win_rate, pf, sharpe, max_dd, total_ret, r_squared, ontester, sortino, ulcer = result
 
     return {
         'trades': int(n_trades),

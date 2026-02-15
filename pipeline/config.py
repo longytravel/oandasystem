@@ -29,6 +29,9 @@ class OptimizationConfig:
     min_forward_ratio: float = 0.40  # FIX V4: 0.15 too permissive, allows heavily overfitted candidates
     forward_rank_weight: float = 2.0
     n_jobs: int = 1  # Parallel workers for Optuna (-1 = all cores)
+    # Hard pre-filters: reject garbage before scoring to focus optimizer
+    max_dd_hard_limit: float = 30.0   # MaxDD > 30% → instant reject
+    min_r2_hard: float = 0.5          # R² < 0.5 → instant reject (noisy equity curve)
     # Diversity settings - ensure candidates have variety in key params
     # Default 1 = maximum diversity (1 candidate per unique signature first)
     # Higher values allow more variations of same strategy after diversity pass
@@ -67,13 +70,18 @@ class MonteCarloConfig:
 
 @dataclass
 class ConfidenceConfig:
-    """Stage 6: Confidence scoring weights."""
+    """Stage 6: Confidence scoring weights.
+
+    Quality Score = Sortino × R² × min(PF,5) × √min(Trades,200) × (1 + min(Return%,200)/100) / (Ulcer + MaxDD%/2 + 5)
+    Hard pre-filters: MaxDD > 30% or R² < 0.5 → instant reject before scoring.
+    Used as the universal metric throughout the pipeline.
+    """
     backtest_quality_weight: float = 0.15
     forward_back_weight: float = 0.15
     walkforward_weight: float = 0.25
     stability_weight: float = 0.15
     montecarlo_weight: float = 0.15
-    sharpe_weight: float = 0.15
+    sharpe_weight: float = 0.15  # Actually uses Quality Score (field name kept for compat)
 
     # Thresholds
     red_threshold: float = 40.0
@@ -180,6 +188,8 @@ class PipelineConfig:
                 'top_n_candidates': self.optimization.top_n_candidates,
                 'min_forward_ratio': self.optimization.min_forward_ratio,
                 'forward_rank_weight': self.optimization.forward_rank_weight,
+                'max_dd_hard_limit': self.optimization.max_dd_hard_limit,
+                'min_r2_hard': self.optimization.min_r2_hard,
                 'max_same_signature': self.optimization.max_same_signature,
             },
             'walkforward': {

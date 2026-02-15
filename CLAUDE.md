@@ -35,12 +35,37 @@ When pipeline logs show recurring warnings (especially about data overlap, OOS w
 ### Verify thresholds against actual data distributions
 Before setting any threshold, filter, or cutoff value, check what the actual data/model produces. ML model outputs, scoring formulas, and filter criteria must be validated against real distributions, not theoretical ranges.
 
+## Quality Score (Universal Metric)
+
+The entire pipeline uses one consistent scoring metric:
+
+```
+Quality Score = Sortino × R² × min(PF, 5) × √min(Trades, 200) × (1 + min(Return%, 200) / 100) / (Ulcer + MaxDD%/2 + 5)
+```
+
+**Sortino** replaces Sharpe — doesn't penalize upside volatility, better for asymmetric strategies (trend following, big R:R). **Ulcer Index** alongside MaxDD captures chronic drawdown pain (time underwater), not just worst-case depth. Two systems with identical MaxDD but different recovery times score differently.
+
+This rewards smooth equity curves (R²), risk-adjusted profit (Sortino), absolute profit (return multiplier 1x-3x), efficiency (PF), statistical confidence (√trades), and penalizes both chronic and peak drawdown. Return% is capped at 200% to prevent compound sizing inflation on high-frequency timeframes. It is used for:
+- Optimization objective (what Optuna maximizes)
+- Combined ranking (back + forward)
+- Walk-forward window pass/fail (quality_score > 0)
+- Stability analysis (baseline and neighbor comparison)
+- Confidence scoring (15% weight as "Quality Score" component)
+
+**Hard pre-filters** in the Optuna objective reject garbage before scoring:
+- MaxDD > 30% → instant reject (configurable: `optimization.max_dd_hard_limit`)
+- R² < 0.5 → instant reject (configurable: `optimization.min_r2_hard`)
+
+**Metrics namedtuple** has 10 fields: trades, win_rate, profit_factor, sharpe, max_dd, total_return, r_squared, ontester_score, sortino, ulcer.
+
+Returns 0 when Sortino ≤ 0, PF ≤ 0, R² ≤ 0, or no trades. Defined in `optimization/numba_backtest.py`.
+
 ## Pipeline Execution Checklist
 
 When running pipeline optimizations:
 1. Output directory must be unique per run (timestamp-based, already handled by pipeline)
 2. Verify `--test-months` CLI arg matches intended config (CLI overrides config.py defaults)
-3. Check scoring formulas handle edge cases: compound sizing inflation (use Sharpe not dollar profit for high-frequency), very few trades, zero-variance results
+3. Quality Score handles all timeframes universally - no special treatment for M15/M5 vs H1
 4. After each run: check OOS window count (`oos_n_windows`). If 0, all comparisons are in-sample
 5. For A/B tests: verify the best candidate is actually affected by the treatment (e.g., ML filter may return None for some candidates)
 6. State serialization: `state.json` must include `trade_details` for resume capability

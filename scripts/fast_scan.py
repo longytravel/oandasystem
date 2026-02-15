@@ -1,19 +1,20 @@
 #!/usr/bin/env python
 """
-Multi-Pair Scanner for RSI V3
+Multi-Pair Scanner
 
-Two-phase approach:
+Three-phase approach:
 1. Signal pre-check (~5 min) - Count signals per pair/timeframe, skip low-signal combos
 2. Fast pipeline on survivors (~15-20 min each, parallel) - Real Optuna optimization
+3. (--overnight) Full pipeline on GREEN results sequentially - 5000/10000 trials
 
 Usage:
-    python scripts/fast_scan.py                                    # All 20 pairs x M15,H1
-    python scripts/fast_scan.py --pairs EUR_USD USD_JPY            # Specific pairs
-    python scripts/fast_scan.py --timeframes H1 H4                 # Specific timeframes
-    python scripts/fast_scan.py --workers 3                        # More parallelism
-    python scripts/fast_scan.py --min-signals 30                   # Higher signal threshold
-    python scripts/fast_scan.py --skip-precheck                    # Skip signal check, run all
-    python scripts/fast_scan.py --full                             # Full pipeline (not --fast)
+    python scripts/fast_scan.py -s fair_price_ma --timeframes H1 H4           # Scan with any strategy
+    python scripts/fast_scan.py --pairs EUR_USD USD_JPY                       # Specific pairs
+    python scripts/fast_scan.py --workers 3                                   # More parallelism
+    python scripts/fast_scan.py --min-signals 30                              # Higher signal threshold
+    python scripts/fast_scan.py --skip-precheck                               # Skip signal check, run all
+    python scripts/fast_scan.py --full                                        # Full pipeline (not --fast)
+    python scripts/fast_scan.py -s fair_price_ma --timeframes H1 H4 --overnight  # Auto full pipelines on GREEN
 """
 import sys
 import re
@@ -32,6 +33,8 @@ sys.path.insert(0, str(project_root))
 
 from loguru import logger
 
+PROGRESS_FILE = project_root / 'results' / 'scan_progress.json'
+
 
 # Realistic OANDA practice spreads in pips
 PAIR_SPREADS = {
@@ -49,20 +52,20 @@ ALL_PAIRS = list(PAIR_SPREADS.keys())
 DEFAULT_TIMEFRAMES = ['M15', 'H1']
 
 
-def signal_precheck(pair: str, timeframe: str, years: float = 3.0) -> int:
+def signal_precheck(pair: str, timeframe: str, years: float = 3.0, strategy_name: str = 'RSI_Divergence_v3') -> int:
     """
-    Count RSI V3 signals for a pair/timeframe combo.
+    Count signals for a pair/timeframe combo using any strategy.
     Returns signal count, or -1 on error.
     """
     try:
         from data.download import load_data
-        from strategies.rsi_full_v3 import RSIDivergenceFullFastV3
+        from pipeline.stages.s2_optimization import get_strategy
 
         df = load_data(instrument=pair, timeframe=timeframe, auto_download=True, years=years)
         if df is None or len(df) < 500:
             return -1
 
-        strategy = RSIDivergenceFullFastV3()
+        strategy = get_strategy(strategy_name)
         strategy.set_pip_size(pair)
         signals = strategy.precompute(df)
         return len(signals)
@@ -79,6 +82,7 @@ def run_pipeline_subprocess(
     fast: bool = True,
     years: float = 3.0,
     strategy: str = 'RSI_Divergence_v3',
+    description: str = '',
 ) -> dict:
     """
     Run pipeline for a single pair/timeframe via subprocess.
@@ -86,6 +90,7 @@ def run_pipeline_subprocess(
     """
     start = time.time()
 
+    desc = description or f"scan:{'fast' if fast else 'full'} {pair} {timeframe} {strategy}"
     cmd = [
         sys.executable,
         str(project_root / 'scripts' / 'run_pipeline.py'),
@@ -94,7 +99,7 @@ def run_pipeline_subprocess(
         '--strategy', strategy,
         '--years', str(years),
         '--spread', str(spread),
-        '-d', f'scan: {pair} {timeframe}',
+        '-d', desc,
     ]
     if fast:
         cmd.append('--fast')
@@ -197,7 +202,7 @@ def run_pipeline_subprocess(
         }
 
 
-def run_phase1(pairs, timeframes, min_signals, years):
+def run_phase1(pairs, timeframes, min_signals, years, strategy_name='RSI_Divergence_v3'):
     """Phase 1: Signal pre-check. Returns list of (pair, tf, signal_count) that passed."""
     total = len(pairs) * len(timeframes)
     logger.info(f"=== PHASE 1: Signal Pre-Check ({len(pairs)} pairs x {len(timeframes)} timeframes = {total} combos) ===")
@@ -209,7 +214,7 @@ def run_phase1(pairs, timeframes, min_signals, years):
     for pair in pairs:
         line_parts = []
         for tf in timeframes:
-            count = signal_precheck(pair, tf, years=years)
+            count = signal_precheck(pair, tf, years=years, strategy_name=strategy_name)
             if count >= min_signals:
                 passed.append((pair, tf, count))
                 line_parts.append(f"{tf}: {count:>5} signals  OK")
@@ -234,7 +239,25 @@ def run_phase1(pairs, timeframes, min_signals, years):
     return passed
 
 
-def run_phase2(combos, workers, fast, years, strategy):
+def write_progress(scan_id, strategy, timeframes, phase, total_combos, results, status='running'):
+    """Write scan progress to JSON for dashboard consumption."""
+    progress = {
+        'scan_id': scan_id,
+        'strategy': strategy,
+        'timeframes': timeframes,
+        'status': status,
+        'started_at': getattr(write_progress, '_started', datetime.now().isoformat()),
+        'phase': phase,
+        'total_combos': total_combos,
+        'completed': len(results),
+        'results': results,
+    }
+    PROGRESS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(PROGRESS_FILE, 'w') as f:
+        json.dump(progress, f, indent=2)
+
+
+def run_phase2(combos, workers, fast, years, strategy, scan_id=None, timeframes=None):
     """Phase 2: Run pipeline on surviving combos. Returns list of result dicts."""
     total = len(combos)
     est_time_per = 18 if fast else 35
@@ -261,6 +284,7 @@ def run_phase2(combos, workers, fast, years, strategy):
             completed += 1
             try:
                 result = future.result()
+                result['phase'] = 'fast_done' if fast else 'full_done'
                 results.append(result)
 
                 # Color-code rating
@@ -277,6 +301,12 @@ def run_phase2(combos, workers, fast, years, strategy):
                     f"({result['elapsed_minutes']:.1f} min)"
                 )
 
+                # Update progress file
+                if scan_id:
+                    write_progress(scan_id, strategy, timeframes or [],
+                                   'fast_scan' if fast else 'full_pipeline',
+                                   total, results)
+
             except Exception as e:
                 logger.error(f"  [{completed}/{total}] {pair} {tf}: Exception - {e}")
                 results.append({
@@ -284,10 +314,65 @@ def run_phase2(combos, workers, fast, years, strategy):
                     'score': 0.0, 'rating': 'ERROR',
                     'wf_pass_rate': 0.0, 'sharpe': 0.0, 'stability': 0.0,
                     'elapsed_minutes': 0.0, 'run_dir': '', 'success': False,
-                    'error': str(e),
+                    'error': str(e), 'phase': 'error',
                 })
 
     return results
+
+
+def run_phase3_full(fast_results, years, strategy, scan_id=None, timeframes=None):
+    """Phase 3 (overnight): Run full pipelines on GREEN results sequentially."""
+    green_results = sorted(
+        [r for r in fast_results if r['rating'] == 'GREEN'],
+        key=lambda x: x['score'], reverse=True,
+    )
+
+    if not green_results:
+        logger.info("No GREEN results from fast scan. Skipping full pipeline phase.")
+        return []
+
+    logger.info(f"=== PHASE 3: Full Pipeline on {len(green_results)} GREEN results (sequential) ===")
+    est_total = len(green_results) * 50
+    logger.info(f"Estimated time: ~{est_total:.0f} min ({est_total/60:.1f} hours)")
+    print()
+
+    full_results = []
+    for rank, r in enumerate(green_results, 1):
+        pair, tf = r['pair'], r['timeframe']
+        spread = PAIR_SPREADS.get(pair, 2.0)
+        desc = f"scan:full #{rank} {pair} {tf} {strategy}"
+
+        logger.info(f"  [{rank}/{len(green_results)}] Running full pipeline: {pair} {tf} (fast score: {r['score']:.1f})")
+
+        result = run_pipeline_subprocess(
+            pair, tf, spread, fast=False, years=years,
+            strategy=strategy, description=desc,
+        )
+        result['phase'] = 'full_done'
+        result['fast_score'] = r['score']
+        result['fast_rating'] = r['rating']
+        full_results.append(result)
+
+        # Color-code
+        rating_colors = {
+            'GREEN': '\033[92m', 'YELLOW': '\033[93m',
+            'RED': '\033[91m', 'ERROR': '\033[91m', 'TIMEOUT': '\033[91m',
+        }
+        color = rating_colors.get(result['rating'], '\033[0m')
+        reset = '\033[0m'
+        print(
+            f"  [{rank:>2}/{len(green_results)}] {pair:<10} {tf:<4}: "
+            f"{color}{result['score']:>5.1f}/100 {result['rating']:<7}{reset} "
+            f"(fast: {r['score']:.1f}) ({result['elapsed_minutes']:.1f} min)"
+        )
+
+        # Update progress file
+        if scan_id:
+            write_progress(scan_id, strategy, timeframes or [],
+                           f'full_pipeline ({rank}/{len(green_results)})',
+                           len(green_results), full_results)
+
+    return full_results
 
 
 def print_rankings(results):
@@ -365,7 +450,7 @@ def save_csv(results, output_path):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Multi-Pair Scanner - Find profitable pair/timeframe combos for RSI V3',
+        description='Multi-Pair Scanner - Find profitable pair/timeframe combos',
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument('--pairs', nargs='+', default=ALL_PAIRS,
@@ -383,6 +468,8 @@ def main():
                         help='Use --fast pipeline mode (default: True)')
     parser.add_argument('--full', action='store_true',
                         help='Use full pipeline mode (overrides --fast)')
+    parser.add_argument('--overnight', action='store_true',
+                        help='After fast scan, auto-run full pipelines on GREEN results')
     parser.add_argument('--years', type=float, default=3.0,
                         help='Years of data (default: 3.0)')
     parser.add_argument('--strategy', '-s', default='RSI_Divergence_v3',
@@ -401,13 +488,18 @@ def main():
         level="INFO",
     )
 
+    # Scan ID for progress tracking
+    scan_id = f"scan_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    write_progress._started = datetime.now().isoformat()
+
     # Header
     print()
     print("=" * 95)
-    print("  MULTI-PAIR SCANNER - RSI V3")
+    print(f"  MULTI-PAIR SCANNER - {args.strategy}")
     print("=" * 95)
     logger.info(f"Pairs: {len(args.pairs)} | Timeframes: {args.timeframes} | Workers: {args.workers}")
-    logger.info(f"Mode: {'FAST' if use_fast else 'FULL'} | Years: {args.years} | Min signals: {args.min_signals}")
+    logger.info(f"Mode: {'FAST' if use_fast else 'FULL'}{' + OVERNIGHT' if args.overnight else ''} | Years: {args.years} | Min signals: {args.min_signals}")
+    logger.info(f"Scan ID: {scan_id}")
     print()
 
     start_time = time.time()
@@ -417,22 +509,28 @@ def main():
         combos = [(pair, tf, -1) for pair in args.pairs for tf in args.timeframes]
         logger.info(f"Skipping pre-check. Running all {len(combos)} combos.")
     else:
-        combos = run_phase1(args.pairs, args.timeframes, args.min_signals, args.years)
+        combos = run_phase1(args.pairs, args.timeframes, args.min_signals, args.years, args.strategy)
 
     if not combos:
         logger.error("No combos passed signal pre-check. Nothing to run.")
+        write_progress(scan_id, args.strategy, args.timeframes, 'done', 0, [], status='completed')
         return 1
+
+    # Initialize progress
+    total_combos = len(combos)
+    write_progress(scan_id, args.strategy, args.timeframes, 'fast_scan', total_combos, [])
 
     # Estimate time
     est_per = 18 if use_fast else 35
-    est_total = (len(combos) * est_per) / args.workers
-    logger.info(f"Starting pipeline on {len(combos)} combos (~{est_total:.0f} min / {est_total/60:.1f} hours estimated)")
+    est_total = (total_combos * est_per) / args.workers
+    logger.info(f"Starting pipeline on {total_combos} combos (~{est_total:.0f} min / {est_total/60:.1f} hours estimated)")
     print()
 
     # Phase 2: Run pipelines
-    results = run_phase2(combos, args.workers, use_fast, args.years, args.strategy)
+    results = run_phase2(combos, args.workers, use_fast, args.years, args.strategy,
+                         scan_id=scan_id, timeframes=args.timeframes)
 
-    # Final rankings
+    # Final rankings (Phase 2)
     print_rankings(results)
 
     # Save CSV
@@ -441,8 +539,34 @@ def main():
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     save_csv(results, csv_path)
 
+    # Phase 3: Overnight full pipelines on GREEN results
+    full_results = []
+    if args.overnight:
+        full_results = run_phase3_full(
+            results, args.years, args.strategy,
+            scan_id=scan_id, timeframes=args.timeframes,
+        )
+
+        if full_results:
+            print()
+            logger.info("=== FULL PIPELINE RANKINGS ===")
+            print_rankings(full_results)
+
+            full_csv = project_root / 'results' / f'scan_full_{timestamp}.csv'
+            save_csv(full_results, full_csv)
+
+    # Mark scan complete
+    all_results = results + full_results
+    write_progress(scan_id, args.strategy, args.timeframes, 'done',
+                   total_combos, results, status='completed')
+
     total_time = (time.time() - start_time) / 60
+    n_green = sum(1 for r in results if r['rating'] == 'GREEN')
     print(f"\n  Total elapsed: {total_time:.0f} min ({total_time/60:.1f} hours)")
+    if args.overnight:
+        n_full_green = sum(1 for r in full_results if r['rating'] == 'GREEN')
+        print(f"  Fast scan: {n_green} GREEN / {len(results)} total")
+        print(f"  Full pipeline: {n_full_green} GREEN / {len(full_results)} total")
     print()
 
     return 0

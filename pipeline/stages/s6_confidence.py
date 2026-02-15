@@ -2,12 +2,12 @@
 Stage 6: Confidence Scoring
 
 Combines all validation evidence into a single 0-100 score:
-- Backtest Quality (15%) - absolute backtest performance
+- Backtest Quality (15%) - absolute backtest performance (PF, Sharpe, R², trades, DD)
 - Forward/Back Ratio (15%) - penalizes suspicious extreme ratios
 - Walk-Forward Consistency (25%)
 - Parameter Stability (15%)
-- Monte Carlo 5th Percentile (15%)
-- Sharpe Ratio (15%)
+- Monte Carlo Risk (15%)
+- Quality Score (15%) - universal metric: smooth equity + profit + low drawdown
 
 Score thresholds:
 - RED (<40): DO NOT TRADE
@@ -153,32 +153,38 @@ class ConfidenceStage:
         """
         Evaluate absolute backtest quality (0-100).
 
-        Uses 4 equally-weighted sub-components from existing candidate data:
+        Uses 5 equally-weighted sub-components (20% each):
         - Profit Factor: 1.0->0, 2.0->50, 3.0+->100
-        - Back Sharpe: 0->0, 1.0->33, 2.0->67, 3.0+->100
+        - Sortino: 0->0, 1.5->50, 3.0+->100 (Sortino replaces Sharpe — better for asymmetric)
+        - R² (equity smoothness): 0->0, 0.5->50, 0.9+->100
         - Trade count (statistical significance): <30->0, 100+->100
-        - Max drawdown (lower=better): <5%->100, 20%->50, 40%+->0
+        - Blended DD (lower=better): uses Ulcer + MaxDD/2, penalizes chronic + peak drawdown
         """
         back_stats = candidate.get('back_stats', {})
 
         # Profit Factor: 1.0->0, 2.0->50, 3.0+->100
-        # Fix Finding 4: key was 'back_pf' but s2_optimization stores 'back_profit_factor'
         profit_factor = back_stats.get('profit_factor', candidate.get('back_profit_factor', 1.0))
         pf_sub = max(0, min(100, (profit_factor - 1.0) * 50))
 
-        # Back Sharpe: 0->0, 3.0+->100
-        back_sharpe = back_stats.get('sharpe', candidate.get('back_sharpe', 0))
-        sharpe_sub = max(0, min(100, back_sharpe / 3.0 * 100))
+        # Sortino: 0->0, 3.0+->100 (replaces Sharpe for asymmetric strategy fairness)
+        back_sortino = back_stats.get('sortino', candidate.get('back_sortino', 0))
+        sortino_sub = max(0, min(100, back_sortino / 3.0 * 100))
+
+        # R² (equity smoothness): 0->0, 0.9+->100
+        r_squared = back_stats.get('r_squared', candidate.get('back_r_squared', 0))
+        r2_sub = max(0, min(100, r_squared / 0.9 * 100))
 
         # Trade count: <30->0, 100+->100
         trades = back_stats.get('trades', candidate.get('back_trades', 0))
         trade_sub = max(0, min(100, (trades - 30) / 70 * 100))
 
-        # Max DD (lower=better): 0%->100, 40%+->0
+        # Blended DD (lower=better): Ulcer + MaxDD/2, scale 0->100, 30+->0
         max_dd = back_stats.get('max_dd', candidate.get('back_max_dd', 40))
-        dd_sub = max(0, min(100, (40 - max_dd) / 40 * 100))
+        ulcer = back_stats.get('ulcer', candidate.get('back_ulcer', 0))
+        blended_dd = ulcer + max_dd / 2.0
+        dd_sub = max(0, min(100, (30 - blended_dd) / 30 * 100))
 
-        return (pf_sub + sharpe_sub + trade_sub + dd_sub) / 4
+        return (pf_sub + sortino_sub + r2_sub + trade_sub + dd_sub) / 5
 
     def _calculate_score(self, candidate: Dict[str, Any]) -> Dict[str, Any]:
         """Calculate confidence score for a candidate."""
@@ -230,7 +236,7 @@ class ConfidenceStage:
         stability = candidate.get('stability', {})
         stability_overall = stability.get('overall', {})
         mean_stability = stability_overall.get('mean_stability', 0)
-        stability_score = mean_stability * 100
+        stability_score = min(100, mean_stability * 100)
 
         # Penalty for fragile parameters
         n_unstable = stability_overall.get('n_unstable_params', 0)
@@ -267,31 +273,51 @@ class ConfidenceStage:
                 # Strategy doesn't beat random entry at 5% significance - heavy penalty
                 mc_score *= 0.5
 
-        # 6. Sharpe Ratio (15%)
-        # Prefer WF-measured Sharpe over optimization forward_sharpe.
-        # Priority: OOS mean Sharpe > all-windows mean Sharpe > optimization forward_sharpe
-        wf_stats_for_sharpe = wf.get('stats', {})
-        oos_sharpe = (wf_stats_for_sharpe.get('oos_mean_sharpe', 0)
-                      if wf_stats_for_sharpe.get('oos_n_windows', 0) > 0 else 0)
-        wf_all_sharpe = wf_stats_for_sharpe.get('mean_sharpe', 0)
-        if oos_sharpe > 0:
-            forward_sharpe = oos_sharpe
-        elif wf_all_sharpe > 0:
-            forward_sharpe = wf_all_sharpe
+        # 6. Quality Score (15%) - universal metric: smooth equity + profit + low DD
+        # Priority: OOS mean quality_score > all-windows > optimization forward
+        wf_stats_for_qs = wf.get('stats', {})
+        oos_qs = (wf_stats_for_qs.get('oos_mean_quality_score', 0)
+                  if wf_stats_for_qs.get('oos_n_windows', 0) > 0 else 0)
+        wf_all_qs = wf_stats_for_qs.get('mean_quality_score', 0)
+        if oos_qs > 0:
+            fwd_quality = oos_qs
+        elif wf_all_qs > 0:
+            fwd_quality = wf_all_qs
         else:
-            forward_sharpe = candidate.get('forward_sharpe', 0)
-        # Scale: 0 -> 0, 1 -> 50, 2+ -> 100
-        sharpe_score = min(forward_sharpe / 2.0, 1.0) * 100
+            fwd_quality = candidate.get('forward_quality_score', 0)
+        # Scale: 0 -> 0, 1.5 -> 50, 3.0+ -> 100
+        sharpe_score = min(fwd_quality / 3.0, 1.0) * 100
 
-        # Calculate weighted total
-        total_score = (
+        # Hard backtest quality gate: if full backtest shows terrible equity curve
+        # or extreme drawdown, cap score at YELLOW regardless of other components.
+        # This catches candidates that optimize well per-window but have random overall equity.
+        back_r2 = candidate.get('back_r_squared', 0)
+        back_dd = candidate.get('back_max_dd', 0)
+        back_qs = candidate.get('back_quality_score', 0)
+        bt_hard_cap = None
+        if back_r2 < 0.3 and back_r2 > 0:
+            bt_hard_cap = 50  # R² < 0.3 = random walk equity, YELLOW at best
+            logger.warning(f"  Hard gate: back R²={back_r2:.3f} < 0.3 → capped at {bt_hard_cap}")
+        if back_dd > 50:
+            bt_hard_cap = min(bt_hard_cap or 50, 40)  # MaxDD > 50% = near-ruin, RED
+            logger.warning(f"  Hard gate: back MaxDD={back_dd:.1f}% > 50% → capped at {bt_hard_cap}")
+        if back_qs > 0 and back_qs < 0.5:
+            bt_hard_cap = min(bt_hard_cap or 50, 50)  # Quality score near zero
+            logger.warning(f"  Hard gate: back quality_score={back_qs:.3f} < 0.5 → capped at {bt_hard_cap}")
+
+        # Calculate weighted total (capped at 100)
+        total_score = min(100, (
             bt_quality_score * cfg.backtest_quality_weight +
             fb_score * cfg.forward_back_weight +
             wf_score * cfg.walkforward_weight +
             stability_score * cfg.stability_weight +
             mc_score * cfg.montecarlo_weight +
             sharpe_score * cfg.sharpe_weight
-        )
+        ))
+
+        # Apply hard backtest cap
+        if bt_hard_cap is not None:
+            total_score = min(total_score, bt_hard_cap)
 
         # Determine rating
         if total_score < cfg.red_threshold:
@@ -330,9 +356,13 @@ class ConfidenceStage:
                 'mean_stability': round(mean_stability, 3),
                 'mc_bootstrap_sharpe_ci_lower': round(bootstrap.get('sharpe_ci_lower', 0), 2) if bootstrap else None,
                 'mc_pct_95_dd': round(mc_results.get('pct_95_dd', 0), 1),
-                'forward_sharpe': round(forward_sharpe, 2),
+                'forward_quality_score': round(fwd_quality, 3),
                 'permutation_p_value': round(perm.get('p_value', 1.0), 4) if perm else None,
                 'permutation_significant': perm.get('significant_at_05', None) if perm else None,
+                'bt_hard_cap': bt_hard_cap,
+                'back_r_squared': round(back_r2, 4),
+                'back_max_dd': round(back_dd, 1),
+                'back_quality_score': round(back_qs, 3),
             },
 
             # Weights used

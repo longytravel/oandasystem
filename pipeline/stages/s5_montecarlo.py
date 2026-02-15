@@ -20,7 +20,7 @@ from numba import njit, prange
 
 from loguru import logger
 
-from optimization.numba_backtest import full_backtest_with_trades, full_backtest_with_telemetry, get_quote_conversion_rate
+from optimization.numba_backtest import full_backtest_with_trades, full_backtest_with_telemetry, get_quote_conversion_rate, grid_backtest_with_trades, grid_backtest_with_telemetry
 from pipeline.config import PipelineConfig
 from pipeline.state import PipelineState
 from pipeline.stages.s2_optimization import get_strategy
@@ -293,8 +293,14 @@ class MonteCarloStage:
                 }
                 continue
 
-            # Run Monte Carlo
-            mc_results, mc_raw_returns, mc_raw_dds = self._run_monte_carlo(pnls, len(pnls))
+            # Run Monte Carlo (group-aware for grid strategies)
+            trade_groups = getattr(self, '_last_trade_groups', None)
+            if trade_groups is not None and len(trade_groups) == len(pnls):
+                mc_results, mc_raw_returns, mc_raw_dds = self._run_monte_carlo_grouped(
+                    pnls, trade_groups, len(pnls)
+                )
+            else:
+                mc_results, mc_raw_returns, mc_raw_dds = self._run_monte_carlo(pnls, len(pnls))
 
             candidate['montecarlo'] = {
                 'status': 'completed',
@@ -380,7 +386,11 @@ class MonteCarloStage:
         strategy,
         pip_size: float,
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """Extract trade PnLs from backtest."""
+        """Extract trade PnLs from backtest.
+
+        For grid strategies, also stores trade_group_ids on self for
+        group-aware MC shuffling.
+        """
         # Prepare arrays
         highs = df['high'].values.astype(np.float64)
         lows = df['low'].values.astype(np.float64)
@@ -389,6 +399,39 @@ class MonteCarloStage:
 
         # Precompute signals
         strategy.precompute_for_dataset(df)
+
+        # Grid strategy path
+        if strategy.supports_grid():
+            grid_result = strategy.get_grid_arrays(params, highs, lows, closes)
+            if grid_result is None or len(grid_result[0]) < 3:
+                self._last_trade_groups = None
+                return np.array([], dtype=np.float64), np.array([], dtype=np.float64)
+
+            entry_bars, entry_prices, directions, sl_prices, tp_prices, group_ids = grid_result
+
+            max_concurrent = params.get('grid_orders', 0) + 1
+            if max_concurrent < 2:
+                max_concurrent = 11
+
+            result = grid_backtest_with_trades(
+                entry_bars, entry_prices, directions,
+                sl_prices, tp_prices, group_ids,
+                highs, lows, closes,
+                self.config.initial_capital,
+                self.config.risk_per_trade,
+                pip_size,
+                max_concurrent,
+                get_quote_conversion_rate(self.config.pair, 'USD'),
+                5544.0,
+                self.config.spread_pips,
+            )
+
+            pnls, equity, trade_groups = result[0], result[1], result[2]
+            self._last_trade_groups = trade_groups
+            return pnls, equity
+
+        # Standard single-position path
+        self._last_trade_groups = None
 
         # Get filtered signals and arrays
         signal_arrays, mgmt_arrays = strategy.get_all_arrays(
@@ -656,6 +699,176 @@ class MonteCarloStage:
 
         return result, signal_arrays, entry_prices
 
+    def _run_grid_telemetry_backtest(
+        self,
+        params: Dict[str, Any],
+        df: pd.DataFrame,
+        strategy,
+        pip_size: float,
+    ) -> Tuple:
+        """Run grid_backtest_with_telemetry for grid strategies.
+
+        Returns the same structure as _run_telemetry_backtest:
+        (bt_result, signal_arrays_dict, entry_prices) or None.
+        """
+        highs = df['high'].values.astype(np.float64)
+        lows = df['low'].values.astype(np.float64)
+        closes = df['close'].values.astype(np.float64)
+
+        strategy.precompute_for_dataset(df)
+        grid_result = strategy.get_grid_arrays(params, highs, lows, closes)
+
+        if grid_result is None:
+            return None
+
+        entry_bars, entry_prices, directions, sl_prices, tp_prices, group_ids = grid_result
+
+        if len(entry_bars) < 3:
+            return None
+
+        # Apply slippage
+        entry_prices_adj = np.where(
+            directions == 1,
+            entry_prices + self.config.slippage_pips * pip_size,
+            entry_prices - self.config.slippage_pips * pip_size,
+        )
+
+        max_concurrent = params.get('grid_orders', 0) + 1
+        if max_concurrent < 2:
+            max_concurrent = 11
+
+        bt_result = grid_backtest_with_telemetry(
+            entry_bars, entry_prices_adj, directions,
+            sl_prices, tp_prices, group_ids,
+            highs, lows, closes,
+            self.config.initial_capital,
+            self.config.risk_per_trade,
+            pip_size,
+            max_concurrent,
+            get_quote_conversion_rate(self.config.pair, 'USD'),
+            5544.0,
+            self.config.spread_pips,
+        )
+
+        signal_arrays = {
+            'entry_bars': entry_bars,
+            'entry_prices': entry_prices,
+            'directions': directions,
+            'sl_prices': sl_prices,
+            'tp_prices': tp_prices,
+        }
+
+        return bt_result, signal_arrays, entry_prices_adj
+
+    def _run_monte_carlo_grouped(
+        self,
+        pnls: np.ndarray,
+        trade_groups: np.ndarray,
+        n_trades: int,
+    ) -> Tuple[Dict[str, Any], np.ndarray, np.ndarray]:
+        """Run Monte Carlo with group-aware shuffling for grid strategies.
+
+        Instead of shuffling individual trades, we shuffle trade groups.
+        All trades from the same grid setup stay together, preserving
+        intra-group correlation structure.
+        """
+        # Build group -> trade indices mapping
+        unique_groups = np.unique(trade_groups)
+        n_groups = len(unique_groups)
+
+        if n_groups <= 1:
+            # Only one group, fall back to standard MC
+            return self._run_monte_carlo(pnls, n_trades)
+
+        # Aggregate PnLs by group (sum all trades in each grid group)
+        group_pnls = np.zeros(n_groups, dtype=np.float64)
+        for i, g in enumerate(unique_groups):
+            mask = trade_groups == g
+            group_pnls[i] = np.sum(pnls[mask])
+
+        logger.info(f"  Group-aware MC: {n_trades} trades in {n_groups} groups")
+
+        # Run standard MC on group-level PnLs
+        returns, max_dds = run_monte_carlo_numba(
+            group_pnls,
+            self.config.initial_capital,
+            self.config.montecarlo.iterations,
+            seed=42,
+        )
+
+        # Original metrics (using group-level PnLs to be consistent)
+        original_return, original_dd = simulate_equity_curve(group_pnls, self.config.initial_capital)
+
+        confidence = self.config.montecarlo.confidence_level
+        low_pct = (1 - confidence) * 100
+        high_pct = confidence * 100
+
+        results = {
+            'original_return': original_return,
+            'original_max_dd': original_dd,
+            'mean_return': np.mean(returns),
+            'std_return': np.std(returns),
+            'min_return': np.min(returns),
+            'max_return': np.max(returns),
+            'pct_5_return': np.percentile(returns, low_pct),
+            'pct_25_return': np.percentile(returns, 25),
+            'pct_50_return': np.percentile(returns, 50),
+            'pct_75_return': np.percentile(returns, 75),
+            'pct_95_return': np.percentile(returns, high_pct),
+            'mean_dd': np.mean(max_dds),
+            'std_dd': np.std(max_dds),
+            'max_dd': np.max(max_dds),
+            'pct_5_dd': np.percentile(max_dds, low_pct),
+            'pct_50_dd': np.percentile(max_dds, 50),
+            'pct_95_dd': np.percentile(max_dds, high_pct),
+            'var_95': -np.percentile(returns, low_pct) if np.percentile(returns, low_pct) < 0 else 0,
+            'expected_shortfall': np.mean(returns[returns <= np.percentile(returns, low_pct)]) if len(returns[returns <= np.percentile(returns, low_pct)]) > 0 else 0,
+            'prob_positive': np.mean(returns > 0) * 100,
+            'prob_above_5pct': np.mean(returns > 5) * 100,
+            'prob_above_10pct': np.mean(returns > 10) * 100,
+            'n_groups': n_groups,
+            'group_aware': True,
+        }
+
+        # Bootstrap on group PnLs
+        bootstrap_iters = self.config.montecarlo.bootstrap_iterations
+        if bootstrap_iters > 0 and n_groups >= self.config.montecarlo.min_trades_for_mc:
+            sharpes, win_rates, pfs = run_bootstrap_numba(
+                group_pnls, self.config.initial_capital, bootstrap_iters, seed=12345,
+            )
+            results['bootstrap'] = {
+                'sharpe_mean': float(np.mean(sharpes)),
+                'sharpe_std': float(np.std(sharpes)),
+                'sharpe_ci_lower': float(np.percentile(sharpes, low_pct)),
+                'sharpe_ci_upper': float(np.percentile(sharpes, high_pct)),
+                'win_rate_mean': float(np.mean(win_rates)),
+                'win_rate_ci_lower': float(np.percentile(win_rates, low_pct)),
+                'win_rate_ci_upper': float(np.percentile(win_rates, high_pct)),
+                'pf_mean': float(np.mean(pfs)),
+                'pf_ci_lower': float(np.percentile(pfs, low_pct)),
+                'pf_ci_upper': float(np.percentile(pfs, high_pct)),
+            }
+
+        # Permutation test on group PnLs
+        if n_groups >= self.config.montecarlo.min_trades_for_mc:
+            mean_pnl = np.mean(group_pnls)
+            std_pnl = np.std(group_pnls, ddof=1) if n_groups > 1 else 1.0
+            original_sharpe = np.sqrt(n_groups) * mean_pnl / std_pnl if std_pnl > 0 else 0.0
+
+            null_sharpes = run_permutation_test(group_pnls, 1000, seed=54321)
+            p_value = np.mean(null_sharpes >= original_sharpe)
+
+            results['permutation'] = {
+                'original_sharpe': float(original_sharpe),
+                'null_mean_sharpe': float(np.mean(null_sharpes)),
+                'null_std_sharpe': float(np.std(null_sharpes)),
+                'p_value': float(p_value),
+                'significant_at_05': bool(p_value < 0.05),
+                'significant_at_01': bool(p_value < 0.01),
+            }
+
+        return results, returns, max_dds
+
     def _collect_trade_details(
         self,
         params: Dict[str, Any],
@@ -679,9 +892,15 @@ class MonteCarloStage:
                              4: 'stale', 5: 'ml', 6: 'force_close'}
 
         result = {}
+        is_grid = strategy.supports_grid()
 
         for period_name, df in [('back', df_back), ('forward', df_forward)]:
-            telemetry_result = self._run_telemetry_backtest(params, df, strategy, pip_size)
+            if is_grid:
+                telemetry_result = self._run_grid_telemetry_backtest(
+                    params, df, strategy, pip_size
+                )
+            else:
+                telemetry_result = self._run_telemetry_backtest(params, df, strategy, pip_size)
 
             if telemetry_result is None:
                 result[f'{period_name}_trades'] = []
@@ -691,7 +910,8 @@ class MonteCarloStage:
             bt_result, signal_arrays, entry_prices = telemetry_result
             (pnls, equity_curve, exit_reasons, bars_held, entry_bar_indices,
              exit_bar_indices, mfe_r_arr, mae_r_arr, signal_indices_arr,
-             n_trades, win_rate, pf, sharpe, max_dd, total_ret, r_sq, ontester) = bt_result
+             n_trades, win_rate, pf, sharpe, max_dd, total_ret, r_sq, ontester,
+             sortino, ulcer) = bt_result
 
             if n_trades == 0:
                 result[f'{period_name}_trades'] = []
@@ -705,7 +925,11 @@ class MonteCarloStage:
 
             trades = []
             equity_pts = []
-            running_equity = self.config.initial_capital
+            # Forward period continues from backtest endpoint
+            if period_name == 'forward' and result.get('back_trades'):
+                running_equity = result['back_trades'][-1]['equity_after']
+            else:
+                running_equity = self.config.initial_capital
 
             for i in range(n_trades):
                 running_equity += pnls[i]
@@ -745,10 +969,11 @@ class MonteCarloStage:
                         trade['pips'] = float(pnls[i]) / 10.0
 
                 trades.append(trade)
+                # Use exit_time for chart x-axis (equity changes at exit, not entry)
                 equity_pts.append({
                     'trade_num': i,
                     'equity': float(running_equity),
-                    'timestamp': trade.get('entry_time', ''),
+                    'timestamp': trade.get('exit_time', trade.get('entry_time', '')),
                 })
 
             result[f'{period_name}_trades'] = trades

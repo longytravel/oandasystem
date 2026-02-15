@@ -28,6 +28,7 @@ from dashboard.data_reader import (
     collect_all_instances,
     compute_live_performance,
     get_daily_summary,
+    read_scan_progress,
     read_trade_history,
     _read_json_safe,
 )
@@ -216,6 +217,14 @@ async def api_export(instance_id: str):
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+# ── Scan Progress ─────────────────────────────────────────
+
+@app.get("/api/scan")
+async def api_scan():
+    """Current/recent scan progress."""
+    return read_scan_progress(ROOT / "results")
 
 
 # ── Service Control ────────────────────────────────────────

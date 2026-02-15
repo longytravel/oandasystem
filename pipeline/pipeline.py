@@ -7,6 +7,7 @@ Coordinates execution of all stages with:
 - Progress tracking
 - Error handling
 """
+import gc
 import time
 from datetime import datetime
 from pathlib import Path
@@ -188,6 +189,9 @@ class Pipeline:
             summary = result.get('summary', {})
             self.state.mark_stage_completed(stage_name, summary=summary)
 
+            # Free memory from completed stages
+            self._cleanup_after_stage(stage_name)
+
         except Exception as e:
             logger.error(f"Stage {stage_name} failed: {e}")
             self.state.mark_stage_failed(stage_name, str(e))
@@ -264,6 +268,40 @@ class Pipeline:
 
         else:
             raise ValueError(f"Unknown stage: {stage_name}")
+
+    def _cleanup_after_stage(self, completed_stage: str):
+        """Free memory from stages that are no longer needed.
+
+        The pipeline accumulates all stage results in self.results,
+        but most data is only needed by the next 1-2 stages. After that,
+        we can release large objects (DataFrames, optimizer instances,
+        trade arrays) to prevent OOM on constrained systems.
+        """
+        # After walkforward: release full dataset (only WF uses it) and trim optimization
+        if completed_stage == 'walkforward':
+            data_result = self.results.get('data', {})
+            if 'df' in data_result:
+                del data_result['df']
+                logger.debug("Released full dataset DataFrame")
+            if 'optimization' in self.results:
+                self.results['optimization'] = {
+                    'candidates': self.results['optimization'].get('candidates', []),
+                    'summary': self.results['optimization'].get('summary', {}),
+                }
+                logger.debug("Trimmed optimization results")
+
+        # After MC: release back/forward DataFrames if trade_details are available
+        # (report only needs them as fallback for trade_details regeneration)
+        if completed_stage == 'montecarlo':
+            data_result = self.results.get('data', {})
+            candidates = self.results.get('montecarlo', {}).get('candidates', self.state.candidates)
+            if candidates and candidates[0].get('trade_details'):
+                for key in ['df_back', 'df_forward']:
+                    if key in data_result:
+                        del data_result[key]
+                logger.debug("Released back/forward DataFrames (trade_details available)")
+
+        gc.collect()
 
     def _should_abort(self) -> bool:
         """Check if pipeline should abort."""
