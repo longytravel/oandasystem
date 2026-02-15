@@ -1,8 +1,36 @@
 # Live Trading Guide
 
-**Last Updated:** 2026-02-10
+**Last Updated:** 2026-02-15
 
 This guide covers deploying and running the OANDA trading system in paper or live mode, including VPS setup and monitoring.
+
+---
+
+## Active Deployments
+
+| # | Service ID | Strategy | Pair | TF | Risk | Score | Pipeline Run | Since |
+|---|------------|----------|------|----|------|-------|--------------|-------|
+| 1 | rsi_v3_GBP_USD_M15 | RSI Divergence V3 | GBP_USD | M15 | 1.0% | 72.8 GREEN | GBP_USD_M15_20260213_154233 | 2026-02-13 |
+| 2 | rsi_v3_GBP_USD_H1 | RSI Divergence V3 | GBP_USD | H1 | 0.5% | 89.8 GREEN | GBP_USD_H1_20260206_151217 | 2026-02-06 |
+| 3 | rsi_v1_USD_CHF_H1 | RSI Divergence V1 | USD_CHF | H1 | 1.0% | 97.4 GREEN | USD_CHF_H1_20260212_122528 | 2026-02-12 |
+| 4 | fpma_EUR_JPY_H1 | Fair Price MA | EUR_JPY | H1 | 1.0% | 87.6 GREEN | EUR_JPY_H1_20260215_074906 | 2026-02-15 |
+
+**VPS**: 104.128.63.239:5909 (VNC) | **Dashboard**: http://104.128.63.239:8080 | **Account**: 101-004-38418172-001 (practice)
+
+### Fair Price MA (EUR_JPY H1) - Deployed 2026-02-15
+
+Mean-reversion grid strategy. Fast EMA(200) + Slow EMA(400) detect trend. Entry on pullback 150 pips from fast EMA, grid of 5 orders across 50 pip range. SL fixed 75 pips, TP 1.5:1 R:R. Trailing at 50 pips (15 pip step). Break-even enabled. Session filter 06:00-22:00. Max hold 50 bars.
+
+| Metric | Forward Test | Backtest |
+|--------|-------------|----------|
+| Win Rate | 83.3% | 56.7% |
+| Profit Factor | 7.38 | 1.71 |
+| Sharpe | 7.08 | 2.72 |
+| Max Drawdown | 3.1% | 12.1% |
+| Trades | 18 (6mo) | 187 |
+| Return | 19.8% | 90.9% |
+
+Confidence: WF 100%, Stability 92.3%, MC 100%, F/B ratio 4.72
 
 ---
 
@@ -44,7 +72,7 @@ python scripts/run_live.py --strategy rsi_v3 --from-run GBP_USD_M15_20260210_063
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--strategy` | `rsi_v3` | Strategy key: `rsi_v3`, `rsi_v4`, `rsi_v5`, `ema_cross` |
+| `--strategy` | `rsi_v3` | Strategy key: `rsi_v3`, `rsi_v4`, `rsi_v5`, `ema_cross`, `fair_price_ma` |
 | `--pair` | `GBP_USD` | Currency pair (OANDA format) |
 | `--timeframe` | `H1` | Candle timeframe: M1, M5, M15, M30, H1, H2, H4, D |
 | `--from-run` | - | Load params from pipeline run ID (e.g., `GBP_USD_M15_20260210_063223`) |

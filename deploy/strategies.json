@@ -29,6 +29,16 @@
       "enabled": true,
       "from_run": "USD_CHF_H1_20260212_122528",
       "description": "V1 RSI H1 - 97.4 GREEN"
+    },
+    {
+      "id": "fpma_EUR_JPY_H1",
+      "strategy": "fair_price_ma",
+      "pair": "EUR_JPY",
+      "timeframe": "H1",
+      "risk_pct": 1.0,
+      "enabled": true,
+      "from_run": "EUR_JPY_H1_20260215_074906",
+      "description": "Fair Price MA H1 - 87.6 GREEN"
     }
   ],
   "dashboard": {

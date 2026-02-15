@@ -39,6 +39,7 @@ PIPELINE_STRATEGIES = {
     "rsi_v4": ("strategies.rsi_full_v4", "RSIDivergenceFullFastV4"),
     "rsi_v5": ("strategies.rsi_full_v5", "RSIDivergenceFullFastV5"),
     "ema_cross": ("strategies.ema_cross_ml", "EMACrossMLStrategy"),
+    "fair_price_ma": ("strategies.fair_price_ma", "FairPriceMAStrategy"),
 }
 
 # Legacy strategies (old Strategy interface)
@@ -159,6 +160,7 @@ def create_strategy(args):
             'RSI_Divergence_v4': 'rsi_v4',
             'RSI_Divergence_v5': 'rsi_v5',
             'EMA_Cross_ML': 'ema_cross',
+            'fair_price_ma': 'fair_price_ma',
         }
         strategy_name = name_map.get(run_data['strategy_name'], args.strategy)
         logger.info(f"Loaded from pipeline run: {args.from_run}")

@@ -47,6 +47,7 @@ STRATEGY_MAP = {
     "RSI_Divergence_Full": ("strategies.rsi_full", "RSIDivergenceFullFast"),
     "ema_cross": ("strategies.ema_cross_ml", "EMACrossMLFast"),
     "EMA_Cross_ML": ("strategies.ema_cross_ml", "EMACrossMLFast"),
+    "fair_price_ma": ("strategies.fair_price_ma", "FairPriceMAStrategy"),
 }
 
 

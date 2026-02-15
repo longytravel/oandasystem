@@ -1,0 +1,41 @@
+{
+  "run_id": "EUR_JPY_H1_20260215_074906",
+  "strategy": "fair_price_ma",
+  "pair": "EUR_JPY",
+  "timeframe": "H1",
+  "score": 87.6,
+  "rating": "GREEN",
+  "rank": 13,
+  "params": {
+    "fast_ema_period": 200,
+    "slow_ema_period": 400,
+    "trigger_pips": 150,
+    "grid_orders": 5,
+    "grid_range_pips": 50,
+    "sl_mode": "fixed",
+    "sl_fixed_pips": 75,
+    "sl_atr_mult": 3.0,
+    "tp_mode": "rr",
+    "tp_rr_ratio": 1.5,
+    "use_time_filter": true,
+    "trade_start_hour": 6,
+    "trade_end_hour": 22,
+    "use_trailing": true,
+    "trail_start_pips": 50,
+    "trail_step_pips": 15,
+    "use_break_even": true,
+    "max_hold_bars": 50
+  },
+  "expectations": {
+    "win_rate": 0.8333,
+    "sharpe": 7.082,
+    "profit_factor": 7.378,
+    "avg_trades_per_month": 3.0,
+    "max_drawdown_pct": 3.1,
+    "forward_return_pct": 19.77,
+    "back_win_rate": 0.5668,
+    "back_sharpe": 2.723,
+    "forward_trades": 18,
+    "forward_months": 6
+  }
+}
