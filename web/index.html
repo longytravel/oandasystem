@@ -1315,25 +1315,25 @@ function showRunDetail(runId) {
   html += '<div class="rd-close-btn"><button onclick="closeRunDetail()">\u2715 Back to Leaderboard</button></div>';
   // Header
   html += rdHeader(run, det);
-  // Performance
-  html += rdPerformance(run, det, comp);
-  // Confidence
-  if (det) html += rdConfidence(det);
-  // Walk-Forward
-  if (det) html += rdWalkforward(det);
-  // Charts section
+  // Charts section (top - the money shot)
   html += '<div class="rd-section"><div class="rd-section-head" onclick="rdToggle(this.parentElement)"><h3>Equity Curve &amp; Drawdown</h3><span class="rd-chevron">\u25BC</span></div><div class="rd-section-body" id="rd-charts-area">';
   html += '<div id="rd-equity-chart" style="height:420px"></div>';
   html += '<div id="rd-dd-chart" style="height:250px;margin-top:12px"></div>';
   html += '</div></div>';
-  // Monte Carlo
-  if (det) html += rdMonteCarlo(det);
-  // Stability
-  if (det) html += rdStability(det);
+  // Performance
+  html += rdPerformance(run, det, comp);
   // Trade Analysis
   if (det) html += rdTrades(det);
   // Monthly Returns
   if (det) html += rdMonthly(det);
+  // Walk-Forward
+  if (det) html += rdWalkforward(det);
+  // Confidence
+  if (det) html += rdConfidence(det);
+  // Stability
+  if (det) html += rdStability(det);
+  // Monte Carlo
+  if (det) html += rdMonteCarlo(det);
   // Parameters
   if (det) html += rdParams(det);
   html += '</div>'; // close rd-inner
