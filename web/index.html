@@ -216,23 +216,147 @@
   .footer { text-align: center; padding: 16px; color: #5a6a80; font-size: 0.7rem; border-top: 1px solid #1e293b; margin-top: 20px; }
 
   /* Run detail panel */
-  .run-detail {
-    display: none; margin: 16px 16px 0; padding: 24px;
-    background: #111827; border: 1px solid #1e293b; border-radius: 8px;
-  }
-  .run-detail.visible { display: block; }
-  .run-detail-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-  .run-detail-title { font-size: 1.1rem; font-weight: 700; }
-  .run-detail-meta { font-size: 0.75rem; color: #5a6a80; margin-top: 4px; }
-  .run-metrics-grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-    gap: 10px; margin-bottom: 20px;
-  }
-  .run-metric { background: #0d1320; border-radius: 6px; padding: 10px; }
-  .run-metric-label { font-size: 0.65rem; text-transform: uppercase; color: #5a6a80; letter-spacing: 0.04em; }
-  .run-metric-value { font-size: 1rem; font-weight: 600; font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
   #leaderboard tr[data-run] { cursor: pointer; }
   .runid-col a { cursor: pointer; }
+  .run-detail { display: none; margin: 16px 0 0; padding: 0; }
+  .run-detail.visible { display: block; }
+
+  .rd-header {
+    padding: 20px 24px; background: #111827; border: 1px solid #1e293b;
+    border-radius: 8px; margin: 0 16px 10px;
+  }
+  .rd-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .rd-title { font-size: 1.15rem; font-weight: 700; }
+  .rd-meta { font-size: 0.72rem; color: #5a6a80; margin-top: 4px; word-break: break-all; }
+  .rd-score-block { text-align: right; flex-shrink: 0; }
+  .rd-score-big { font-size: 2.2rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; line-height: 1; }
+  .rd-recommendation { font-size: 0.72rem; color: #8896ab; margin-top: 4px; font-style: italic; max-width: 200px; text-align: right; }
+  .rd-config-strip {
+    display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px;
+    padding-top: 10px; border-top: 1px solid #1e293b;
+  }
+  .rd-config-item { font-size: 0.68rem; color: #5a6a80; font-family: 'JetBrains Mono', monospace; }
+  .rd-config-item span { color: #8896ab; }
+  .rd-close-row { display: flex; justify-content: flex-end; padding: 0 16px 8px; }
+
+  /* Sections */
+  .rd-section {
+    margin: 0 16px 10px; background: #111827;
+    border: 1px solid #1e293b; border-radius: 8px; overflow: hidden;
+  }
+  .rd-section-head {
+    padding: 9px 16px; cursor: pointer; display: flex;
+    align-items: center; justify-content: space-between;
+    border-left: 3px solid var(--rd-accent, #3b82f6); user-select: none;
+  }
+  .rd-section-head:hover { background: rgba(255,255,255,0.02); }
+  .rd-section-head h3 {
+    font-size: 0.78rem; font-weight: 600; color: #8896ab;
+    text-transform: uppercase; letter-spacing: 0.04em; margin: 0;
+  }
+  .rd-chevron { color: #5a6a80; font-size: 0.6rem; transition: transform 0.2s; }
+  .rd-section.collapsed .rd-section-body { display: none; }
+  .rd-section.collapsed .rd-chevron { transform: rotate(-90deg); }
+  .rd-section-body { padding: 14px 16px; border-top: 1px solid #1e293b; }
+
+  /* Performance table */
+  .rd-perf-table { width: 100%; border-collapse: collapse; }
+  .rd-perf-table th {
+    padding: 5px 10px; text-align: right; font-size: 0.68rem;
+    color: #5a6a80; text-transform: uppercase; letter-spacing: 0.04em;
+    border-bottom: 1px solid #1e293b; position: static; cursor: default; width: 33%;
+  }
+  .rd-perf-table th:first-child { text-align: left; }
+  .rd-perf-table th:hover { color: #5a6a80; }
+  .rd-perf-table td {
+    padding: 5px 10px; font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem; text-align: right; border-bottom: 1px solid rgba(30,41,59,0.3);
+  }
+  .rd-perf-table td:first-child { text-align: left; font-family: 'Inter', sans-serif; color: #8896ab; font-weight: 500; }
+  .rd-fb-banner {
+    text-align: center; padding: 10px; margin-top: 10px;
+    background: #0d1320; border-radius: 6px;
+  }
+  .rd-fb-label { font-size: 0.65rem; text-transform: uppercase; color: #5a6a80; letter-spacing: 0.04em; }
+  .rd-fb-value { font-size: 1.3rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
+
+  /* Confidence bars */
+  .rd-conf-total { text-align: center; margin-bottom: 14px; padding: 10px; background: #0d1320; border-radius: 6px; }
+  .rd-conf-total .score { font-size: 1.8rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+  .rd-conf-total .label { font-size: 0.65rem; text-transform: uppercase; color: #5a6a80; margin-top: 2px; }
+  .rd-conf-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .rd-conf-label { width: 100px; font-size: 0.7rem; color: #8896ab; flex-shrink: 0; }
+  .rd-conf-bar-bg { flex: 1; height: 18px; background: #0d1320; border-radius: 3px; overflow: hidden; }
+  .rd-conf-bar-fill { height: 100%; border-radius: 3px; min-width: 2px; }
+  .rd-conf-score { width: 36px; text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; flex-shrink: 0; }
+  .rd-conf-weight { width: 32px; text-align: right; font-size: 0.6rem; color: #5a6a80; flex-shrink: 0; }
+
+  /* WF table */
+  .rd-wf-summary { margin-bottom: 10px; font-size: 0.82rem; }
+  .rd-wf-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+  .rd-wf-table th {
+    padding: 5px 6px; text-align: right; font-size: 0.62rem;
+    color: #5a6a80; text-transform: uppercase; border-bottom: 1px solid #1e293b;
+    background: #0d1320; position: static; cursor: default;
+  }
+  .rd-wf-table th:first-child, .rd-wf-table th:nth-child(2) { text-align: center; }
+  .rd-wf-table th:hover { color: #5a6a80; }
+  .rd-wf-table td {
+    padding: 4px 6px; font-family: 'JetBrains Mono', monospace;
+    text-align: right; border-bottom: 1px solid rgba(30,41,59,0.25); font-size: 0.73rem;
+  }
+  .rd-wf-table td:first-child, .rd-wf-table td:nth-child(2) { text-align: center; }
+  .rd-wf-table tr.wf-fail td { opacity: 0.5; }
+  .rd-wf-table tr.wf-oos td { background: rgba(59,130,246,0.04); }
+  .rd-wf-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; }
+
+  /* MC cards */
+  .rd-mc-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+  .rd-mc-card { background: #0d1320; border-radius: 6px; padding: 10px; }
+  .rd-mc-card-title { font-size: 0.62rem; text-transform: uppercase; color: #5a6a80; letter-spacing: 0.04em; margin-bottom: 6px; font-weight: 600; }
+  .rd-mc-row { display: flex; justify-content: space-between; padding: 2px 0; font-size: 0.75rem; }
+  .rd-mc-row .lbl { color: #8896ab; font-size: 0.7rem; }
+  .rd-mc-row .val { font-family: 'JetBrains Mono', monospace; }
+
+  /* Stability */
+  .rd-stab-grid { display: flex; gap: 12px; flex-wrap: wrap; }
+  .rd-stab-card { background: #0d1320; border-radius: 6px; padding: 12px 18px; text-align: center; min-width: 100px; }
+  .rd-stab-card .val { font-size: 1.2rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+  .rd-stab-card .lbl { font-size: 0.62rem; text-transform: uppercase; color: #5a6a80; letter-spacing: 0.04em; margin-top: 3px; }
+
+  /* Trade analysis */
+  .rd-trade-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .rd-trade-card { background: #0d1320; border-radius: 6px; padding: 8px 10px; }
+  .rd-trade-card .lbl { font-size: 0.62rem; text-transform: uppercase; color: #5a6a80; letter-spacing: 0.04em; }
+  .rd-trade-card .val { font-size: 1rem; font-weight: 600; font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
+  .rd-exit-table { width: 100%; border-collapse: collapse; max-width: 500px; }
+  .rd-exit-table td { padding: 3px 8px; font-size: 0.75rem; border-bottom: 1px solid rgba(30,41,59,0.25); }
+  .rd-exit-table td:first-child { color: #8896ab; }
+  .rd-exit-table td:nth-child(2) { font-family: 'JetBrains Mono', monospace; text-align: right; width: 60px; }
+  .rd-exit-table td:nth-child(3) { width: 120px; }
+  .rd-exit-bar { display: inline-block; height: 10px; border-radius: 2px; vertical-align: middle; }
+
+  /* Monthly heatmap */
+  .rd-monthly-table { border-collapse: collapse; font-size: 0.7rem; }
+  .rd-monthly-table th {
+    padding: 3px 6px; font-size: 0.58rem; color: #5a6a80;
+    text-transform: uppercase; border-bottom: 1px solid #1e293b;
+    text-align: center; position: static; cursor: default;
+  }
+  .rd-monthly-table th:hover { color: #5a6a80; }
+  .rd-monthly-table td {
+    padding: 3px 6px; text-align: center; font-family: 'JetBrains Mono', monospace;
+    border: 1px solid rgba(30,41,59,0.25); min-width: 44px; font-size: 0.7rem;
+  }
+  .rd-monthly-table td:first-child { font-weight: 600; color: #8896ab; border-left: none; }
+
+  /* Params table */
+  .rd-params-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
+  @media (max-width: 700px) { .rd-params-grid { grid-template-columns: 1fr; } }
+  .rd-params-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+  .rd-params-table td { padding: 3px 8px; border-bottom: 1px solid rgba(30,41,59,0.2); }
+  .rd-params-table td:first-child { color: #8896ab; width: 50%; }
+  .rd-params-table td:last-child { font-family: 'JetBrains Mono', monospace; }
 </style>
 </head>
 <body>
@@ -325,21 +449,8 @@
     </div>
   </div>
 
-  <!-- Run Detail Panel -->
-  <div class="run-detail" id="run-detail">
-    <div class="run-detail-header">
-      <div>
-        <div class="run-detail-title" id="rd-title"></div>
-        <div class="run-detail-meta" id="rd-meta"></div>
-      </div>
-      <button class="compare-close" onclick="closeRunDetail()">Close</button>
-    </div>
-    <div class="run-metrics-grid" id="rd-metrics"></div>
-    <div class="compare-chart-panel">
-      <div class="compare-chart-header">Equity Curve</div>
-      <div id="rd-chart" style="height:400px"></div>
-    </div>
-  </div>
+  <!-- Run Detail Panel (content generated by showRunDetail) -->
+  <div class="run-detail" id="run-detail"></div>
 
   <div class="footer" id="lb-footer"></div>
 </div>
@@ -849,96 +960,385 @@ function buildMetricsTable(container, allData) {
   container.innerHTML = '<table class="compare-metrics-table"><thead><tr>'+headerCells+'</tr></thead><tbody>'+bodyRows+'</tbody></table>';
 }
 
-// ── Run Detail ──
+// ── Run Detail (Enhanced) ──
 var currentDetailRun = null;
+
+// -- Formatters --
+function rdN(v, d) { if (v == null || isNaN(v)) return '\u2014'; var n = Number(v).toFixed(d == null ? 2 : d); var p = n.split('.'); p[0] = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ','); return p.join('.'); }
+function rdPct(v, d) { if (v == null || isNaN(v)) return '\u2014'; return rdN(v, d == null ? 1 : d) + '%'; }
+function rdPctR(v, d) { if (v == null || isNaN(v)) return '\u2014'; return rdPct(v * 100, d); }
+function rdDlr(v) { if (v == null || isNaN(v)) return '\u2014'; var s = Math.abs(v).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ','); return (v >= 0 ? '$' : '-$') + s; }
+function rdSc(s) { if (s >= 70) return '#10b981'; if (s >= 40) return '#f59e0b'; return '#ef4444'; }
+function rdRc(r) { if (r === 'GREEN' || r === 'STABLE') return ['#065f46','#10b981']; if (r === 'YELLOW' || r === 'MODERATE') return ['#78350f','#f59e0b']; return ['#7f1d1d','#ef4444']; }
+function rdVc(v) { return v > 0 ? '#10b981' : v < 0 ? '#ef4444' : '#8896ab'; }
+
+function rdSection(title, bodyHtml, collapsed) {
+  return '<div class="rd-section' + (collapsed ? ' collapsed' : '') + '"><div class="rd-section-head" onclick="rdToggle(this.parentElement)"><h3>' + title + '</h3><span class="rd-chevron">\u25BC</span></div><div class="rd-section-body">' + bodyHtml + '</div></div>';
+}
+
+// -- Section: Header --
+function rdHeader(run, det) {
+  var rc = rdRc(run.rating);
+  var rec = det && det.decision ? (det.decision.recommendation || '') : '';
+  var cfg = det ? (det.config || {}) : {};
+  var h = '<div class="rd-header" style="border-left:3px solid '+rc[1]+'">';
+  h += '<div class="rd-title-row"><div><div class="rd-title">' + esc(run.pair) + ' ' + esc(run.timeframe) + ' \u2014 ' + esc(run.strategy) + '</div>';
+  h += '<div class="rd-meta">' + esc(run.run_id) + ' \u00B7 ' + esc(run.description || '') + ' \u00B7 ' + (run.created || '').substring(0, 19) + '</div></div>';
+  h += '<div class="rd-score-block"><div class="rd-score-big" style="color:'+rc[1]+'">' + (run.score > 0 ? run.score.toFixed(0) : '-') + '<span style="font-size:0.9rem;color:'+rc[1]+';background:'+rc[0]+';padding:2px 8px;border-radius:4px;margin-left:8px;vertical-align:middle">' + run.rating + '</span></div>';
+  if (rec) h += '<div class="rd-recommendation">' + esc(rec) + '</div>';
+  h += '</div></div>';
+  if (cfg.data_years || cfg.train_months) {
+    h += '<div class="rd-config-strip">';
+    if (cfg.data_years) h += '<div class="rd-config-item">Data: <span>' + cfg.data_years + 'yr</span></div>';
+    if (cfg.train_months) h += '<div class="rd-config-item">Train: <span>' + cfg.train_months + 'mo</span></div>';
+    if (cfg.test_months) h += '<div class="rd-config-item">Test: <span>' + cfg.test_months + 'mo</span></div>';
+    if (cfg.holdout_months) h += '<div class="rd-config-item">Holdout: <span>' + cfg.holdout_months + 'mo</span></div>';
+    if (cfg.trials_per_stage) h += '<div class="rd-config-item">Trials: <span>' + cfg.trials_per_stage + '/' + (cfg.final_trials||'') + '</span></div>';
+    if (cfg.spread_pips) h += '<div class="rd-config-item">Spread: <span>' + cfg.spread_pips + 'pip</span></div>';
+    if (cfg.initial_capital) h += '<div class="rd-config-item">Capital: <span>' + rdDlr(cfg.initial_capital) + '</span></div>';
+    h += '</div>';
+  }
+  h += '</div>';
+  return h;
+}
+
+// -- Section: Performance --
+function rdPerformance(run, det, comp) {
+  var ext = det ? (det.extended || {}) : {};
+  var c = comp || {};
+  function row(label, bv, fv, color) {
+    var bc = color ? ' style="color:' + (typeof color === 'function' ? color(bv) : color) + '"' : '';
+    var fc = color ? ' style="color:' + (typeof color === 'function' ? color(fv) : color) + '"' : '';
+    return '<tr><td>' + label + '</td><td' + bc + '>' + bv + '</td><td' + fc + '>' + fv + '</td></tr>';
+  }
+  var h = '<table class="rd-perf-table"><thead><tr><th>Metric</th><th>Backtest</th><th>Forward</th></tr></thead><tbody>';
+  h += row('Quality Score', rdN(ext.back_quality_score, 1), rdN(ext.forward_quality_score, 1));
+  h += row('Return %', rdPct(run.back_return, 1), rdPct(run.forward_return, 1), rdVc);
+  h += row('Trades', run.back_trades || 0, run.forward_trades || 0);
+  h += row('Win Rate', rdPctR(run.win_rate), rdPctR(ext.forward_win_rate));
+  h += row('Profit Factor', rdN(c.back_profit_factor || c.profit_factor, 2), rdN(ext.forward_profit_factor, 2));
+  h += row('Sharpe', rdN(run.back_sharpe, 2), rdN(run.forward_sharpe, 2));
+  h += row('Sortino', rdN(ext.back_sortino, 2), rdN(ext.forward_sortino, 2));
+  h += row('R\u00B2', rdN(c.back_r_squared, 3), rdN(ext.forward_r_squared || c.forward_r_squared, 3));
+  h += row('Max DD %', rdPct(run.back_max_dd, 1), rdPct(ext.forward_max_dd, 1));
+  h += row('Ulcer Index', rdN(ext.back_ulcer, 2), rdN(ext.forward_ulcer, 2));
+  h += '</tbody></table>';
+  var fb = ext.forward_back_ratio || run.forward_back_ratio || 0;
+  var fbColor = fb >= 0.7 ? '#10b981' : fb >= 0.4 ? '#f59e0b' : '#ef4444';
+  h += '<div class="rd-fb-banner"><div class="rd-fb-label">Forward / Back Ratio</div><div class="rd-fb-value" style="color:' + fbColor + '">' + rdPct(fb * 100, 1) + '</div></div>';
+  if (det && det.recovery_factor != null) h += '<div style="text-align:center;margin-top:6px;font-size:0.72rem;color:#5a6a80">Recovery Factor: <span style="color:#8896ab;font-family:JetBrains Mono,monospace">' + rdN(det.recovery_factor, 2) + '</span></div>';
+  return rdSection('Performance Overview', h);
+}
+
+// -- Section: Confidence --
+function rdConfidence(det) {
+  var c = det.confidence; if (!c || c.total_score == null) return '';
+  var h = '<div class="rd-conf-total"><div class="score" style="color:' + rdSc(c.total_score) + '">' + rdN(c.total_score, 1) + ' <span style="font-size:0.7rem">/100</span></div><div class="label">Confidence Score \u2014 ' + (c.rating || '') + '</div></div>';
+  var components = [
+    ['BT Quality', c.backtest_quality_score, (c.weights||{}).backtest_quality],
+    ['F/B Ratio', c.forward_back_score, (c.weights||{}).forward_back],
+    ['Walk-Forward', c.walkforward_score, (c.weights||{}).walkforward],
+    ['Stability', c.stability_score, (c.weights||{}).stability],
+    ['Monte Carlo', c.montecarlo_score, (c.weights||{}).montecarlo],
+    ['Quality Score', c.sharpe_score, (c.weights||{}).sharpe],
+  ];
+  components.forEach(function(r) {
+    var score = r[1] != null ? r[1] : 0;
+    var weight = r[2] != null ? r[2] : 0;
+    h += '<div class="rd-conf-row"><div class="rd-conf-label">' + r[0] + '</div>';
+    h += '<div class="rd-conf-bar-bg"><div class="rd-conf-bar-fill" style="width:' + Math.min(score, 100) + '%;background:' + rdSc(score) + '"></div></div>';
+    h += '<div class="rd-conf-score" style="color:' + rdSc(score) + '">' + rdN(score, 0) + '</div>';
+    h += '<div class="rd-conf-weight">' + (weight * 100).toFixed(0) + '%</div></div>';
+  });
+  return rdSection('Confidence Breakdown', h);
+}
+
+// -- Section: Walk-Forward --
+function rdWalkforward(det) {
+  var wf = det.walkforward; if (!wf) return '';
+  var st = wf.stats || {};
+  var wins = wf.windows || [];
+  if (!wins.length) return '';
+  var h = '<div class="rd-wf-summary"><strong style="color:#e2e8f0">' + (st.n_passed||0) + '/' + (st.n_windows||0) + '</strong> windows passed <span style="color:#5a6a80">(' + rdPctR(st.pass_rate) + ')</span>';
+  if (st.oos_n_windows > 0) h += ' \u00B7 <span style="color:#3b82f6">' + st.oos_n_windows + ' OOS</span> (' + (st.oos_n_passed||0) + ' passed)';
+  h += '</div>';
+  h += '<div style="overflow-x:auto"><table class="rd-wf-table"><thead><tr><th>#</th><th>OOS</th><th>Trades</th><th>QScore</th><th>Sharpe</th><th>Sortino</th><th>Return%</th><th>MaxDD%</th><th>WinRate</th><th>PF</th><th>R\u00B2</th><th>Ulcer</th><th></th></tr></thead><tbody>';
+  wins.forEach(function(w) {
+    var cls = (w.passed ? 'wf-pass' : 'wf-fail') + (w.out_of_sample ? ' wf-oos' : '');
+    var dotColor = w.passed ? '#22c55e' : '#ef4444';
+    h += '<tr class="' + cls + '"><td>' + w.window + '</td>';
+    h += '<td>' + (w.out_of_sample ? '<span style="color:#3b82f6;font-size:0.65rem">OOS</span>' : '') + '</td>';
+    h += '<td>' + (w.trades || 0) + '</td>';
+    h += '<td>' + rdN(w.quality_score, 1) + '</td>';
+    h += '<td>' + rdN(w.sharpe, 2) + '</td>';
+    h += '<td>' + rdN(w.sortino, 2) + '</td>';
+    h += '<td style="color:' + rdVc(w['return']) + '">' + rdPct(w['return'], 1) + '</td>';
+    h += '<td>' + rdPct(w.max_dd, 1) + '</td>';
+    h += '<td>' + rdPctR(w.win_rate) + '</td>';
+    h += '<td>' + rdN(w.profit_factor, 2) + '</td>';
+    h += '<td>' + rdN(w.r_squared, 3) + '</td>';
+    h += '<td>' + rdN(w.ulcer, 2) + '</td>';
+    h += '<td><span class="rd-wf-dot" style="background:' + dotColor + ';box-shadow:0 0 4px ' + dotColor + '"></span></td></tr>';
+  });
+  h += '</tbody></table></div>';
+  return rdSection('Walk-Forward Analysis', h);
+}
+
+// -- Section: Monte Carlo --
+function rdMonteCarlo(det) {
+  var mc = det.montecarlo; if (!mc || mc.status === 'unknown') return '';
+  var h = '<div class="rd-mc-grid">';
+  // Return Distribution
+  h += '<div class="rd-mc-card"><div class="rd-mc-card-title">Return Distribution (' + (mc.n_iterations||0) + ' sims)</div>';
+  h += '<div class="rd-mc-row"><span class="lbl">Original</span><span class="val" style="color:#3b82f6">' + rdPct(mc.original_return, 1) + '</span></div>';
+  h += '<div class="rd-mc-row"><span class="lbl">Mean</span><span class="val">' + rdPct(mc.mean_return, 1) + '</span></div>';
+  h += '<div class="rd-mc-row"><span class="lbl">5th pct</span><span class="val" style="color:#ef4444">' + rdPct(mc.pct_5_return, 1) + '</span></div>';
+  h += '<div class="rd-mc-row"><span class="lbl">25th pct</span><span class="val">' + rdPct(mc.pct_25_return, 1) + '</span></div>';
+  h += '<div class="rd-mc-row"><span class="lbl">Median</span><span class="val">' + rdPct(mc.pct_50_return, 1) + '</span></div>';
+  h += '<div class="rd-mc-row"><span class="lbl">75th pct</span><span class="val">' + rdPct(mc.pct_75_return, 1) + '</span></div>';
+  h += '<div class="rd-mc-row"><span class="lbl">95th pct</span><span class="val" style="color:#10b981">' + rdPct(mc.pct_95_return, 1) + '</span></div>';
+  h += '</div>';
+  // Drawdown Distribution
+  h += '<div class="rd-mc-card"><div class="rd-mc-card-title">Drawdown Distribution</div>';
+  h += '<div class="rd-mc-row"><span class="lbl">Original MaxDD</span><span class="val" style="color:#3b82f6">' + rdPct(mc.original_max_dd, 1) + '</span></div>';
+  h += '<div class="rd-mc-row"><span class="lbl">Mean DD</span><span class="val">' + rdPct(mc.mean_dd, 1) + '</span></div>';
+  h += '<div class="rd-mc-row"><span class="lbl">5th pct DD</span><span class="val" style="color:#10b981">' + rdPct(mc.pct_5_dd, 1) + '</span></div>';
+  h += '<div class="rd-mc-row"><span class="lbl">Median DD</span><span class="val">' + rdPct(mc.pct_50_dd, 1) + '</span></div>';
+  h += '<div class="rd-mc-row"><span class="lbl">95th pct DD</span><span class="val" style="color:#ef4444">' + rdPct(mc.pct_95_dd, 1) + '</span></div>';
+  h += '<div class="rd-mc-row"><span class="lbl">Worst DD</span><span class="val" style="color:#ef4444">' + rdPct(mc.max_dd, 1) + '</span></div>';
+  h += '</div>';
+  // Risk Metrics
+  h += '<div class="rd-mc-card"><div class="rd-mc-card-title">Risk Metrics</div>';
+  h += '<div class="rd-mc-row"><span class="lbl">VaR 95%</span><span class="val">' + rdPct(mc.var_95, 1) + '</span></div>';
+  h += '<div class="rd-mc-row"><span class="lbl">Exp. Shortfall</span><span class="val">' + rdPct(mc.expected_shortfall, 1) + '</span></div>';
+  h += '<div class="rd-mc-row"><span class="lbl">P(Positive)</span><span class="val" style="color:' + (mc.prob_positive >= 90 ? '#10b981' : mc.prob_positive >= 70 ? '#f59e0b' : '#ef4444') + '">' + rdPct(mc.prob_positive, 0) + '</span></div>';
+  h += '<div class="rd-mc-row"><span class="lbl">P(&gt;5%)</span><span class="val">' + rdPct(mc.prob_above_5pct, 0) + '</span></div>';
+  h += '<div class="rd-mc-row"><span class="lbl">P(&gt;10%)</span><span class="val">' + rdPct(mc.prob_above_10pct, 0) + '</span></div>';
+  h += '</div>';
+  // Bootstrap CIs + Permutation
+  h += '<div class="rd-mc-card"><div class="rd-mc-card-title">Bootstrap &amp; Permutation</div>';
+  if (mc.bootstrap_sharpe_ci_lower != null) {
+    h += '<div class="rd-mc-row"><span class="lbl">Sharpe CI</span><span class="val">[' + rdN(mc.bootstrap_sharpe_ci_lower, 2) + ', ' + rdN(mc.bootstrap_sharpe_ci_upper, 2) + ']</span></div>';
+  }
+  if (mc.bootstrap_wr_ci_lower != null) {
+    h += '<div class="rd-mc-row"><span class="lbl">WinRate CI</span><span class="val">[' + rdPctR(mc.bootstrap_wr_ci_lower) + ', ' + rdPctR(mc.bootstrap_wr_ci_upper) + ']</span></div>';
+  }
+  if (mc.bootstrap_pf_ci_lower != null) {
+    h += '<div class="rd-mc-row"><span class="lbl">PF CI</span><span class="val">[' + rdN(mc.bootstrap_pf_ci_lower, 2) + ', ' + rdN(mc.bootstrap_pf_ci_upper, 2) + ']</span></div>';
+  }
+  if (mc.perm_p_value != null) {
+    var sigColor = mc.perm_significant_01 ? '#10b981' : mc.perm_significant_05 ? '#f59e0b' : '#ef4444';
+    var sigLabel = mc.perm_significant_01 ? 'p<0.01' : mc.perm_significant_05 ? 'p<0.05' : 'Not sig.';
+    h += '<div class="rd-mc-row"><span class="lbl">Perm. p-value</span><span class="val">' + rdN(mc.perm_p_value, 4) + '</span></div>';
+    h += '<div class="rd-mc-row"><span class="lbl">Significance</span><span class="val" style="color:' + sigColor + '">' + sigLabel + '</span></div>';
+  }
+  if (mc.perm_original_sharpe != null) {
+    h += '<div class="rd-mc-row"><span class="lbl">Orig. Sharpe</span><span class="val">' + rdN(mc.perm_original_sharpe, 3) + '</span></div>';
+  }
+  h += '</div></div>';
+  return rdSection('Monte Carlo Simulation', h);
+}
+
+// -- Section: Stability --
+function rdStability(det) {
+  var s = det.stability; if (!s) return '';
+  var rc = rdRc(s.rating);
+  var h = '<div class="rd-stab-grid">';
+  h += '<div class="rd-stab-card"><div class="val"><span style="background:'+rc[0]+';color:'+rc[1]+';padding:2px 10px;border-radius:4px;font-size:0.82rem">' + (s.rating||'?') + '</span></div><div class="lbl">Rating</div></div>';
+  h += '<div class="rd-stab-card"><div class="val" style="color:' + rdSc(s.mean_stability * 100) + '">' + rdPctR(s.mean_stability) + '</div><div class="lbl">Mean Stability</div></div>';
+  h += '<div class="rd-stab-card"><div class="val">' + rdPctR(s.min_stability) + '</div><div class="lbl">Min Stability</div></div>';
+  h += '<div class="rd-stab-card"><div class="val" style="color:#10b981">' + (s.n_stable||0) + '</div><div class="lbl">Stable Params</div></div>';
+  h += '<div class="rd-stab-card"><div class="val" style="color:' + (s.n_unstable > 0 ? '#ef4444' : '#5a6a80') + '">' + (s.n_unstable||0) + '</div><div class="lbl">Unstable</div></div>';
+  h += '<div class="rd-stab-card"><div class="val" style="color:#5a6a80">' + (s.n_skipped||0) + '</div><div class="lbl">Skipped</div></div>';
+  h += '</div>';
+  return rdSection('Stability Analysis', h);
+}
+
+// -- Section: Trade Analysis --
+function rdTrades(det) {
+  var ts = det.trade_summary; if (!ts || !ts.total_trades) return '';
+  var h = '<div class="rd-trade-grid">';
+  h += '<div class="rd-trade-card"><div class="lbl">Total Trades</div><div class="val">' + (ts.total_trades||0) + '</div></div>';
+  h += '<div class="rd-trade-card"><div class="lbl">Net Profit</div><div class="val" style="color:'+rdVc(ts.total_net_profit)+'">' + rdDlr(ts.total_net_profit) + '</div></div>';
+  h += '<div class="rd-trade-card"><div class="lbl">Gross Profit</div><div class="val text-green">' + rdDlr(ts.gross_profit) + '</div></div>';
+  h += '<div class="rd-trade-card"><div class="lbl">Gross Loss</div><div class="val text-red">' + rdDlr(ts.gross_loss) + '</div></div>';
+  h += '<div class="rd-trade-card"><div class="lbl">Win Rate</div><div class="val">' + rdPctR(ts.win_rate) + '</div></div>';
+  h += '<div class="rd-trade-card"><div class="lbl">Profit Factor</div><div class="val">' + rdN(ts.profit_factor, 2) + '</div></div>';
+  h += '<div class="rd-trade-card"><div class="lbl">Expected Payoff</div><div class="val" style="color:'+rdVc(ts.expected_payoff)+'">' + rdDlr(ts.expected_payoff) + '</div></div>';
+  h += '<div class="rd-trade-card"><div class="lbl">Avg Bars Held</div><div class="val">' + rdN(ts.avg_bars_held, 1) + '</div></div>';
+  h += '<div class="rd-trade-card"><div class="lbl">Avg Win</div><div class="val text-green">' + rdDlr(ts.avg_win) + '</div></div>';
+  h += '<div class="rd-trade-card"><div class="lbl">Avg Loss</div><div class="val text-red">' + rdDlr(ts.avg_loss) + '</div></div>';
+  h += '<div class="rd-trade-card"><div class="lbl">Largest Win</div><div class="val text-green">' + rdDlr(ts.largest_win) + '</div></div>';
+  h += '<div class="rd-trade-card"><div class="lbl">Largest Loss</div><div class="val text-red">' + rdDlr(ts.largest_loss) + '</div></div>';
+  h += '<div class="rd-trade-card"><div class="lbl">Max Consec. Wins</div><div class="val">' + (ts.max_consecutive_wins||0) + '</div></div>';
+  h += '<div class="rd-trade-card"><div class="lbl">Max Consec. Losses</div><div class="val">' + (ts.max_consecutive_losses||0) + '</div></div>';
+  h += '<div class="rd-trade-card"><div class="lbl">Long / Short</div><div class="val">' + (ts.long_trades||0) + ' / ' + (ts.short_trades||0) + '</div></div>';
+  h += '<div class="rd-trade-card"><div class="lbl">Avg MFE (R)</div><div class="val">' + rdN(ts.avg_mfe_r, 2) + '</div></div>';
+  h += '<div class="rd-trade-card"><div class="lbl">Avg MAE (R)</div><div class="val">' + rdN(ts.avg_mae_r, 2) + '</div></div>';
+  h += '</div>';
+  // Exit reasons
+  var er = ts.exit_reason_counts || {};
+  var erKeys = Object.keys(er);
+  if (erKeys.length > 0) {
+    var maxCount = Math.max.apply(null, erKeys.map(function(k) { return er[k]; }));
+    var erColors = { tp: '#10b981', sl: '#ef4444', trailing: '#3b82f6', time: '#8b5cf6', stale: '#f59e0b', break_even: '#06b6d4', force_close: '#ec4899' };
+    h += '<div style="margin-top:8px;font-size:0.72rem;color:#5a6a80;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:6px">Exit Reasons</div>';
+    h += '<table class="rd-exit-table">';
+    erKeys.sort(function(a,b) { return er[b] - er[a]; }).forEach(function(k) {
+      var pct = maxCount > 0 ? (er[k] / maxCount * 100) : 0;
+      var color = erColors[k] || '#8896ab';
+      h += '<tr><td>' + k.toUpperCase() + '</td><td>' + er[k] + '</td><td><span class="rd-exit-bar" style="width:' + pct + '%;background:' + color + '"></span></td></tr>';
+    });
+    h += '</table>';
+  }
+  return rdSection('Trade Analysis', h);
+}
+
+// -- Section: Monthly Returns --
+function rdMonthly(det) {
+  var m = det.monthly_returns; if (!m) return '';
+  var years = Object.keys(m).sort();
+  if (!years.length) return '';
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function cellColor(v) {
+    if (v == null || v === 0) return 'background:#0d1320';
+    var a = Math.min(Math.abs(v) / 8, 1);
+    return v > 0 ? 'background:rgba(16,185,129,' + (0.1 + a * 0.5) + ')' : 'background:rgba(239,68,68,' + (0.1 + a * 0.5) + ')';
+  }
+  var h = '<div style="overflow-x:auto"><table class="rd-monthly-table"><thead><tr><th>Year</th>';
+  months.forEach(function(mo) { h += '<th>' + mo + '</th>'; });
+  h += '<th>Total</th></tr></thead><tbody>';
+  years.forEach(function(yr) {
+    var yd = m[yr] || {};
+    var total = 0;
+    h += '<tr><td>' + yr + '</td>';
+    months.forEach(function(mo) {
+      var v = yd[mo];
+      if (v != null) total += v;
+      var style = cellColor(v);
+      var color = v > 0 ? '#10b981' : v < 0 ? '#ef4444' : '#5a6a80';
+      h += '<td style="' + style + ';color:' + color + '">' + (v != null ? v.toFixed(1) : '') + '</td>';
+    });
+    h += '<td style="' + cellColor(total) + ';color:' + (total > 0 ? '#10b981' : '#ef4444') + ';font-weight:600">' + total.toFixed(1) + '</td></tr>';
+  });
+  h += '</tbody></table></div>';
+  return rdSection('Monthly Returns (%)', h);
+}
+
+// -- Section: Parameters --
+function rdParams(det) {
+  var params = det.extended ? det.extended.params : null;
+  if (!params) return '';
+  var keys = Object.keys(params).sort();
+  if (!keys.length) return '';
+  var half = Math.ceil(keys.length / 2);
+  function paramTable(ks) {
+    var h = '<table class="rd-params-table">';
+    ks.forEach(function(k) {
+      var v = params[k];
+      if (typeof v === 'boolean') v = v ? 'True' : 'False';
+      else if (typeof v === 'number') v = Number.isInteger(v) ? v.toString() : v.toFixed(4);
+      h += '<tr><td>' + k + '</td><td>' + v + '</td></tr>';
+    });
+    return h + '</table>';
+  }
+  var h = '<div class="rd-params-grid">' + paramTable(keys.slice(0, half)) + paramTable(keys.slice(half)) + '</div>';
+  return rdSection('Best Candidate Parameters', h, true);
+}
+
+// -- Charts --
+function rdRenderCharts(comp, det) {
+  var chartArea = document.getElementById('rd-charts-area');
+  if (!chartArea) return;
+  // Equity chart
+  var eqDiv = document.getElementById('rd-equity-chart');
+  if (comp && (comp.back_equity || comp.forward_equity)) {
+    var traces = [], shapes = [];
+    var ic = comp.initial_capital || 10000;
+    if (comp.back_equity && comp.back_equity.length) {
+      traces.push({ x: comp.back_equity.map(function(p){return p.timestamp;}), y: comp.back_equity.map(function(p){return p.equity-ic;}), name: 'Backtest (R\u00B2=' + rdN(comp.back_r_squared,3) + ')', line:{color:'#3b82f6',width:2}, type:'scatter' });
+      if (comp.forward_equity && comp.forward_equity.length) {
+        var st = comp.back_equity[comp.back_equity.length-1].timestamp;
+        shapes.push({type:'line',x0:st,x1:st,y0:0,y1:1,yref:'paper',line:{color:'#3b82f6',width:1,dash:'dot'},opacity:0.5});
+      }
+    }
+    if (comp.forward_equity && comp.forward_equity.length) {
+      traces.push({ x: comp.forward_equity.map(function(p){return p.timestamp;}), y: comp.forward_equity.map(function(p){return p.equity-ic;}), name: 'Forward (R\u00B2=' + rdN(comp.forward_r_squared,3) + ')', line:{color:'#10b981',width:2,dash:'dash'}, type:'scatter' });
+    }
+    var layout = { paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)', font:{color:'#8896ab',family:'Inter,system-ui,sans-serif',size:11}, xaxis:{gridcolor:'rgba(42,58,82,0.4)',zerolinecolor:'#2a3a52',tickfont:{color:'#5a6a80'}}, yaxis:{title:'Profit ($)',gridcolor:'rgba(42,58,82,0.4)',zerolinecolor:'#2a3a52',tickfont:{color:'#5a6a80'}}, margin:{l:55,r:20,t:15,b:40}, legend:{orientation:'h',y:-0.18,x:0.5,xanchor:'center',font:{size:10}}, hoverlabel:{bgcolor:'#111827',bordercolor:'#2a3a52',font:{color:'#e2e8f0',size:11}}, shapes:shapes };
+    Plotly.newPlot(eqDiv, traces, layout, {responsive:true,displayModeBar:false});
+  } else {
+    eqDiv.innerHTML = '<div style="text-align:center;padding:50px;color:#5a6a80">No equity data</div>';
+  }
+  // Drawdown chart
+  var ddDiv = document.getElementById('rd-dd-chart');
+  var ddCurve = det ? det.drawdown_curve : null;
+  if (ddCurve && ddCurve.length > 0) {
+    var dx = ddCurve.map(function(p){return p.timestamp||p.trade_num;});
+    var dy = ddCurve.map(function(p){return -(p.drawdown||0);});
+    Plotly.newPlot(ddDiv, [{x:dx,y:dy,type:'scatter',mode:'lines',fill:'tozeroy',fillcolor:'rgba(239,68,68,0.15)',line:{color:'#ef4444',width:1.5},name:'Drawdown %'}], { paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)', font:{color:'#8896ab',family:'Inter,system-ui,sans-serif',size:11}, xaxis:{gridcolor:'rgba(42,58,82,0.4)',zerolinecolor:'#2a3a52',tickfont:{color:'#5a6a80'}}, yaxis:{title:'Drawdown %',gridcolor:'rgba(42,58,82,0.4)',zerolinecolor:'#2a3a52',tickfont:{color:'#5a6a80'}}, margin:{l:55,r:20,t:10,b:40}, showlegend:false, hoverlabel:{bgcolor:'#111827',bordercolor:'#2a3a52',font:{color:'#e2e8f0',size:11}} }, {responsive:true,displayModeBar:false});
+  } else {
+    ddDiv.innerHTML = '<div style="text-align:center;padding:30px;color:#5a6a80">No drawdown data</div>';
+  }
+}
+
+// -- Main showRunDetail --
 function showRunDetail(runId) {
   if (currentDetailRun === runId) { closeRunDetail(); return; }
   currentDetailRun = runId;
   var run = lbData.runs.find(function(r) { return r.run_id === runId; });
   var comp = (lbData.compare || {})[runId];
+  var det = (lbData.detail || {})[runId];
   if (!run) return;
 
+  var rc = rdRc(run.rating);
   var panel = document.getElementById('run-detail');
-  document.getElementById('rd-title').textContent = run.pair + ' ' + run.timeframe + ' \u2014 ' + run.strategy;
-  document.getElementById('rd-meta').textContent = run.run_id + ' \u00B7 ' + (run.description || '') + ' \u00B7 ' + (run.created || '');
+  panel.style.setProperty('--rd-accent', rc[1]);
 
-  var ratingBg = run.rating === 'GREEN' ? '#065f46' : run.rating === 'YELLOW' ? '#78350f' : '#7f1d1d';
-  var ratingFg = run.rating === 'GREEN' ? '#10b981' : run.rating === 'YELLOW' ? '#f59e0b' : '#ef4444';
-  var fb = run.forward_back_ratio;
+  var html = '';
+  // Close button
+  html += '<div class="rd-close-row"><button class="compare-close" onclick="closeRunDetail()">Close \u2715</button></div>';
+  // Header
+  html += rdHeader(run, det);
+  // Performance
+  html += rdPerformance(run, det, comp);
+  // Confidence
+  if (det) html += rdConfidence(det);
+  // Walk-Forward
+  if (det) html += rdWalkforward(det);
+  // Charts section
+  html += '<div class="rd-section"><div class="rd-section-head" onclick="rdToggle(this.parentElement)"><h3>Equity Curve &amp; Drawdown</h3><span class="rd-chevron">\u25BC</span></div><div class="rd-section-body" id="rd-charts-area">';
+  html += '<div id="rd-equity-chart" style="height:350px"></div>';
+  html += '<div id="rd-dd-chart" style="height:200px;margin-top:8px"></div>';
+  html += '</div></div>';
+  // Monte Carlo
+  if (det) html += rdMonteCarlo(det);
+  // Stability
+  if (det) html += rdStability(det);
+  // Trade Analysis
+  if (det) html += rdTrades(det);
+  // Monthly Returns
+  if (det) html += rdMonthly(det);
+  // Parameters
+  if (det) html += rdParams(det);
 
-  var metricsData = [
-    ['Score', run.score > 0 ? run.score.toFixed(1) : '-', ratingFg],
-    ['Rating', '<span style="background:'+ratingBg+';color:'+ratingFg+';padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:600">'+run.rating+'</span>', ''],
-    ['Back Return', (run.back_return||0).toFixed(1) + '%', (run.back_return||0) > 0 ? '#10b981' : '#ef4444'],
-    ['Fwd Return', (run.forward_return||0).toFixed(1) + '%', (run.forward_return||0) > 0 ? '#10b981' : '#ef4444'],
-    ['F/B Ratio', fb ? (fb*100).toFixed(1) + '%' : '\u2014', ''],
-    ['Back Trades', run.back_trades || 0, ''],
-    ['Fwd Trades', run.forward_trades || 0, ''],
-    ['Win Rate', ((run.win_rate||0)*100).toFixed(1) + '%', ''],
-    ['Max DD', (run.back_max_dd||0).toFixed(1) + '%', ''],
-    ['Back Sharpe', (run.back_sharpe||0).toFixed(2), ''],
-    ['Fwd Sharpe', (run.forward_sharpe||0).toFixed(2), ''],
-    ['Candidates', run.n_candidates || 0, ''],
-  ];
-  if (comp) {
-    if (comp.back_r_squared) metricsData.push(['Back R\u00B2', comp.back_r_squared.toFixed(3), '']);
-    if (comp.forward_r_squared) metricsData.push(['Fwd R\u00B2', comp.forward_r_squared.toFixed(3), '']);
-    if (comp.profit_factor) metricsData.push(['Profit Factor', comp.profit_factor.toFixed(2), '']);
-    if (comp.stability_mean) metricsData.push(['Stability', (comp.stability_mean*100).toFixed(1) + '%', '']);
-  }
-
-  document.getElementById('rd-metrics').innerHTML = metricsData.map(function(m) {
-    var style = m[2] ? ' style="color:'+m[2]+'"' : '';
-    return '<div class="run-metric"><div class="run-metric-label">'+m[0]+'</div><div class="run-metric-value"'+style+'>'+m[1]+'</div></div>';
-  }).join('');
-
-  // Chart
-  var chartDiv = document.getElementById('rd-chart');
-  if (comp && (comp.back_equity || comp.forward_equity)) {
-    var traces = [];
-    var initCap = comp.initial_capital || 10000;
-    if (comp.back_equity && comp.back_equity.length) {
-      traces.push({
-        x: comp.back_equity.map(function(p) { return p.timestamp; }),
-        y: comp.back_equity.map(function(p) { return p.equity - initCap; }),
-        name: 'Backtest (R\u00B2=' + (comp.back_r_squared||0).toFixed(3) + ')',
-        line: { color: '#3b82f6', width: 2 }, type: 'scatter'
-      });
-    }
-    if (comp.forward_equity && comp.forward_equity.length) {
-      traces.push({
-        x: comp.forward_equity.map(function(p) { return p.timestamp; }),
-        y: comp.forward_equity.map(function(p) { return p.equity - initCap; }),
-        name: 'Forward (R\u00B2=' + (comp.forward_r_squared||0).toFixed(3) + ')',
-        line: { color: '#10b981', width: 2, dash: 'dash' }, type: 'scatter'
-      });
-    }
-    var shapes = [];
-    if (comp.back_equity && comp.back_equity.length && comp.forward_equity && comp.forward_equity.length) {
-      var splitTime = comp.back_equity[comp.back_equity.length-1].timestamp;
-      shapes.push({ type:'line', x0:splitTime, x1:splitTime, y0:0, y1:1, yref:'paper', line:{color:'#3b82f6',width:1,dash:'dot'}, opacity:0.5 });
-    }
-    Plotly.newPlot(chartDiv, traces, {
-      paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
-      font: { color: '#8896ab', family: 'Inter, system-ui, sans-serif', size: 12 },
-      xaxis: { gridcolor: 'rgba(42,58,82,0.4)', zerolinecolor: '#2a3a52', tickfont: { color: '#5a6a80' } },
-      yaxis: { title: 'Profit ($)', gridcolor: 'rgba(42,58,82,0.4)', zerolinecolor: '#2a3a52', tickfont: { color: '#5a6a80' } },
-      margin: { l: 60, r: 30, t: 20, b: 50 },
-      legend: { orientation: 'h', y: -0.15, x: 0.5, xanchor: 'center', font: { size: 11 } },
-      hoverlabel: { bgcolor: '#111827', bordercolor: '#2a3a52', font: { color: '#e2e8f0', size: 12 } },
-      shapes: shapes,
-    }, { responsive: true, displayModeBar: false });
-  } else {
-    chartDiv.innerHTML = '<div style="text-align:center;padding:60px;color:#5a6a80">No equity data available for this run</div>';
-  }
-
+  panel.innerHTML = html;
   panel.classList.add('visible');
+
+  // Render charts after DOM insertion
+  setTimeout(function() { rdRenderCharts(comp, det); }, 50);
   panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function closeRunDetail() {
   currentDetailRun = null;
-  document.getElementById('run-detail').classList.remove('visible');
+  var panel = document.getElementById('run-detail');
+  panel.classList.remove('visible');
+  panel.innerHTML = '';
+}
+
+function rdToggle(section) {
+  section.classList.toggle('collapsed');
 }
 
 // ═══════════════════════════════════════
