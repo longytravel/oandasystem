@@ -5,322 +5,215 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OANDA Trading System</title>
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  :root {
-    --bg: #0a0e1a;
-    --bg-card: #111827;
-    --bg-card-hover: #1a2332;
-    --bg-input: #1e293b;
-    --border: #1e293b;
-    --border-light: #334155;
-    --text: #e2e8f0;
-    --text-dim: #94a3b8;
-    --text-muted: #64748b;
-    --accent: #3b82f6;
-    --accent-hover: #2563eb;
-    --green: #22c55e;
-    --green-dim: #16a34a;
-    --yellow: #eab308;
-    --red: #ef4444;
-    --red-dim: #dc2626;
-    --orange: #f97316;
-    --purple: #a855f7;
-    --cyan: #06b6d4;
-  }
-
   body {
-    font-family: 'Inter', -apple-system, sans-serif;
-    background: var(--bg);
-    color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #0a0e1a;
+    color: #e2e8f0;
     min-height: 100vh;
     line-height: 1.5;
+    padding-bottom: 70px;
   }
+  a { color: #3b82f6; text-decoration: none; }
+  a:hover { text-decoration: underline; }
 
   /* ── NAV ── */
   .nav {
-    background: var(--bg-card);
-    border-bottom: 1px solid var(--border);
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    display: flex;
-    align-items: center;
-    padding: 0 1.5rem;
-    gap: 0;
+    background: #111827;
+    border-bottom: 1px solid #1e293b;
+    position: sticky; top: 0; z-index: 100;
+    display: flex; align-items: center;
+    padding: 0 32px; gap: 0;
   }
   .nav-brand {
-    font-weight: 700;
-    font-size: 1rem;
-    color: var(--accent);
-    margin-right: 2rem;
-    white-space: nowrap;
-    padding: 0.75rem 0;
+    font-weight: 700; font-size: 1rem; color: #3b82f6;
+    margin-right: 24px; white-space: nowrap; padding: 12px 0;
     font-family: 'JetBrains Mono', monospace;
   }
   .nav-tab {
-    padding: 0.75rem 1.25rem;
-    color: var(--text-dim);
-    cursor: pointer;
+    padding: 12px 20px; color: #5a6a80; cursor: pointer;
     border-bottom: 2px solid transparent;
-    transition: all 0.15s;
-    font-size: 0.875rem;
-    font-weight: 500;
-    user-select: none;
+    transition: all 0.15s; font-size: 0.85rem; font-weight: 500; user-select: none;
   }
-  .nav-tab:hover { color: var(--text); }
-  .nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .nav-tab:hover { color: #e2e8f0; }
+  .nav-tab.active { color: #3b82f6; border-bottom-color: #3b82f6; }
   .nav-right {
-    margin-left: auto;
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    font-size: 0.75rem;
-    color: var(--text-muted);
+    margin-left: auto; display: flex; align-items: center; gap: 12px;
+    font-size: 0.75rem; color: #5a6a80; font-family: 'JetBrains Mono', monospace;
   }
 
-  /* ── LAYOUT ── */
-  .container { max-width: 1400px; margin: 0 auto; padding: 1.25rem; }
+  /* ── VIEWS ── */
   .view { display: none; }
   .view.active { display: block; }
 
-  /* ── CARDS ── */
+  /* ══════════════════════════════════════
+     DASHBOARD VIEW
+     ══════════════════════════════════════ */
+  .dash-container { max-width: 1400px; margin: 0 auto; padding: 20px 32px; }
   .cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 0.75rem;
-    margin-bottom: 1.25rem;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px; margin-bottom: 20px;
   }
   .card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 1rem;
+    background: #111827; border: 1px solid #1e293b; border-radius: 8px; padding: 16px;
   }
-  .card-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 0.25rem; }
+  .card-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: #5a6a80; margin-bottom: 4px; }
   .card-value { font-size: 1.5rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
 
-  /* ── TABLES ── */
-  .table-wrap { overflow-x: auto; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; }
-  table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-  th {
-    text-align: left;
-    padding: 0.625rem 0.75rem;
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-muted);
-    border-bottom: 1px solid var(--border);
-    cursor: pointer;
-    user-select: none;
-    white-space: nowrap;
-    position: sticky;
-    top: 0;
-    background: var(--bg-card);
-  }
-  th:hover { color: var(--text-dim); }
-  th .sort-arrow { margin-left: 4px; font-size: 0.6rem; }
-  td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
-  tr:last-child td { border-bottom: none; }
-  tr:hover td { background: var(--bg-card-hover); }
-
-  /* ── STATUS DOTS ── */
-  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
-  .dot-green { background: var(--green); box-shadow: 0 0 6px var(--green); }
-  .dot-yellow { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
-  .dot-red { background: var(--red); box-shadow: 0 0 6px var(--red); }
-  .dot-gray { background: var(--text-muted); }
-
-  /* ── BADGES ── */
-  .badge {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    font-family: 'JetBrains Mono', monospace;
-  }
-  .badge-green { background: rgba(34,197,94,0.15); color: var(--green); }
-  .badge-yellow { background: rgba(234,179,8,0.15); color: var(--yellow); }
-  .badge-red { background: rgba(239,68,68,0.15); color: var(--red); }
-  .badge-blue { background: rgba(59,130,246,0.15); color: var(--accent); }
-  .badge-gray { background: rgba(100,116,139,0.15); color: var(--text-muted); }
-
-  /* ── BUTTONS ── */
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
-    border-radius: 4px;
-    border: 1px solid var(--border-light);
-    background: var(--bg-input);
-    color: var(--text-dim);
-    font-size: 0.7rem;
-    cursor: pointer;
-    transition: all 0.15s;
-    font-family: 'Inter', sans-serif;
-  }
-  .btn:hover { background: var(--border-light); color: var(--text); }
-  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn-accent { background: var(--accent); color: #fff; border-color: var(--accent); }
-  .btn-accent:hover { background: var(--accent-hover); }
-  .btn-sm { padding: 2px 6px; font-size: 0.65rem; }
-  .btn-danger { border-color: var(--red-dim); color: var(--red); }
-  .btn-danger:hover { background: rgba(239,68,68,0.15); }
-
-  /* ── FILTER BAR ── */
-  .filter-bar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    align-items: center;
-    margin-bottom: 1rem;
-  }
-  .filter-group { display: flex; gap: 2px; }
-  .filter-group label {
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    margin-right: 4px;
-    align-self: center;
-  }
-  .filter-btn {
-    padding: 3px 8px;
-    border-radius: 3px;
-    border: 1px solid var(--border-light);
-    background: transparent;
-    color: var(--text-dim);
-    font-size: 0.7rem;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-  .filter-btn:hover:not(.active) { background: var(--bg-input); }
-
-  /* ── BANNER ── */
   .banner {
-    padding: 0.5rem 1rem;
-    border-radius: 6px;
-    margin-bottom: 1rem;
-    font-size: 0.8rem;
-    display: none;
-  }
-  .banner-error {
-    background: rgba(239,68,68,0.1);
-    border: 1px solid var(--red-dim);
-    color: var(--red);
+    padding: 10px 16px; border-radius: 6px; margin-bottom: 16px;
+    font-size: 0.82rem; display: none;
+    background: rgba(239,68,68,0.1); border: 1px solid #dc2626; color: #ef4444;
   }
   .banner.show { display: block; }
 
-  /* ── EXPANDABLE PANELS ── */
-  .expand-panel {
-    display: none;
-    padding: 1rem;
-    background: var(--bg);
-    border-bottom: 1px solid var(--border);
+  .dash-table { overflow-x: auto; background: #111827; border: 1px solid #1e293b; border-radius: 8px; }
+  .dash-table table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  .dash-table th {
+    text-align: left; padding: 10px 12px; font-size: 0.68rem;
+    text-transform: uppercase; letter-spacing: 0.04em; color: #5a6a80;
+    border-bottom: 1px solid #1e293b; background: #111827;
   }
+  .dash-table td { padding: 8px 12px; border-bottom: 1px solid rgba(30,41,59,0.4); white-space: nowrap; }
+  .dash-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .dot-green { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+  .dot-yellow { background: #eab308; box-shadow: 0 0 6px #eab308; }
+  .dot-red { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 4px; border: 1px solid #334155;
+    background: #1e293b; color: #8896ab; font-size: 0.7rem;
+    cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif;
+  }
+  .btn:hover { background: #334155; color: #e2e8f0; }
+  .btn-danger { border-color: #dc2626; color: #ef4444; }
+  .btn-danger:hover { background: rgba(239,68,68,0.15); }
+
+  .expand-panel { display: none; padding: 16px; background: #0a0e1a; border-bottom: 1px solid #1e293b; }
   .expand-panel.open { display: block; }
-  .expand-row td { padding: 0; }
+  .expand-panel table { max-width: 600px; }
 
-  /* ── DETAIL PANEL ── */
-  .detail-panel {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 1.25rem;
-    margin-top: 1rem;
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 4px;
+    font-size: 0.75rem; font-weight: 600; font-family: 'JetBrains Mono', monospace;
   }
-  .detail-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-  }
-  .detail-header h3 { font-size: 1rem; }
-  .metrics-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 0.75rem;
-    margin-bottom: 1rem;
-  }
-  .metric-item {
-    background: var(--bg);
-    border-radius: 6px;
-    padding: 0.625rem;
-  }
-  .metric-label { font-size: 0.65rem; text-transform: uppercase; color: var(--text-muted); }
-  .metric-value { font-size: 1rem; font-weight: 600; font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
+  .badge-green { background: #065f46; color: #10b981; }
+  .badge-yellow { background: #78350f; color: #f59e0b; }
+  .badge-red { background: #7f1d1d; color: #ef4444; }
+  .badge-blue { background: rgba(59,130,246,0.15); color: #3b82f6; }
 
-  /* ── COMPARE TOOLBAR ── */
+  /* ══════════════════════════════════════
+     LEADERBOARD VIEW (matching generate_index.py)
+     ══════════════════════════════════════ */
+  .page-header {
+    padding: 24px 32px; border-bottom: 1px solid #1e293b;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 16px;
+  }
+  .page-title { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.02em; }
+  .page-subtitle { font-size: 0.78rem; color: #5a6a80; }
+  .summary-strip { display: flex; gap: 24px; flex-wrap: wrap; }
+  .summary-item { text-align: center; }
+  .summary-num { font-family: 'JetBrains Mono', monospace; font-size: 1.4rem; font-weight: 700; }
+  .summary-label { font-size: 0.68rem; color: #5a6a80; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .filter-bar {
+    padding: 12px 32px; border-bottom: 1px solid #1e293b;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: #0d1320;
+  }
+  .filter-group { display: flex; align-items: center; gap: 4px; }
+  .filter-label { font-size: 0.7rem; color: #5a6a80; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 4px; }
+  .filter-btn {
+    background: #111827; border: 1px solid #1e293b; color: #8896ab;
+    padding: 4px 10px; border-radius: 4px; font-size: 0.75rem;
+    font-family: 'JetBrains Mono', monospace; cursor: pointer; transition: all 0.15s;
+  }
+  .filter-btn:hover { border-color: #3b82f6; color: #e2e8f0; }
+  .filter-btn.active { background: #1e3a5f; border-color: #3b82f6; color: #3b82f6; }
+  .filter-btn.clear-btn { background: transparent; border-color: transparent; color: #5a6a80; font-family: 'Inter', sans-serif; }
+  .filter-btn.clear-btn:hover { color: #ef4444; }
+
+  .table-container { padding: 0 16px; overflow-x: auto; }
+  #leaderboard { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-top: 8px; }
+  #leaderboard th {
+    padding: 10px 10px; text-align: left; font-weight: 500; color: #5a6a80;
+    text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.68rem;
+    border-bottom: 1px solid #1e293b; cursor: pointer; user-select: none;
+    white-space: nowrap; position: sticky; top: 47px; background: #0a0e1a; z-index: 10;
+  }
+  #leaderboard th:hover { color: #8896ab; }
+  #leaderboard th.sort-asc::after { content: ' \25B2'; font-size: 0.6rem; }
+  #leaderboard th.sort-desc::after { content: ' \25BC'; font-size: 0.6rem; }
+  #leaderboard th.no-sort { cursor: default; }
+  #leaderboard th.no-sort:hover { color: #5a6a80; }
+  #leaderboard td {
+    padding: 8px 10px; border-bottom: 1px solid rgba(30,41,59,0.4);
+    font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; white-space: nowrap;
+  }
+  #leaderboard tr:hover td { background: rgba(255,255,255,0.02); }
+  #leaderboard tr.hidden { display: none; }
+  .score-col { font-size: 1rem; }
+  .strategy-col { font-family: 'Inter', sans-serif; color: #8896ab; font-size: 0.75rem; }
+  .desc-col { font-family: 'Inter', sans-serif; color: #6b7f99; font-size: 0.7rem; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .runid-col { font-size: 0.68rem; color: #5a6a80; }
+  .compare-check { width: 16px; height: 16px; cursor: pointer; accent-color: #3b82f6; }
+
+  /* Compare toolbar */
   .compare-toolbar {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background: var(--bg-card);
-    border-top: 1px solid var(--accent);
-    padding: 0.75rem 1.5rem;
-    display: none;
-    align-items: center;
-    justify-content: space-between;
-    z-index: 90;
-    box-shadow: 0 -4px 20px rgba(0,0,0,0.5);
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: #111827; border-top: 2px solid #3b82f6;
+    padding: 12px 32px; display: flex; align-items: center; gap: 16px;
+    z-index: 1000; transform: translateY(100%); transition: transform 0.25s ease;
   }
-  .compare-toolbar.show { display: flex; }
+  .compare-toolbar.visible { transform: translateY(0); }
+  .compare-toolbar .count { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: #3b82f6; font-weight: 600; }
+  .compare-toolbar button {
+    padding: 8px 20px; border-radius: 6px; font-family: 'Inter', sans-serif;
+    font-size: 0.82rem; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s;
+  }
+  .compare-toolbar .btn-compare { background: #3b82f6; color: white; }
+  .compare-toolbar .btn-compare:hover { background: #2563eb; }
+  .compare-toolbar .btn-clear { background: transparent; color: #5a6a80; border: 1px solid #1e293b; }
+  .compare-toolbar .btn-clear:hover { color: #ef4444; border-color: #ef4444; }
 
-  /* ── MONO VALUES ── */
+  /* Compare section */
+  #compare-section { display: none; padding: 24px 32px; border-top: 2px solid #3b82f6; margin-top: 16px; }
+  #compare-section.visible { display: block; }
+  .compare-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .compare-title { font-size: 1.1rem; font-weight: 700; color: #3b82f6; }
+  .compare-close {
+    background: transparent; border: 1px solid #1e293b; color: #5a6a80;
+    padding: 6px 14px; border-radius: 4px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 0.78rem;
+  }
+  .compare-close:hover { color: #ef4444; border-color: #ef4444; }
+  .compare-chart-panel { background: #111827; border: 1px solid #1e293b; border-radius: 8px; margin-bottom: 20px; overflow: hidden; }
+  .compare-chart-header { padding: 12px 16px; border-bottom: 1px solid #1e293b; font-size: 0.82rem; font-weight: 600; color: #8896ab; }
+  .compare-metrics-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  .compare-metrics-table th {
+    position: static; padding: 10px 14px; text-align: left; font-weight: 600;
+    color: #5a6a80; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em;
+    border-bottom: 1px solid #1e293b; background: #0d1320; cursor: default;
+  }
+  .compare-metrics-table th:hover { color: #5a6a80; }
+  .compare-metrics-table td {
+    padding: 8px 14px; border-bottom: 1px solid rgba(30,41,59,0.4);
+    font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;
+  }
+  .compare-metrics-table .metric-label-col { color: #8896ab; font-family: 'Inter', sans-serif; font-weight: 500; font-size: 0.78rem; width: 140px; }
+  .compare-metrics-table .best-val { color: #10b981; font-weight: 600; }
+
+  .text-green { color: #10b981; }
+  .text-red { color: #ef4444; }
+  .text-dim { color: #5a6a80; }
   .mono { font-family: 'JetBrains Mono', monospace; }
-  .text-green { color: var(--green); }
-  .text-red { color: var(--red); }
-  .text-yellow { color: var(--yellow); }
-  .text-dim { color: var(--text-dim); }
-  .text-muted { color: var(--text-muted); }
   .text-right { text-align: right; }
-
-  /* ── LOADING ── */
-  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border-light); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* ── RESPONSIVE ── */
-  @media (max-width: 768px) {
-    .nav { padding: 0 0.75rem; }
-    .nav-brand { font-size: 0.85rem; margin-right: 0.75rem; }
-    .nav-tab { padding: 0.625rem 0.75rem; font-size: 0.8rem; }
-    .container { padding: 0.75rem; }
-    .cards { grid-template-columns: repeat(2, 1fr); }
-    .card-value { font-size: 1.1rem; }
-    .nav-right { display: none; }
-  }
-
-  /* ── CHECKBOX ── */
-  .cb { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
-
-  /* ── PERF TABLE ── */
-  .perf-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-    margin-top: 0.75rem;
-  }
-  @media (max-width: 900px) { .perf-grid { grid-template-columns: 1fr; } }
-
-  /* ── WF BAR ── */
-  .wf-bar { height: 6px; border-radius: 3px; background: var(--bg-input); overflow: hidden; width: 80px; display: inline-block; vertical-align: middle; }
-  .wf-bar-fill { height: 100%; border-radius: 3px; }
-
-  /* ── SECTION HEADING ── */
-  .section-heading {
-    font-size: 0.85rem;
-    font-weight: 600;
-    margin-bottom: 0.75rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
+  .footer { text-align: center; padding: 16px; color: #5a6a80; font-size: 0.7rem; border-top: 1px solid #1e293b; margin-top: 20px; }
 </style>
 </head>
 <body>
@@ -330,57 +223,28 @@
   <div class="nav-brand">OANDA System</div>
   <div class="nav-tab active" data-view="dashboard" onclick="switchView('dashboard')">Trading</div>
   <div class="nav-tab" data-view="leaderboard" onclick="switchView('leaderboard')">Pipeline</div>
-  <div class="nav-right">
-    <span id="clock"></span>
-  </div>
+  <div class="nav-right"><span id="clock"></span></div>
 </nav>
 
 <!-- ═══ DASHBOARD VIEW ═══ -->
 <div id="view-dashboard" class="view active">
-  <div class="container">
-    <div id="vps-banner" class="banner banner-error">VPS Offline — Live trading data unavailable. The leaderboard still works.</div>
-
-    <!-- Summary Cards -->
+  <div class="dash-container">
+    <div id="vps-banner" class="banner">VPS Offline &mdash; Live trading data unavailable. The Pipeline tab still works.</div>
     <div class="cards">
-      <div class="card">
-        <div class="card-label">Daily P&amp;L</div>
-        <div class="card-value mono" id="sum-pnl">—</div>
-      </div>
-      <div class="card">
-        <div class="card-label">Open Positions</div>
-        <div class="card-value mono" id="sum-positions">—</div>
-      </div>
-      <div class="card">
-        <div class="card-label">Trades Today</div>
-        <div class="card-value mono" id="sum-trades">—</div>
-      </div>
-      <div class="card">
-        <div class="card-label">Running</div>
-        <div class="card-value mono" id="sum-running">—</div>
-      </div>
-      <div class="card">
-        <div class="card-label">Errors</div>
-        <div class="card-value mono" id="sum-errors">—</div>
-      </div>
+      <div class="card"><div class="card-label">Daily P&amp;L</div><div class="card-value mono" id="sum-pnl">&mdash;</div></div>
+      <div class="card"><div class="card-label">Open Positions</div><div class="card-value mono" id="sum-positions">&mdash;</div></div>
+      <div class="card"><div class="card-label">Trades Today</div><div class="card-value mono" id="sum-trades">&mdash;</div></div>
+      <div class="card"><div class="card-label">Running</div><div class="card-value mono" id="sum-running">&mdash;</div></div>
+      <div class="card"><div class="card-label">Errors</div><div class="card-value mono" id="sum-errors">&mdash;</div></div>
     </div>
-
-    <!-- Instances Table -->
-    <div class="table-wrap">
+    <div class="dash-table">
       <table>
-        <thead>
-          <tr>
-            <th>Status</th>
-            <th>Strategy</th>
-            <th>Pair / TF</th>
-            <th>Heartbeat</th>
-            <th>Positions</th>
-            <th class="text-right">Daily P&L</th>
-            <th>W / L</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
+        <thead><tr>
+          <th>Status</th><th>Strategy</th><th>Pair / TF</th><th>Heartbeat</th>
+          <th>Positions</th><th style="text-align:right">Daily P&L</th><th>W / L</th><th>Actions</th>
+        </tr></thead>
         <tbody id="instances-body">
-          <tr><td colspan="8" class="text-dim" style="text-align:center;padding:2rem;">Loading...</td></tr>
+          <tr><td colspan="8" style="text-align:center;padding:2rem;color:#5a6a80">Loading...</td></tr>
         </tbody>
       </table>
     </div>
@@ -389,662 +253,574 @@
 
 <!-- ═══ LEADERBOARD VIEW ═══ -->
 <div id="view-leaderboard" class="view">
-  <div class="container">
-    <!-- Filter Bar -->
-    <div class="filter-bar" id="lb-filters"></div>
-
-    <!-- Leaderboard Table -->
-    <div class="table-wrap">
-      <table id="lb-table">
-        <thead>
-          <tr>
-            <th style="width:30px;"></th>
-            <th data-sort="pair">Pair</th>
-            <th data-sort="timeframe">TF</th>
-            <th data-sort="strategy">Strategy</th>
-            <th data-sort="score" class="text-right">Score</th>
-            <th data-sort="rating">Rating</th>
-            <th data-sort="back_return" class="text-right">Back Ret%</th>
-            <th data-sort="forward_return" class="text-right">Fwd Ret%</th>
-            <th data-sort="forward_back_ratio" class="text-right">F/B</th>
-            <th data-sort="back_trades" class="text-right">Trades</th>
-            <th data-sort="win_rate" class="text-right">WR%</th>
-            <th data-sort="back_max_dd" class="text-right">MaxDD%</th>
-            <th data-sort="back_sharpe" class="text-right">Sharpe</th>
-            <th data-sort="status">Status</th>
-            <th data-sort="created">Date</th>
-            <th data-sort="description">Description</th>
-          </tr>
-        </thead>
-        <tbody id="lb-body">
-          <tr><td colspan="16" class="text-dim" style="text-align:center;padding:2rem;">Loading leaderboard...</td></tr>
-        </tbody>
-      </table>
+  <div class="page-header">
+    <div>
+      <div class="page-title">Pipeline Leaderboard</div>
+      <div class="page-subtitle" id="lb-subtitle">Loading...</div>
     </div>
-
-    <!-- Detail Panel -->
-    <div id="lb-detail" class="detail-panel" style="display:none;"></div>
+    <div class="summary-strip" id="lb-summary"></div>
   </div>
+  <div class="filter-bar" id="lb-filters"></div>
+  <div class="table-container">
+    <table id="leaderboard">
+      <thead><tr>
+        <th class="no-sort" style="width:36px">&nbsp;</th>
+        <th data-col="1">Pair</th>
+        <th data-col="2">TF</th>
+        <th data-col="3">Strategy</th>
+        <th data-col="4">Description</th>
+        <th data-col="5">Score</th>
+        <th data-col="6">Rating</th>
+        <th data-col="7">Status</th>
+        <th data-col="8">Date</th>
+        <th data-col="9">Profit</th>
+        <th data-col="10">Back Sh</th>
+        <th data-col="11">Fwd Sh</th>
+        <th data-col="12">Back Tr</th>
+        <th data-col="13">Fwd Tr</th>
+        <th data-col="14">Max DD</th>
+        <th data-col="15">F/B Ratio</th>
+        <th data-col="16">Win %</th>
+        <th data-col="17">Time</th>
+        <th data-col="18">Run ID</th>
+      </tr></thead>
+      <tbody id="lb-body">
+        <tr><td colspan="19" style="text-align:center;padding:2rem;color:#5a6a80">Loading leaderboard...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Comparison Section -->
+  <div id="compare-section">
+    <div class="compare-header">
+      <div class="compare-title">Strategy Comparison</div>
+      <button class="compare-close" onclick="closeComparison()">Close</button>
+    </div>
+    <div class="compare-chart-panel">
+      <div class="compare-chart-header">Equity Curves Overlay</div>
+      <div id="compare-chart" style="height:450px"></div>
+    </div>
+    <div class="compare-chart-panel">
+      <div class="compare-chart-header">Metrics Comparison</div>
+      <div id="compare-metrics" style="padding:0"></div>
+    </div>
+  </div>
+
+  <div class="footer" id="lb-footer"></div>
 </div>
 
 <!-- Compare Toolbar -->
-<div id="compare-toolbar" class="compare-toolbar">
-  <span><span id="compare-count">0</span> runs selected</span>
-  <div>
-    <button class="btn" onclick="clearCompare()">Clear</button>
-    <button class="btn btn-accent" onclick="showCompare()">Compare</button>
-  </div>
+<div class="compare-toolbar" id="compare-toolbar">
+  <span class="count"><span id="compare-count">0</span> selected</span>
+  <button class="btn-compare" onclick="runComparison()">Compare</button>
+  <button class="btn-clear" onclick="clearSelection()">Clear</button>
 </div>
 
 <script>
 // ═══════════════════════════════════════
-// STATE
+// GLOBALS
 // ═══════════════════════════════════════
-let currentView = 'dashboard';
-let dashboardTimer = null;
-let vpsOnline = false;
-
-// Leaderboard state
-let lbData = null;
-let lbLoaded = false;
-let lbSort = { key: 'score', dir: -1 };
-let lbFilters = { pair: null, timeframe: null, rating: null, status: null };
-let lbSelected = new Set();
-let lbDetailId = null;
+var COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+var currentView = 'dashboard';
+var dashTimer = null;
+var lbData = null;
+var lbLoaded = false;
 
 // ═══════════════════════════════════════
-// VIEW SWITCHING
+// VIEW SWITCH
 // ═══════════════════════════════════════
-function switchView(view) {
-  currentView = view;
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.view === view));
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.getElementById('view-' + view).classList.add('active');
-
-  if (view === 'dashboard') {
-    startDashboardRefresh();
-  } else {
-    stopDashboardRefresh();
-    if (!lbLoaded) loadLeaderboard();
-  }
-  history.replaceState(null, '', '#' + view);
+function switchView(v) {
+  currentView = v;
+  document.querySelectorAll('.nav-tab').forEach(function(t) { t.classList.toggle('active', t.dataset.view === v); });
+  document.querySelectorAll('.view').forEach(function(el) { el.classList.remove('active'); });
+  document.getElementById('view-' + v).classList.add('active');
+  if (v === 'dashboard') { startDash(); } else { stopDash(); if (!lbLoaded) loadLeaderboard(); }
+  history.replaceState(null, '', '#' + v);
 }
 
-// ═══════════════════════════════════════
-// CLOCK
-// ═══════════════════════════════════════
+// Clock
 function updateClock() {
-  const now = new Date();
-  document.getElementById('clock').textContent = now.toLocaleTimeString('en-US', { hour12: false }) + ' UTC' + (now.getTimezoneOffset() > 0 ? '-' : '+') + Math.abs(now.getTimezoneOffset()/60);
+  var d = new Date();
+  document.getElementById('clock').textContent = d.toLocaleTimeString('en-US', {hour12:false});
 }
-setInterval(updateClock, 1000);
-updateClock();
+setInterval(updateClock, 1000); updateClock();
 
 // ═══════════════════════════════════════
 // DASHBOARD
 // ═══════════════════════════════════════
-async function fetchDashboard() {
+function esc(s) { if (s == null) return ''; var d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
+function num(v, dec) { return v != null ? Number(v).toFixed(dec||2) : '\u2014'; }
+
+async function fetchDash() {
   try {
-    const resp = await fetch('/api/vps/status');
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const data = await resp.json();
-    if (data.error) throw new Error(data.message || 'VPS error');
-    vpsOnline = true;
+    var r = await fetch('/api/vps/status');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    var data = await r.json();
+    if (data.error) throw new Error(data.message);
     document.getElementById('vps-banner').classList.remove('show');
-    renderDashboard(data);
-  } catch (e) {
-    vpsOnline = false;
+    renderDash(data);
+  } catch(e) {
     document.getElementById('vps-banner').classList.add('show');
-    renderDashboardOffline();
+    renderDashOff();
   }
 }
 
-function renderDashboard(data) {
-  const s = data.summary || {};
-  const pnl = s.daily_pnl || 0;
-  const el = (id, val) => { document.getElementById(id).textContent = val; };
-  const pnlEl = document.getElementById('sum-pnl');
+function renderDash(data) {
+  var s = data.summary || {};
+  var pnl = s.daily_pnl || 0;
+  var el = function(id, v) { document.getElementById(id).textContent = v; };
+  var pnlEl = document.getElementById('sum-pnl');
   pnlEl.textContent = (pnl >= 0 ? '+' : '') + pnl.toFixed(2);
   pnlEl.className = 'card-value mono ' + (pnl >= 0 ? 'text-green' : 'text-red');
   el('sum-positions', s.open_positions || 0);
   el('sum-trades', s.total_trades || 0);
-  el('sum-running', (s.running || 0) + '/' + (s.total || 0));
-  const errEl = document.getElementById('sum-errors');
+  el('sum-running', (s.running||0) + '/' + (s.total||0));
+  var errEl = document.getElementById('sum-errors');
   errEl.textContent = s.errors || 0;
-  errEl.className = 'card-value mono ' + ((s.errors || 0) > 0 ? 'text-red' : '');
+  errEl.className = 'card-value mono' + ((s.errors||0) > 0 ? ' text-red' : '');
 
-  const instances = data.instances || [];
-  const tbody = document.getElementById('instances-body');
-  if (!instances.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="text-dim" style="text-align:center;padding:2rem;">No trading instances configured</td></tr>';
-    return;
-  }
+  var insts = data.instances || [];
+  var tbody = document.getElementById('instances-body');
+  if (!insts.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:#5a6a80">No trading instances configured</td></tr>'; return; }
 
-  tbody.innerHTML = instances.map(inst => {
-    const statusDot = inst.heartbeat_ok ? 'dot-green' : (inst.status === 'error' ? 'dot-red' : 'dot-yellow');
-    const statusLabel = inst.heartbeat_ok ? 'Running' : (inst.status === 'error' ? 'Error' : (inst.service_status === 'SERVICE_STOPPED' ? 'Stopped' : 'Stale'));
-    const dpnl = inst.daily_pnl || 0;
-    const pnlClass = dpnl >= 0 ? 'text-green' : 'text-red';
-    const pnlStr = (dpnl >= 0 ? '+' : '') + dpnl.toFixed(2);
-
-    return `<tr>
-      <td><span class="dot ${statusDot}"></span>${statusLabel}</td>
-      <td>${esc(inst.strategy)}${inst.id ? '<br><span class="text-muted" style="font-size:0.7rem">' + esc(inst.id) + '</span>' : ''}</td>
-      <td class="mono">${esc(inst.pair)} ${esc(inst.timeframe)}</td>
-      <td>${inst.heartbeat_display || '—'}</td>
-      <td class="mono">${inst.positions || 0}</td>
-      <td class="mono text-right ${pnlClass}">${pnlStr}</td>
-      <td class="mono">${inst.daily_wins || 0} / ${inst.daily_losses || 0}</td>
-      <td>
-        <div style="display:flex;gap:3px;flex-wrap:wrap;">
-          <button class="btn btn-sm" onclick="svcAction('${inst.id}','start')" title="Start">Start</button>
-          <button class="btn btn-sm" onclick="svcAction('${inst.id}','restart')" title="Restart">Restart</button>
-          <button class="btn btn-sm btn-danger" onclick="svcAction('${inst.id}','stop')" title="Stop">Stop</button>
-          <button class="btn btn-sm" onclick="togglePanel('perf','${inst.id}')">Perf</button>
-          <button class="btn btn-sm" onclick="togglePanel('trades','${inst.id}')">Trades</button>
-        </div>
-      </td>
-    </tr>
-    <tr class="expand-row" id="perf-panel-${inst.id}"><td colspan="8"><div class="expand-panel" id="perf-content-${inst.id}"></div></td></tr>
-    <tr class="expand-row" id="trades-panel-${inst.id}"><td colspan="8"><div class="expand-panel" id="trades-content-${inst.id}"></div></td></tr>`;
+  tbody.innerHTML = insts.map(function(i) {
+    var dot = i.heartbeat_ok ? 'dot-green' : (i.status === 'error' ? 'dot-red' : 'dot-yellow');
+    var lbl = i.heartbeat_ok ? 'Running' : (i.status === 'error' ? 'Error' : (i.service_status === 'SERVICE_STOPPED' ? 'Stopped' : 'Stale'));
+    var dp = i.daily_pnl || 0;
+    var pc = dp >= 0 ? 'text-green' : 'text-red';
+    return '<tr>' +
+      '<td><span class="dot '+dot+'"></span>'+lbl+'</td>' +
+      '<td>'+esc(i.strategy)+'<br><span class="text-dim" style="font-size:0.7rem">'+esc(i.id||'')+'</span></td>' +
+      '<td class="mono">'+esc(i.pair)+' '+esc(i.timeframe)+'</td>' +
+      '<td>'+(i.heartbeat_display||'\u2014')+'</td>' +
+      '<td class="mono">'+(i.positions||0)+'</td>' +
+      '<td class="mono text-right '+pc+'">'+(dp>=0?'+':'')+dp.toFixed(2)+'</td>' +
+      '<td class="mono">'+(i.daily_wins||0)+' / '+(i.daily_losses||0)+'</td>' +
+      '<td><div style="display:flex;gap:3px;flex-wrap:wrap">' +
+        '<button class="btn" onclick="svcAction(\''+i.id+'\',\'start\')">Start</button>' +
+        '<button class="btn" onclick="svcAction(\''+i.id+'\',\'restart\')">Restart</button>' +
+        '<button class="btn btn-danger" onclick="svcAction(\''+i.id+'\',\'stop\')">Stop</button>' +
+        '<button class="btn" onclick="togglePanel(\'perf\',\''+i.id+'\')">Perf</button>' +
+        '<button class="btn" onclick="togglePanel(\'trades\',\''+i.id+'\')">Trades</button>' +
+      '</div></td>' +
+    '</tr>' +
+    '<tr id="perf-row-'+i.id+'"><td colspan="8"><div class="expand-panel" id="perf-'+i.id+'"></div></td></tr>' +
+    '<tr id="trades-row-'+i.id+'"><td colspan="8"><div class="expand-panel" id="trades-'+i.id+'"></div></td></tr>';
   }).join('');
 }
 
-function renderDashboardOffline() {
-  const el = (id, val) => { document.getElementById(id).textContent = val; };
-  el('sum-pnl', '—'); el('sum-positions', '—'); el('sum-trades', '—'); el('sum-running', '—'); el('sum-errors', '—');
-  document.getElementById('instances-body').innerHTML = '<tr><td colspan="8" class="text-dim" style="text-align:center;padding:2rem;">VPS offline — cannot load trading data</td></tr>';
+function renderDashOff() {
+  ['sum-pnl','sum-positions','sum-trades','sum-running','sum-errors'].forEach(function(id) {
+    document.getElementById(id).textContent = '\u2014';
+    document.getElementById(id).className = 'card-value mono';
+  });
+  document.getElementById('instances-body').innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:#5a6a80">VPS offline \u2014 cannot load trading data</td></tr>';
 }
 
-// Expandable panels
-const openPanels = {};
-async function togglePanel(type, instanceId) {
-  const key = type + '-' + instanceId;
-  const panel = document.getElementById(type + '-content-' + instanceId);
-  if (openPanels[key]) {
-    panel.classList.remove('open');
-    delete openPanels[key];
-    return;
-  }
+var openPanels = {};
+async function togglePanel(type, id) {
+  var key = type+'-'+id;
+  var panel = document.getElementById(type+'-'+id);
+  if (openPanels[key]) { panel.classList.remove('open'); delete openPanels[key]; return; }
   openPanels[key] = true;
-  panel.innerHTML = '<div class="spinner"></div> Loading...';
+  panel.innerHTML = 'Loading...';
   panel.classList.add('open');
-
   try {
-    const endpoint = type === 'perf' ? 'performance' : 'trades';
-    const resp = await fetch(`/api/vps/${endpoint}/${instanceId}`);
-    const data = await resp.json();
-    if (data.error) throw new Error(data.message);
-
-    if (type === 'perf') {
-      renderPerfPanel(panel, data);
-    } else {
-      renderTradesPanel(panel, data);
-    }
-  } catch (e) {
-    panel.innerHTML = `<span class="text-red">Error: ${esc(e.message)}</span>`;
-  }
+    var ep = type === 'perf' ? 'performance' : 'trades';
+    var r = await fetch('/api/vps/'+ep+'/'+id);
+    var d = await r.json();
+    if (d.error) throw new Error(d.message);
+    if (type === 'perf') renderPerf(panel, d); else renderTrades(panel, d);
+  } catch(e) { panel.innerHTML = '<span class="text-red">Error: '+esc(e.message)+'</span>'; }
 }
 
-function renderPerfPanel(panel, data) {
-  const live = data.live || {};
-  const exp = data.expected || {};
-  const cmp = data.comparison || {};
-
-  function statusIcon(s) {
-    if (s === 'ok') return '<span class="text-green">OK</span>';
-    if (s === 'warning') return '<span class="text-yellow">WARN</span>';
-    if (s === 'alert') return '<span class="text-red">ALERT</span>';
-    return '<span class="text-muted">—</span>';
-  }
-
-  function row(label, liveVal, expVal, status) {
-    return `<tr><td>${label}</td><td class="mono text-right">${liveVal}</td><td class="mono text-right">${expVal}</td><td class="text-right">${statusIcon(status)}</td></tr>`;
-  }
-
-  panel.innerHTML = `
-    <div class="section-heading">Performance vs Backtest Expectations</div>
-    <table style="max-width:500px">
-      <thead><tr><th>Metric</th><th class="text-right">Live</th><th class="text-right">Expected</th><th class="text-right">Status</th></tr></thead>
-      <tbody>
-        ${row('Win Rate', pct(live.win_rate), pct(exp.win_rate), cmp.win_rate_status)}
-        ${row('Profit Factor', num(live.profit_factor), num(exp.profit_factor), cmp.profit_factor_status)}
-        ${row('Trades/Month', num(live.trades_per_month), num(exp.trades_per_month), cmp.trades_per_month_status)}
-        ${row('Total Trades', live.trades || 0, '—', '')}
-        ${row('Max DD%', pct(live.max_drawdown_pct), '—', '')}
-        ${row('Total P&L', num(live.total_pnl), '—', '')}
-      </tbody>
-    </table>`;
+function renderPerf(panel, d) {
+  var l = d.live||{}, ex = d.expected||{}, c = d.comparison||{};
+  function si(s) { return s==='ok'?'<span class="text-green">OK</span>':s==='warning'?'<span style="color:#eab308">WARN</span>':s==='alert'?'<span class="text-red">ALERT</span>':'<span class="text-dim">\u2014</span>'; }
+  function row(lb,lv,ev,st) { return '<tr><td>'+lb+'</td><td class="mono" style="text-align:right">'+lv+'</td><td class="mono" style="text-align:right">'+ev+'</td><td style="text-align:right">'+si(st)+'</td></tr>'; }
+  function pct(v) { return v!=null?(v*100).toFixed(1)+'%':'\u2014'; }
+  panel.innerHTML = '<div style="font-weight:600;margin-bottom:8px;font-size:0.85rem">Performance vs Backtest</div>' +
+    '<table><thead><tr><th>Metric</th><th style="text-align:right">Live</th><th style="text-align:right">Expected</th><th style="text-align:right">Status</th></tr></thead><tbody>' +
+    row('Win Rate', pct(l.win_rate), pct(ex.win_rate), c.win_rate_status) +
+    row('Profit Factor', num(l.profit_factor), num(ex.profit_factor), c.profit_factor_status) +
+    row('Trades/Month', num(l.trades_per_month), num(ex.trades_per_month), c.trades_per_month_status) +
+    row('Total Trades', l.trades||0, '\u2014', '') +
+    row('Max DD%', pct(l.max_drawdown_pct), '\u2014', '') +
+    row('Total P&L', num(l.total_pnl), '\u2014', '') +
+    '</tbody></table>';
 }
 
-function renderTradesPanel(panel, data) {
-  const trades = data.trades || [];
+function renderTrades(panel, d) {
+  var trades = d.trades || [];
   if (!trades.length) { panel.innerHTML = '<span class="text-dim">No trades yet</span>'; return; }
-
-  panel.innerHTML = `
-    <div class="section-heading">Recent Trades (${trades.length})</div>
-    <div style="overflow-x:auto;">
-    <table>
-      <thead><tr><th>Time</th><th>Dir</th><th>Entry</th><th>Exit</th><th>Reason</th><th class="text-right">P&L</th></tr></thead>
-      <tbody>${trades.map(t => {
-        const pnl = t.realized_pnl || 0;
-        const cls = pnl >= 0 ? 'text-green' : 'text-red';
-        return `<tr>
-          <td class="mono">${shortTime(t.exit_time || t.entry_time)}</td>
-          <td><span class="badge ${t.direction === 'BUY' ? 'badge-green' : 'badge-red'}">${t.direction}</span></td>
-          <td class="mono">${num(t.entry_price, 5)}</td>
-          <td class="mono">${t.exit_price ? num(t.exit_price, 5) : '—'}</td>
-          <td>${esc(t.exit_reason || '—')}</td>
-          <td class="mono text-right ${cls}">${(pnl >= 0 ? '+' : '') + pnl.toFixed(2)}</td>
-        </tr>`;
-      }).join('')}</tbody>
-    </table>
-    </div>`;
+  panel.innerHTML = '<div style="font-weight:600;margin-bottom:8px;font-size:0.85rem">Recent Trades ('+trades.length+')</div>' +
+    '<div style="overflow-x:auto"><table><thead><tr><th>Time</th><th>Dir</th><th>Entry</th><th>Exit</th><th>Reason</th><th style="text-align:right">P&L</th></tr></thead><tbody>' +
+    trades.map(function(t) {
+      var pnl = t.realized_pnl||0;
+      return '<tr><td class="mono">'+(t.exit_time||t.entry_time||'').replace('T',' ').substring(0,16)+'</td>' +
+        '<td><span class="badge '+(t.direction==='BUY'?'badge-green':'badge-red')+'">'+t.direction+'</span></td>' +
+        '<td class="mono">'+num(t.entry_price,5)+'</td><td class="mono">'+(t.exit_price?num(t.exit_price,5):'\u2014')+'</td>' +
+        '<td>'+esc(t.exit_reason||'\u2014')+'</td>' +
+        '<td class="mono text-right '+(pnl>=0?'text-green':'text-red')+'">'+(pnl>=0?'+':'')+pnl.toFixed(2)+'</td></tr>';
+    }).join('') + '</tbody></table></div>';
 }
 
-// Service control
-async function svcAction(instanceId, action) {
-  if (!confirm(`${action.toUpperCase()} service "${instanceId}"?`)) return;
+async function svcAction(id, action) {
+  if (!confirm(action.toUpperCase()+' service "'+id+'"?')) return;
   try {
-    const resp = await fetch(`/api/vps/service/${instanceId}/${action}`, { method: 'POST' });
-    const data = await resp.json();
-    alert(data.message || (data.ok ? 'Done' : 'Failed'));
-    fetchDashboard();
-  } catch (e) {
-    alert('Error: ' + e.message);
-  }
+    var r = await fetch('/api/vps/service/'+id+'/'+action, {method:'POST'});
+    var d = await r.json();
+    alert(d.message || (d.ok ? 'Done' : 'Failed'));
+    fetchDash();
+  } catch(e) { alert('Error: '+e.message); }
 }
 
-function startDashboardRefresh() {
-  fetchDashboard();
-  if (dashboardTimer) clearInterval(dashboardTimer);
-  dashboardTimer = setInterval(fetchDashboard, 15000);
-}
-function stopDashboardRefresh() {
-  if (dashboardTimer) { clearInterval(dashboardTimer); dashboardTimer = null; }
-}
+function startDash() { fetchDash(); if (dashTimer) clearInterval(dashTimer); dashTimer = setInterval(fetchDash, 15000); }
+function stopDash() { if (dashTimer) { clearInterval(dashTimer); dashTimer = null; } }
 
 // ═══════════════════════════════════════
 // LEADERBOARD
 // ═══════════════════════════════════════
 async function loadLeaderboard() {
   try {
-    const resp = await fetch('/data/leaderboard.json');
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    lbData = await resp.json();
+    var r = await fetch('/data/leaderboard.json');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    lbData = await r.json();
     lbLoaded = true;
-    buildFilters();
-    renderLeaderboard();
-  } catch (e) {
-    document.getElementById('lb-body').innerHTML = `<tr><td colspan="16" class="text-red" style="text-align:center;padding:2rem;">Failed to load leaderboard: ${esc(e.message)}</td></tr>`;
+    buildLB();
+  } catch(e) {
+    document.getElementById('lb-body').innerHTML = '<tr><td colspan="19" class="text-red" style="text-align:center;padding:2rem">Failed to load: '+esc(e.message)+'</td></tr>';
   }
 }
 
-function buildFilters() {
-  const runs = lbData.runs;
-  const pairs = [...new Set(runs.map(r => r.pair))].sort();
-  const tfs = [...new Set(runs.map(r => r.timeframe))].sort();
-  const ratings = ['GREEN', 'YELLOW', 'RED'];
-  const statuses = [...new Set(runs.map(r => r.status))].sort();
+function buildLB() {
+  var runs = lbData.runs;
+  var compare = lbData.compare || {};
 
-  const container = document.getElementById('lb-filters');
-  container.innerHTML = '';
+  // Summary strip
+  var total = runs.length;
+  var green = runs.filter(function(r) { return r.rating === 'GREEN'; }).length;
+  var yellow = runs.filter(function(r) { return r.rating === 'YELLOW' && r.score > 0; }).length;
+  var red = runs.filter(function(r) { return r.status === 'COMPLETE' && r.score === 0; }).length;
+  var failed = runs.filter(function(r) { return r.status === 'FAILED'; }).length;
+  var partial = runs.filter(function(r) { return r.status === 'PARTIAL'; }).length;
+  var best = runs.reduce(function(a, b) { return (a.score||0) > (b.score||0) ? a : b; }, {});
+  var bestStr = best.score > 0 ? best.pair + ' ' + best.timeframe + ' - ' + best.score.toFixed(0) : 'None';
 
-  function addGroup(label, key, values) {
-    const div = document.createElement('div');
-    div.className = 'filter-group';
-    div.innerHTML = `<label>${label}</label>`;
-    values.forEach(v => {
-      const btn = document.createElement('button');
-      btn.className = 'filter-btn';
-      btn.textContent = v;
-      btn.onclick = () => {
-        if (lbFilters[key] === v) { lbFilters[key] = null; btn.classList.remove('active'); }
-        else {
-          div.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-          lbFilters[key] = v;
-          btn.classList.add('active');
-        }
-        renderLeaderboard();
-      };
-      div.appendChild(btn);
+  document.getElementById('lb-subtitle').textContent = total + ' pipeline runs \u00B7 Data: ' + (lbData.generated_at || '');
+
+  document.getElementById('lb-summary').innerHTML =
+    '<div class="summary-item"><div class="summary-num">'+total+'</div><div class="summary-label">Total Runs</div></div>' +
+    '<div class="summary-item"><div class="summary-num" style="color:#10b981">'+green+'</div><div class="summary-label">Green</div></div>' +
+    '<div class="summary-item"><div class="summary-num" style="color:#f59e0b">'+yellow+'</div><div class="summary-label">Yellow</div></div>' +
+    '<div class="summary-item"><div class="summary-num" style="color:#ef4444">'+(red+failed)+'</div><div class="summary-label">Red/Failed</div></div>' +
+    '<div class="summary-item"><div class="summary-num" style="color:#5a6a80">'+partial+'</div><div class="summary-label">Partial</div></div>' +
+    '<div class="summary-item"><div class="summary-num" style="color:#3b82f6">'+bestStr+'</div><div class="summary-label">Best Run</div></div>';
+
+  // Filters
+  var pairs = []; var tfs = [];
+  runs.forEach(function(r) { if (pairs.indexOf(r.pair) === -1) pairs.push(r.pair); if (tfs.indexOf(r.timeframe) === -1) tfs.push(r.timeframe); });
+  pairs.sort(); tfs.sort();
+
+  var fbar = document.getElementById('lb-filters');
+  fbar.innerHTML = '';
+
+  function addFilterGroup(label, filterKey, values) {
+    var g = document.createElement('div'); g.className = 'filter-group';
+    g.innerHTML = '<span class="filter-label">'+label+'</span>';
+    var allBtn = document.createElement('button');
+    allBtn.className = 'filter-btn active'; allBtn.textContent = 'All';
+    allBtn.dataset.filter = filterKey; allBtn.dataset.value = 'ALL';
+    g.appendChild(allBtn);
+    values.forEach(function(v) {
+      var b = document.createElement('button'); b.className = 'filter-btn';
+      b.textContent = v; b.dataset.filter = filterKey; b.dataset.value = v;
+      g.appendChild(b);
     });
-    container.appendChild(div);
+    fbar.appendChild(g);
   }
 
-  addGroup('Pair', 'pair', pairs);
-  addGroup('TF', 'timeframe', tfs);
-  addGroup('Rating', 'rating', ratings);
-  addGroup('Status', 'status', statuses);
+  addFilterGroup('Pair', 'pair', pairs);
+  addFilterGroup('TF', 'tf', tfs);
+  addFilterGroup('Rating', 'rating', ['GREEN', 'YELLOW', 'RED']);
+  addFilterGroup('Status', 'status', ['COMPLETE', 'PARTIAL', 'FAILED']);
 
-  // Generated timestamp
-  if (lbData.generated_at) {
-    const span = document.createElement('span');
-    span.className = 'text-muted';
-    span.style.marginLeft = 'auto';
-    span.style.fontSize = '0.7rem';
-    span.textContent = 'Data: ' + lbData.generated_at;
-    container.appendChild(span);
-  }
-}
-
-function getFilteredRuns() {
-  let runs = lbData.runs;
-  if (lbFilters.pair) runs = runs.filter(r => r.pair === lbFilters.pair);
-  if (lbFilters.timeframe) runs = runs.filter(r => r.timeframe === lbFilters.timeframe);
-  if (lbFilters.rating) runs = runs.filter(r => r.rating === lbFilters.rating);
-  if (lbFilters.status) runs = runs.filter(r => r.status === lbFilters.status);
-
-  // Sort
-  const key = lbSort.key;
-  const dir = lbSort.dir;
-  runs.sort((a, b) => {
-    let va = a[key], vb = b[key];
-    if (va == null) va = '';
-    if (vb == null) vb = '';
-    if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir;
-    return String(va).localeCompare(String(vb)) * dir;
+  // Bind filter clicks
+  fbar.querySelectorAll('.filter-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      btn.parentElement.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      activeFilters[btn.dataset.filter] = btn.dataset.value;
+      applyFilters();
+    });
   });
-  return runs;
-}
 
-function renderLeaderboard() {
-  const runs = getFilteredRuns();
-  const tbody = document.getElementById('lb-body');
+  // Build rows
+  var tbody = document.getElementById('lb-body');
+  tbody.innerHTML = runs.map(function(r) {
+    var ratingBg, ratingFg;
+    if (r.rating === 'GREEN') { ratingBg = '#065f46'; ratingFg = '#10b981'; }
+    else if (r.rating === 'YELLOW') { ratingBg = '#78350f'; ratingFg = '#f59e0b'; }
+    else { ratingBg = '#7f1d1d'; ratingFg = '#ef4444'; }
 
-  if (!runs.length) {
-    tbody.innerHTML = '<tr><td colspan="16" class="text-dim" style="text-align:center;padding:2rem;">No runs match filters</td></tr>';
-    return;
-  }
+    var statusHtml;
+    if (r.status === 'FAILED') statusHtml = '<span style="color:#ef4444">FAILED</span>';
+    else if (r.status === 'PARTIAL') statusHtml = '<span style="color:#5a6a80">'+r.stages_done+'/7</span>';
+    else statusHtml = '<span style="color:#10b981">OK</span>';
 
-  tbody.innerHTML = runs.map(r => {
-    const ratingClass = r.rating === 'GREEN' ? 'badge-green' : r.rating === 'YELLOW' ? 'badge-yellow' : 'badge-red';
-    const statusClass = r.status === 'COMPLETE' ? 'badge-blue' : r.status === 'FAILED' ? 'badge-red' : 'badge-gray';
-    const checked = lbSelected.has(r.run_id) ? 'checked' : '';
-    const fb = r.forward_back_ratio;
-    const fbStr = fb ? (fb * 100).toFixed(1) + '%' : '—';
+    var scoreDisplay = r.score > 0 ? r.score.toFixed(0) : '-';
+    var hasCompare = !!compare[r.run_id];
+    var cbDisabled = hasCompare ? '' : ' disabled';
+    var cbOpacity = hasCompare ? '' : ' style="opacity:0.3"';
+    var descEsc = esc(r.description || '');
+    var np = r.net_profit;
+    var npColor = np > 0 ? '#10b981' : (np != null ? '#ef4444' : '#5a6a80');
+    var npStr = np != null ? '$' + np.toLocaleString(undefined, {maximumFractionDigits:0}) : '-';
+    var fb = r.forward_back_ratio;
 
-    return `<tr style="cursor:pointer;" onclick="showDetail('${r.run_id}')">
-      <td onclick="event.stopPropagation()"><input type="checkbox" class="cb" ${checked} onchange="toggleSelect('${r.run_id}', this.checked)"></td>
-      <td class="mono">${esc(r.pair)}</td>
-      <td class="mono">${esc(r.timeframe)}</td>
-      <td>${shortStrategy(r.strategy)}</td>
-      <td class="mono text-right">${r.score ? r.score.toFixed(1) : '0'}</td>
-      <td><span class="badge ${ratingClass}">${r.rating || '—'}</span></td>
-      <td class="mono text-right">${r.back_return ? r.back_return.toFixed(1) : '0'}%</td>
-      <td class="mono text-right">${r.forward_return ? r.forward_return.toFixed(1) : '0'}%</td>
-      <td class="mono text-right">${fbStr}</td>
-      <td class="mono text-right">${r.back_trades || 0}</td>
-      <td class="mono text-right">${r.win_rate ? (r.win_rate * 100).toFixed(1) : '0'}%</td>
-      <td class="mono text-right">${r.back_max_dd ? r.back_max_dd.toFixed(1) : '0'}%</td>
-      <td class="mono text-right">${r.back_sharpe ? r.back_sharpe.toFixed(2) : '—'}</td>
-      <td><span class="badge ${statusClass}">${r.status || '—'}</span></td>
-      <td class="text-muted">${r.created ? r.created.substring(0, 10) : '—'}</td>
-      <td class="text-dim" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;">${esc(r.description || '')}</td>
-    </tr>`;
+    return '<tr data-pair="'+r.pair+'" data-tf="'+r.timeframe+'" data-strategy="'+r.strategy+'" data-status="'+r.status+'" data-rating="'+r.rating+'" data-run="'+r.run_id+'">' +
+      '<td'+cbOpacity+'><input type="checkbox" class="compare-check" data-run="'+r.run_id+'"'+cbDisabled+'></td>' +
+      '<td>'+esc(r.pair)+'</td>' +
+      '<td>'+esc(r.timeframe)+'</td>' +
+      '<td class="strategy-col">'+esc(r.strategy)+'</td>' +
+      '<td class="desc-col" title="'+descEsc+'">'+descEsc+'</td>' +
+      '<td class="score-col" style="color:'+ratingFg+'"><strong>'+scoreDisplay+'</strong></td>' +
+      '<td><span style="background:'+ratingBg+';color:'+ratingFg+';padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:600">'+r.rating+'</span></td>' +
+      '<td>'+statusHtml+'</td>' +
+      '<td>'+(r.created||'').substring(0,19)+'</td>' +
+      '<td style="color:'+npColor+'">'+npStr+'</td>' +
+      '<td>'+(r.back_sharpe||0).toFixed(2)+'</td>' +
+      '<td>'+(r.forward_sharpe||0).toFixed(2)+'</td>' +
+      '<td>'+(r.back_trades||0)+'</td>' +
+      '<td>'+(r.forward_trades||0)+'</td>' +
+      '<td>'+(r.back_max_dd||0).toFixed(1)+'%</td>' +
+      '<td>'+(fb||0).toFixed(2)+'</td>' +
+      '<td>'+((r.win_rate||0)*100).toFixed(0)+'%</td>' +
+      '<td>'+(r.total_time_min||0).toFixed(1)+'m</td>' +
+      '<td class="runid-col">'+esc(r.run_id)+'</td>' +
+    '</tr>';
   }).join('');
 
-  // Update sort arrows
-  document.querySelectorAll('#lb-table th[data-sort]').forEach(th => {
-    const arrow = th.querySelector('.sort-arrow');
-    if (arrow) arrow.remove();
-    if (th.dataset.sort === lbSort.key) {
-      const span = document.createElement('span');
-      span.className = 'sort-arrow';
-      span.textContent = lbSort.dir === 1 ? '▲' : '▼';
-      th.appendChild(span);
-    }
+  // Footer
+  document.getElementById('lb-footer').textContent = 'OANDA Trading System \u00B7 ' + total + ' pipeline runs \u00B7 Generated ' + (lbData.generated_at || '');
+
+  // Bind checkboxes
+  document.querySelectorAll('.compare-check').forEach(function(cb) {
+    cb.addEventListener('change', updateToolbar);
   });
 
-  updateCompareToolbar();
+  // Default sort by score descending
+  var scoreHeader = document.querySelector('#leaderboard th[data-col="5"]');
+  if (scoreHeader) scoreHeader.click();
 }
 
-// Sort handler
-document.querySelectorAll('#lb-table th[data-sort]').forEach(th => {
-  th.addEventListener('click', () => {
-    const key = th.dataset.sort;
-    if (lbSort.key === key) lbSort.dir *= -1;
-    else { lbSort.key = key; lbSort.dir = -1; }
-    renderLeaderboard();
+// ── Sorting ──
+var currentSort = { col: -1, dir: 'desc' };
+document.querySelectorAll('#leaderboard th[data-col]').forEach(function(th) {
+  th.addEventListener('click', function() {
+    var col = parseInt(th.dataset.col);
+    var dir = (currentSort.col === col && currentSort.dir === 'desc') ? 'asc' : 'desc';
+    currentSort = { col: col, dir: dir };
+
+    document.querySelectorAll('#leaderboard th').forEach(function(h) { h.classList.remove('sort-asc', 'sort-desc'); });
+    th.classList.add('sort-' + dir);
+
+    var tbody = document.querySelector('#leaderboard tbody');
+    var rows = Array.from(tbody.querySelectorAll('tr'));
+
+    rows.sort(function(a, b) {
+      var aText = a.cells[col] ? a.cells[col].textContent.replace(/[$,%m]/g, '').trim() : '';
+      var bText = b.cells[col] ? b.cells[col].textContent.replace(/[$,%m]/g, '').trim() : '';
+
+      if (/^\d{4}-\d{2}-\d{2}T/.test(aText) && /^\d{4}-\d{2}-\d{2}T/.test(bText)) {
+        return dir === 'asc' ? aText.localeCompare(bText) : bText.localeCompare(aText);
+      }
+
+      var aNum = parseFloat(aText);
+      var bNum = parseFloat(bText);
+      if (!isNaN(aNum) && !isNaN(bNum)) return dir === 'asc' ? aNum - bNum : bNum - aNum;
+      return dir === 'asc' ? aText.localeCompare(bText) : bText.localeCompare(aText);
+    });
+
+    rows.forEach(function(r) { tbody.appendChild(r); });
   });
 });
 
-// Selection / Compare
-function toggleSelect(runId, checked) {
-  if (checked) lbSelected.add(runId); else lbSelected.delete(runId);
-  updateCompareToolbar();
-}
+// ── Filtering ──
+var activeFilters = { pair: 'ALL', tf: 'ALL', rating: 'ALL', status: 'ALL' };
 
-function updateCompareToolbar() {
-  const toolbar = document.getElementById('compare-toolbar');
-  document.getElementById('compare-count').textContent = lbSelected.size;
-  toolbar.classList.toggle('show', lbSelected.size >= 2);
-}
-
-function clearCompare() {
-  lbSelected.clear();
-  document.querySelectorAll('#lb-body .cb').forEach(cb => cb.checked = false);
-  updateCompareToolbar();
-  document.getElementById('lb-detail').style.display = 'none';
-  lbDetailId = null;
-}
-
-function showCompare() {
-  if (lbSelected.size < 2) return;
-  const panel = document.getElementById('lb-detail');
-  const compare = lbData.compare || {};
-  const selectedRuns = lbData.runs.filter(r => lbSelected.has(r.run_id));
-
-  // Build traces for equity overlay
-  const traces = [];
-  const colors = ['#3b82f6', '#22c55e', '#f97316', '#a855f7', '#ef4444', '#06b6d4', '#eab308'];
-
-  selectedRuns.forEach((r, i) => {
-    const c = compare[r.run_id];
-    const color = colors[i % colors.length];
-    if (c && c.back_equity && c.back_equity.length) {
-      traces.push({
-        x: c.back_equity.map(p => p.timestamp || p.date || p.x),
-        y: c.back_equity.map(p => p.equity || p.y),
-        name: `${r.pair} ${r.timeframe} #${r.score?.toFixed(0) || '?'} (back)`,
-        line: { color, width: 2 },
-        type: 'scatter'
-      });
-    }
-    if (c && c.forward_equity && c.forward_equity.length) {
-      traces.push({
-        x: c.forward_equity.map(p => p.timestamp || p.date || p.x),
-        y: c.forward_equity.map(p => p.equity || p.y),
-        name: `${r.pair} ${r.timeframe} #${r.score?.toFixed(0) || '?'} (fwd)`,
-        line: { color, width: 2, dash: 'dash' },
-        type: 'scatter'
-      });
-    }
+function applyFilters() {
+  var rows = document.querySelectorAll('#leaderboard tbody tr');
+  rows.forEach(function(row) {
+    if (!row.dataset.pair) return;
+    var show = true;
+    if (activeFilters.pair !== 'ALL' && row.dataset.pair !== activeFilters.pair) show = false;
+    if (activeFilters.tf !== 'ALL' && row.dataset.tf !== activeFilters.tf) show = false;
+    if (activeFilters.rating !== 'ALL' && row.dataset.rating !== activeFilters.rating) show = false;
+    if (activeFilters.status !== 'ALL' && row.dataset.status !== activeFilters.status) show = false;
+    row.classList.toggle('hidden', !show);
   });
-
-  // Metrics comparison table
-  const metricKeys = [
-    ['Score', 'score', v => v?.toFixed(1) || '0'],
-    ['Rating', 'rating', v => v || '—'],
-    ['Back Return%', 'back_return', v => v?.toFixed(1) + '%' || '0%'],
-    ['Fwd Return%', 'forward_return', v => v?.toFixed(1) + '%' || '0%'],
-    ['F/B Ratio', 'forward_back_ratio', v => v ? (v * 100).toFixed(1) + '%' : '—'],
-    ['Trades', 'back_trades', v => v || 0],
-    ['WR%', 'win_rate', v => v ? (v * 100).toFixed(1) + '%' : '0%'],
-    ['MaxDD%', 'back_max_dd', v => v?.toFixed(1) + '%' || '0%'],
-    ['Sharpe', 'back_sharpe', v => v?.toFixed(2) || '—'],
-  ];
-
-  panel.innerHTML = `
-    <div class="detail-header">
-      <h3>Comparison: ${selectedRuns.length} runs</h3>
-      <button class="btn" onclick="document.getElementById('lb-detail').style.display='none'">Close</button>
-    </div>
-    <div id="compare-chart" style="height:350px;margin-bottom:1rem;"></div>
-    <div style="overflow-x:auto;">
-      <table>
-        <thead><tr>
-          <th>Metric</th>
-          ${selectedRuns.map(r => `<th class="text-right">${r.pair} ${r.timeframe}<br><span class="text-muted">${r.created?.substring(0, 10) || ''}</span></th>`).join('')}
-        </tr></thead>
-        <tbody>
-          ${metricKeys.map(([label, key, fmt]) => `<tr>
-            <td>${label}</td>
-            ${selectedRuns.map(r => `<td class="mono text-right">${fmt(r[key])}</td>`).join('')}
-          </tr>`).join('')}
-        </tbody>
-      </table>
-    </div>`;
-
-  panel.style.display = 'block';
-  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-  if (traces.length) {
-    Plotly.newPlot('compare-chart', traces, {
-      paper_bgcolor: '#111827',
-      plot_bgcolor: '#0a0e1a',
-      font: { color: '#94a3b8', family: 'Inter, sans-serif', size: 11 },
-      margin: { t: 20, r: 20, b: 40, l: 60 },
-      xaxis: { gridcolor: '#1e293b', linecolor: '#1e293b' },
-      yaxis: { gridcolor: '#1e293b', linecolor: '#1e293b', title: 'Equity' },
-      legend: { orientation: 'h', y: -0.15, font: { size: 10 } },
-      showlegend: true
-    }, { responsive: true, displayModeBar: false });
-  }
 }
 
-// Detail panel for single run
-function showDetail(runId) {
-  if (lbDetailId === runId) {
-    document.getElementById('lb-detail').style.display = 'none';
-    lbDetailId = null;
+// ── Comparison ──
+function updateToolbar() {
+  var n = document.querySelectorAll('.compare-check:checked').length;
+  document.getElementById('compare-count').textContent = n;
+  document.getElementById('compare-toolbar').classList.toggle('visible', n >= 2);
+}
+
+function clearSelection() {
+  document.querySelectorAll('.compare-check:checked').forEach(function(cb) { cb.checked = false; });
+  updateToolbar();
+}
+
+function closeComparison() {
+  document.getElementById('compare-section').classList.remove('visible');
+}
+
+function runComparison() {
+  var checked = document.querySelectorAll('.compare-check:checked');
+  var runIds = Array.from(checked).map(function(cb) { return cb.dataset.run; });
+  if (runIds.length < 2) return;
+
+  var section = document.getElementById('compare-section');
+  section.classList.add('visible');
+
+  var compare = lbData.compare || {};
+  var allData = [];
+  for (var i = 0; i < runIds.length && i < 6; i++) {
+    var d = compare[runIds[i]];
+    if (d) allData.push({ runId: runIds[i], data: d });
+  }
+
+  if (allData.length < 2) {
+    document.getElementById('compare-chart').innerHTML = '<div style="text-align:center;padding:40px;color:#5a6a80">Not enough runs with equity data (need 2+).</div>';
+    document.getElementById('compare-metrics').innerHTML = '';
     return;
   }
-  lbDetailId = runId;
-  const panel = document.getElementById('lb-detail');
-  const run = lbData.runs.find(r => r.run_id === runId);
-  const comp = (lbData.compare || {})[runId];
-  if (!run) return;
 
-  const ratingClass = run.rating === 'GREEN' ? 'badge-green' : run.rating === 'YELLOW' ? 'badge-yellow' : 'badge-red';
+  buildEquityOverlay(document.getElementById('compare-chart'), allData);
+  buildMetricsTable(document.getElementById('compare-metrics'), allData);
+  section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 
-  // Metrics
-  const fb = run.forward_back_ratio;
-  const metrics = [
-    ['Score', run.score?.toFixed(1) || '0'],
-    ['Rating', `<span class="badge ${ratingClass}">${run.rating || '—'}</span>`],
-    ['Back Return%', (run.back_return?.toFixed(1) || '0') + '%'],
-    ['Fwd Return%', (run.forward_return?.toFixed(1) || '0') + '%'],
-    ['F/B Ratio', fb ? (fb * 100).toFixed(1) + '%' : '—'],
-    ['Back Trades', run.back_trades || 0],
-    ['Fwd Trades', run.forward_trades || 0],
-    ['Win Rate', run.win_rate ? (run.win_rate * 100).toFixed(1) + '%' : '0%'],
-    ['MaxDD%', (run.back_max_dd?.toFixed(1) || '0') + '%'],
-    ['Sharpe', run.back_sharpe?.toFixed(2) || '—'],
-    ['Candidates', run.n_candidates || 0],
-    ['Time', run.total_time_min ? run.total_time_min.toFixed(1) + ' min' : '—'],
+function buildEquityOverlay(chartDiv, allData) {
+  var traces = [], annotations = [], shapes = [];
+
+  for (var i = 0; i < allData.length; i++) {
+    var d = allData[i].data;
+    var color = COLORS[i % COLORS.length];
+    var meta = d.meta || {};
+    var score = (d.decision || {}).score || 0;
+    var backR2 = d.back_r_squared || 0;
+    var fwdR2 = d.forward_r_squared || 0;
+    var label = (meta.strategy || allData[i].runId) + ' (' + score.toFixed(0) + ')';
+    var backEq = d.back_equity || [];
+    var fwdEq = d.forward_equity || [];
+    var initCap = d.initial_capital || 10000;
+
+    if (backEq.length > 0) {
+      var bx = backEq.map(function(p) { return p.timestamp; });
+      var by = backEq.map(function(p) { return p.equity - initCap; });
+      traces.push({
+        x: bx, y: by, type: 'scatter', mode: 'lines',
+        name: label + ' Back R\u00B2=' + backR2.toFixed(3),
+        line: { color: color, width: 2 }, legendgroup: 'run'+i,
+      });
+      if (fwdEq.length > 0) {
+        shapes.push({ type:'line', x0:bx[bx.length-1], x1:bx[bx.length-1], y0:0, y1:1, yref:'paper', line:{color:color,width:1,dash:'dot'}, opacity:0.4 });
+      }
+    }
+
+    if (fwdEq.length > 0) {
+      var fx = fwdEq.map(function(p) { return p.timestamp; });
+      var fy = fwdEq.map(function(p) { return p.equity - initCap; });
+      traces.push({
+        x: fx, y: fy, type: 'scatter', mode: 'lines',
+        name: label + ' Fwd R\u00B2=' + fwdR2.toFixed(3),
+        line: { color: color, width: 2, dash: 'dash' }, legendgroup: 'run'+i,
+      });
+      annotations.push({
+        x: fx[fx.length-1], y: fy[fy.length-1],
+        text: 'R\u00B2=' + fwdR2.toFixed(3),
+        showarrow: true, arrowhead: 0, arrowcolor: color,
+        ax: 40, ay: -20 - (i * 18),
+        font: { color: color, size: 11, family: 'JetBrains Mono, monospace' },
+        bgcolor: 'rgba(10,14,26,0.8)', bordercolor: color, borderwidth: 1, borderpad: 3,
+      });
+    }
+  }
+
+  Plotly.newPlot(chartDiv, traces, {
+    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+    font: { color: '#8896ab', family: 'Inter, system-ui, sans-serif', size: 12 },
+    xaxis: { gridcolor: 'rgba(42,58,82,0.4)', zerolinecolor: '#2a3a52', tickfont: { color: '#5a6a80' } },
+    yaxis: { title: 'Profit ($)', gridcolor: 'rgba(42,58,82,0.4)', zerolinecolor: '#2a3a52', tickfont: { color: '#5a6a80' } },
+    margin: { l: 60, r: 30, t: 30, b: 50 },
+    legend: { orientation: 'h', y: -0.15, x: 0.5, xanchor: 'center', font: { size: 11 } },
+    hoverlabel: { bgcolor: '#111827', bordercolor: '#2a3a52', font: { color: '#e2e8f0', size: 12 } },
+    shapes: shapes, annotations: annotations,
+  }, { responsive: true, displayModeBar: false });
+}
+
+function buildMetricsTable(container, allData) {
+  var metrics = [
+    { key: 'score', label: 'Score', fmt: function(v){return v.toFixed(1);}, higher: true },
+    { key: 'back_return', label: 'Back Return %', fmt: function(v){return v.toFixed(1)+'%';}, higher: true },
+    { key: 'forward_return', label: 'Fwd Return %', fmt: function(v){return v.toFixed(1)+'%';}, higher: true },
+    { key: 'back_trades', label: 'Back Trades', fmt: function(v){return v.toFixed(0);}, higher: true },
+    { key: 'forward_trades', label: 'Fwd Trades', fmt: function(v){return v.toFixed(0);}, higher: true },
+    { key: 'win_rate', label: 'Win Rate', fmt: function(v){return (v*100).toFixed(1)+'%';}, higher: true },
+    { key: 'profit_factor', label: 'Profit Factor', fmt: function(v){return v.toFixed(2);}, higher: true },
+    { key: 'back_sharpe', label: 'Back Sharpe', fmt: function(v){return v.toFixed(2);}, higher: true },
+    { key: 'forward_sharpe', label: 'Fwd Sharpe', fmt: function(v){return v.toFixed(2);}, higher: true },
+    { key: 'back_r2', label: 'Back R\u00B2', fmt: function(v){return v.toFixed(3);}, higher: true },
+    { key: 'forward_r2', label: 'Fwd R\u00B2', fmt: function(v){return v.toFixed(3);}, higher: true },
+    { key: 'back_max_dd', label: 'Max DD %', fmt: function(v){return v.toFixed(1)+'%';}, higher: false },
+    { key: 'stability', label: 'Stability %', fmt: function(v){return v.toFixed(1)+'%';}, higher: true },
   ];
 
-  // Extra compare metrics
-  let extraMetrics = '';
-  if (comp) {
-    const extras = [
-      ['R² (back)', comp.back_r_squared?.toFixed(3)],
-      ['R² (fwd)', comp.forward_r_squared?.toFixed(3)],
-      ['PF', comp.back_profit_factor?.toFixed(2) || comp.profit_factor?.toFixed(2)],
-      ['Stability', comp.stability_mean?.toFixed(1)],
-    ].filter(([_, v]) => v != null);
-    extraMetrics = extras.map(([l, v]) => `
-      <div class="metric-item">
-        <div class="metric-label">${l}</div>
-        <div class="metric-value">${v}</div>
-      </div>`).join('');
-  }
+  var runMetrics = allData.map(function(item, idx) {
+    var d = item.data; var meta = d.meta || {};
+    return {
+      label: (meta.strategy || item.runId) + ' (#' + (d.best_rank || '?') + ')',
+      color: COLORS[idx % COLORS.length],
+      score: (d.decision||{}).score || 0,
+      back_return: d.back_return || 0, forward_return: d.forward_return || 0,
+      back_trades: d.back_trades || 0, forward_trades: d.forward_trades || 0,
+      win_rate: d.win_rate || 0, profit_factor: d.profit_factor || 0,
+      back_sharpe: d.back_sharpe || 0, forward_sharpe: d.forward_sharpe || 0,
+      back_r2: d.back_r_squared || 0, forward_r2: d.forward_r_squared || 0,
+      back_max_dd: d.back_max_dd || 0, stability: (d.stability_mean || 0) * 100,
+    };
+  });
 
-  panel.innerHTML = `
-    <div class="detail-header">
-      <h3>${esc(run.pair)} ${esc(run.timeframe)} — ${shortStrategy(run.strategy)}</h3>
-      <div>
-        <span class="text-muted" style="margin-right:0.75rem;font-size:0.75rem;">${esc(run.run_id)}</span>
-        <button class="btn" onclick="document.getElementById('lb-detail').style.display='none';lbDetailId=null;">Close</button>
-      </div>
-    </div>
-    ${run.description ? `<p class="text-dim" style="margin-bottom:0.75rem;font-size:0.8rem;">${esc(run.description)}</p>` : ''}
-    <div class="metrics-grid">
-      ${metrics.map(([l, v]) => `<div class="metric-item"><div class="metric-label">${l}</div><div class="metric-value">${v}</div></div>`).join('')}
-      ${extraMetrics}
-    </div>
-    <div id="detail-chart" style="height:300px;"></div>`;
+  var headerCells = '<th class="metric-label-col">Metric</th>';
+  runMetrics.forEach(function(rm) { headerCells += '<th style="color:'+rm.color+'">'+rm.label+'</th>'; });
 
-  panel.style.display = 'block';
-  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  var bodyRows = '';
+  metrics.forEach(function(m) {
+    var vals = runMetrics.map(function(rm) { return rm[m.key]; });
+    var bestVal = m.higher ? Math.max.apply(null, vals) : Math.min.apply(null, vals);
+    bodyRows += '<tr><td class="metric-label-col">' + m.label + '</td>';
+    runMetrics.forEach(function(rm) {
+      var v = rm[m.key];
+      var cls = (v === bestVal && runMetrics.length > 1) ? ' class="best-val"' : '';
+      bodyRows += '<td' + cls + '>' + m.fmt(v) + '</td>';
+    });
+    bodyRows += '</tr>';
+  });
 
-  // Plot equity curve
-  if (comp) {
-    const traces = [];
-    if (comp.back_equity && comp.back_equity.length) {
-      traces.push({
-        x: comp.back_equity.map(p => p.timestamp || p.date || p.x),
-        y: comp.back_equity.map(p => p.equity || p.y),
-        name: 'Backtest',
-        line: { color: '#3b82f6', width: 2 },
-        type: 'scatter'
-      });
-    }
-    if (comp.forward_equity && comp.forward_equity.length) {
-      traces.push({
-        x: comp.forward_equity.map(p => p.timestamp || p.date || p.x),
-        y: comp.forward_equity.map(p => p.equity || p.y),
-        name: 'Forward',
-        line: { color: '#22c55e', width: 2, dash: 'dash' },
-        type: 'scatter'
-      });
-    }
-    if (traces.length) {
-      Plotly.newPlot('detail-chart', traces, {
-        paper_bgcolor: '#111827',
-        plot_bgcolor: '#0a0e1a',
-        font: { color: '#94a3b8', family: 'Inter, sans-serif', size: 11 },
-        margin: { t: 10, r: 20, b: 40, l: 60 },
-        xaxis: { gridcolor: '#1e293b', linecolor: '#1e293b' },
-        yaxis: { gridcolor: '#1e293b', linecolor: '#1e293b', title: 'Equity ($)' },
-        legend: { orientation: 'h', y: -0.2 },
-        showlegend: true
-      }, { responsive: true, displayModeBar: false });
-    }
-  }
-}
-
-// ═══════════════════════════════════════
-// UTILITIES
-// ═══════════════════════════════════════
-function esc(s) {
-  if (s == null) return '';
-  const d = document.createElement('div');
-  d.textContent = String(s);
-  return d.innerHTML;
-}
-function num(v, dec = 2) { return v != null ? Number(v).toFixed(dec) : '—'; }
-function pct(v) { return v != null ? (Number(v) * 100).toFixed(1) + '%' : '—'; }
-function shortTime(iso) {
-  if (!iso) return '—';
-  return iso.replace('T', ' ').substring(0, 16);
-}
-function shortStrategy(s) {
-  if (!s) return '—';
-  return s.replace('RSI_Divergence_', 'RSI ').replace('EMA_Cross_ML', 'EMA Cross').replace('_Full', '');
+  container.innerHTML = '<table class="compare-metrics-table"><thead><tr>'+headerCells+'</tr></thead><tbody>'+bodyRows+'</tbody></table>';
 }
 
 // ═══════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════
-(function init() {
-  const hash = location.hash.replace('#', '') || 'dashboard';
-  if (hash === 'leaderboard' || hash === 'pipeline') {
-    switchView('leaderboard');
-  } else {
-    switchView('dashboard');
-  }
+(function() {
+  var hash = location.hash.replace('#', '') || 'dashboard';
+  if (hash === 'leaderboard' || hash === 'pipeline') switchView('leaderboard');
+  else switchView('dashboard');
 })();
 </script>
 </body>
