@@ -69,6 +69,11 @@ class InstanceStatus:
     has_config: bool = False
     has_trades: bool = False
 
+    # Display enrichment (populated by collect_instance)
+    strategy_display: str = ""
+    strategy_tag: str = ""
+    auto_comment: str = ""
+
 
 def compute_live_performance(trades: list) -> LivePerformance:
     """Compute live performance stats from trade history."""
@@ -154,6 +159,75 @@ HEARTBEAT_THRESHOLDS = {
     'H1': 5400, 'H4': 18000, 'D': 90000,
 }
 
+# Human-readable strategy name mapping
+STRATEGY_DISPLAY_NAMES = {
+    'rsi_v3': 'RSI Divergence V3',
+    'rsi_v1': 'RSI Divergence V1',
+    'rsi_v4': 'RSI Divergence V4',
+    'rsi_v5': 'RSI Divergence V5',
+    'ema_cross_ml': 'EMA Cross V6',
+    'fair_price_ma': 'Fair Price MA',
+    'rsi_fast': 'RSI Fast',
+    'RSI_Divergence_v3': 'RSI Divergence V3',
+    'RSI_Divergence_v1': 'RSI Divergence V1',
+    'EMA_Cross_v6': 'EMA Cross V6',
+    'Fair_Price_MA': 'Fair Price MA',
+}
+
+# Strategy type tags for visual badges
+STRATEGY_TAGS = {
+    'rsi_v3': ('RSI', 'mean-rev'),
+    'rsi_v1': ('RSI', 'mean-rev'),
+    'rsi_v4': ('RSI', 'mean-rev'),
+    'rsi_v5': ('RSI', 'mean-rev'),
+    'ema_cross_ml': ('EMA', 'trend'),
+    'fair_price_ma': ('FPMA', 'value'),
+    'rsi_fast': ('RSI', 'momentum'),
+}
+
+
+def get_strategy_display_name(strategy_id: str) -> str:
+    """Get human-readable strategy name."""
+    return STRATEGY_DISPLAY_NAMES.get(strategy_id, strategy_id)
+
+
+def generate_instance_comment(inst: 'InstanceStatus') -> str:
+    """Generate a rich description from instance metrics.
+
+    Format: "Score RATING | X.X trades/mo | WR XX% | PF X.XX | DD X.X%"
+    Falls back to basic info if no live performance data.
+    """
+    parts = []
+
+    # Score and rating from expectations/config
+    if inst.expectations:
+        # Live performance stats (from actual trades)
+        lp = inst.live_performance
+        if lp and lp.trades_total > 0:
+            parts.append(f"{lp.trades_total} trades")
+            if lp.trades_per_month > 0:
+                parts.append(f"{lp.trades_per_month:.1f}/mo")
+            parts.append(f"WR {lp.win_rate * 100:.0f}%")
+            if lp.profit_factor < 999:
+                parts.append(f"PF {lp.profit_factor:.2f}")
+            parts.append(f"PnL {lp.total_pnl:+.2f}")
+        else:
+            # Fall back to expected metrics
+            exp = inst.expectations
+            if exp.get('avg_trades_per_month'):
+                parts.append(f"exp {exp['avg_trades_per_month']:.1f}/mo")
+            if exp.get('win_rate'):
+                parts.append(f"WR {exp['win_rate'] * 100:.0f}%")
+            if exp.get('profit_factor'):
+                parts.append(f"PF {exp['profit_factor']:.2f}")
+            if exp.get('max_drawdown_pct'):
+                parts.append(f"DD {exp['max_drawdown_pct']:.0f}%")
+
+    if not parts:
+        return inst.description or ""
+
+    return " | ".join(parts)
+
 
 def collect_instance(strategy: dict, instances_dir: Path) -> InstanceStatus:
     """Collect all data for a single instance."""
@@ -213,6 +287,11 @@ def collect_instance(strategy: dict, instances_dir: Path) -> InstanceStatus:
     if all_trades:
         inst.has_trades = True
         inst.live_performance = compute_live_performance(all_trades)
+
+    # Enrich with display name and auto-comment
+    inst.strategy_display = get_strategy_display_name(inst.strategy)
+    inst.strategy_tag = STRATEGY_TAGS.get(inst.strategy, ('', ''))[1]
+    inst.auto_comment = generate_instance_comment(inst)
 
     return inst
 

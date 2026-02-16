@@ -189,6 +189,11 @@ Examples:
         action='store_true',
         help='Fast mode: fewer trials (2000/stage, 5000 final, 250 MC). Good for dev/testing.'
     )
+    parser.add_argument(
+        '--turbo',
+        action='store_true',
+        help='Turbo mode: minimal trials (200/stage, 500 final, 100 MC). For trade-generation testing only.'
+    )
 
     # Output settings
     parser.add_argument(
@@ -213,8 +218,15 @@ def build_config(args) -> PipelineConfig:
         strategy_name=args.strategy,
     )
 
-    # Apply --fast preset before explicit args (explicit args override)
-    if args.fast:
+    # Apply speed presets before explicit args (explicit args override)
+    if args.turbo:
+        config.optimization.trials_per_stage = 200
+        config.optimization.final_trials = 500
+        config.optimization.top_n_candidates = 10
+        config.montecarlo.iterations = 100
+        config.montecarlo.bootstrap_iterations = 100
+        logger.info("TURBO MODE: trials=200/stage, final=500, top_n=10, MC=100")
+    elif args.fast:
         config.optimization.trials_per_stage = 2000
         config.optimization.final_trials = 5000
         config.montecarlo.iterations = 250
@@ -224,20 +236,22 @@ def build_config(args) -> PipelineConfig:
     config.data.years = args.years
     config.data.force_download = args.force_download
 
-    # Optimization config (explicit CLI args override --fast defaults)
-    if not args.fast or args.trials != 5000:  # 5000 is the argparse default
+    # Optimization config (explicit CLI args override preset defaults)
+    speed_preset = args.turbo or args.fast
+    if not speed_preset or args.trials != 5000:  # 5000 is the argparse default
         config.optimization.trials_per_stage = args.trials
-    if not args.fast or args.final_trials != 10000:
+    if not speed_preset or args.final_trials != 10000:
         config.optimization.final_trials = args.final_trials
-    config.optimization.top_n_candidates = args.top_n
+    if not args.turbo:
+        config.optimization.top_n_candidates = args.top_n
     config.optimization.n_jobs = args.n_jobs
 
     # Walk-forward config
     config.walkforward.train_months = args.train_months
     config.walkforward.test_months = args.test_months
 
-    # Monte Carlo config (explicit CLI args override --fast defaults)
-    if not args.fast or args.mc_iterations != 500:
+    # Monte Carlo config (explicit CLI args override preset defaults)
+    if not speed_preset or args.mc_iterations != 500:
         config.montecarlo.iterations = args.mc_iterations
 
     # Data holdout config

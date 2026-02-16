@@ -228,6 +228,7 @@ async def api_export(instance_id: str):
         "trade_id", "instrument", "direction", "units",
         "entry_price", "entry_time", "exit_price", "exit_time",
         "exit_reason", "realized_pnl", "stop_loss", "take_profit",
+        "strategy_id",
     ]
 
     output = io.StringIO()

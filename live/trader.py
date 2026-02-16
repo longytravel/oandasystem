@@ -272,7 +272,8 @@ class LiveTrader:
                 instrument=self.instrument,
                 units=units,
                 stop_loss_price=signal.stop_loss,
-                take_profit_price=signal.take_profit
+                take_profit_price=signal.take_profit,
+                strategy_tag=self.instance_id,
             )
 
             if 'orderFillTransaction' in result:
@@ -281,6 +282,9 @@ class LiveTrader:
                 fill_price = float(fill.get('price', 0))
 
                 # Track position
+                meta = dict(signal.metadata) if signal.metadata else {}
+                if self.instance_id:
+                    meta['strategy_id'] = self.instance_id
                 position = LivePosition(
                     trade_id=trade_id,
                     instrument=self.instrument,
@@ -290,7 +294,7 @@ class LiveTrader:
                     entry_time=datetime.now(timezone.utc),
                     stop_loss=signal.stop_loss,
                     take_profit=signal.take_profit,
-                    metadata=signal.metadata
+                    metadata=meta,
                 )
                 self.position_manager.add_position(position)
 

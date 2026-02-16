@@ -396,13 +396,73 @@
             font-family: 'Inter', sans-serif;
         }
 
+        /* ===== STRATEGY CELL ===== */
+        .strategy-cell {
+            font-family: 'Inter', sans-serif !important;
+        }
+
+        .strategy-name {
+            font-weight: 600;
+            font-size: 0.82rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .strategy-pair {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            font-family: 'JetBrains Mono', monospace;
+            margin-top: 2px;
+        }
+
+        .tf-badge {
+            display: inline-block;
+            padding: 0 5px;
+            border-radius: 3px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            background: rgba(59,130,246,0.15);
+            color: var(--blue);
+        }
+
+        .strat-badge {
+            display: inline-block;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 0.6rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .strat-mean-rev { background: rgba(139,92,246,0.2); color: var(--purple); }
+        .strat-trend { background: rgba(6,182,212,0.2); color: var(--cyan); }
+        .strat-value { background: rgba(16,185,129,0.2); color: var(--green); }
+        .strat-momentum { background: rgba(245,158,11,0.2); color: var(--yellow); }
+
+        .strategy-comment {
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            margin-top: 2px;
+            line-height: 1.3;
+        }
+
         /* ===== RESPONSIVE ===== */
+        .hide-mobile { }
+
         @media (max-width: 768px) {
             .header { padding: 16px; flex-direction: column; gap: 12px; }
             .summary-row { padding: 12px 16px; grid-template-columns: repeat(2, 1fr); }
-            .section { padding: 0 16px 16px; }
+            .section { padding: 0 12px 16px; }
             td, th { padding: 6px 8px; font-size: 0.7rem; }
             .perf-grid { grid-template-columns: 1fr; }
+            .hide-mobile { display: none !important; }
+            .strategy-name { font-size: 0.75rem; }
+            .strategy-pair { font-size: 0.7rem; }
+            .strategy-comment { font-size: 0.65rem; }
+            .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
         }
     </style>
 </head>
@@ -461,13 +521,12 @@
             <thead>
                 <tr>
                     <th>Status</th>
-                    <th>Strategy</th>
-                    <th>Pair / TF</th>
-                    <th>Heartbeat</th>
-                    <th>Pos</th>
-                    <th style="text-align:right">Daily P&L</th>
+                    <th>Strategy / Pair</th>
+                    <th class="hide-mobile">Heartbeat</th>
+                    <th class="hide-mobile">Pos</th>
+                    <th style="text-align:right">P&L</th>
                     <th style="text-align:right">W / L</th>
-                    <th>Actions</th>
+                    <th class="hide-mobile">Actions</th>
                 </tr>
             </thead>
             <tbody id="instances-body">
@@ -488,17 +547,21 @@
                         <span class="status-dot status-unknown"></span>{{ inst.service_status or 'Unknown' }}
                         {% endif %}
                     </td>
-                    <td>
-                        <span style="color:var(--text-primary);font-weight:500;font-family:'Inter',sans-serif">{{ inst.strategy }}</span>
-                        {% if inst.description %}
-                        <br><span style="font-size:0.68rem;color:var(--text-muted);font-family:'Inter',sans-serif">{{ inst.description }}</span>
+                    <td class="strategy-cell">
+                        <div class="strategy-name">
+                            {% if inst.strategy_tag %}
+                            <span class="strat-badge strat-{{ inst.strategy_tag }}">{{ inst.strategy_tag }}</span>
+                            {% endif %}
+                            {{ inst.strategy_display or inst.strategy }}
+                        </div>
+                        <div class="strategy-pair">{{ inst.pair }} <span class="tf-badge">{{ inst.timeframe }}</span></div>
+                        {% if inst.auto_comment %}
+                        <div class="strategy-comment">{{ inst.auto_comment }}</div>
+                        {% elif inst.description %}
+                        <div class="strategy-comment">{{ inst.description }}</div>
                         {% endif %}
                     </td>
-                    <td>
-                        <span style="font-weight:500">{{ inst.pair }}</span>
-                        <span style="color:var(--text-muted);font-size:0.7rem;margin-left:4px">{{ inst.timeframe }}</span>
-                    </td>
-                    <td>
+                    <td class="hide-mobile">
                         {% if inst.heartbeat_ok %}
                         <span style="color:var(--green)">{{ inst.heartbeat_display }}</span>
                         {% elif inst.has_health %}
@@ -507,7 +570,7 @@
                         <span class="no-data">N/A</span>
                         {% endif %}
                     </td>
-                    <td>{{ inst.positions if inst.has_health else '-' }}</td>
+                    <td class="hide-mobile">{{ inst.positions if inst.has_health else '-' }}</td>
                     <td class="pnl-cell">
                         {% if inst.daily_pnl != 0 %}
                         <span class="{{ 'positive' if inst.daily_pnl > 0 else 'negative' }}">
@@ -524,7 +587,7 @@
                         <span class="no-data">- / -</span>
                         {% endif %}
                     </td>
-                    <td>
+                    <td class="hide-mobile">
                         {% if inst.enabled %}
                         <button class="svc-btn start" onclick="serviceAction('{{ inst.id }}', 'start')" title="Start">St</button>
                         <button class="svc-btn restart" onclick="serviceAction('{{ inst.id }}', 'restart')" title="Restart">Re</button>
@@ -536,7 +599,7 @@
                 </tr>
                 <!-- Performance Panel -->
                 <tr>
-                    <td colspan="8" style="padding:0;border:none">
+                    <td colspan="7" style="padding:0;border:none">
                         <div class="perf-panel" id="perf-{{ inst.id }}">
                             <div class="perf-header">
                                 <span class="perf-title">Performance vs Backtest Expectations</span>
@@ -629,7 +692,7 @@
                 </tr>
                 <!-- Trade History Panel -->
                 <tr>
-                    <td colspan="8" style="padding:0;border:none">
+                    <td colspan="7" style="padding:0;border:none">
                         <div class="trades-panel" id="trades-{{ inst.id }}">
                             <div class="perf-header">
                                 <span class="perf-title">Recent Trades</span>
@@ -742,7 +805,7 @@ function updateInstances(instances) {
         if (!row) return;
         const cells = row.querySelectorAll('td');
 
-        // Status cell
+        // Status cell [0]
         let statusHtml = '';
         if (!inst.enabled) {
             statusHtml = '<span class="status-dot status-unknown"></span><span class="no-data">Disabled</span>';
@@ -759,32 +822,38 @@ function updateInstances(instances) {
         }
         cells[0].innerHTML = statusHtml;
 
-        // Heartbeat
-        if (inst.heartbeat_ok) {
-            cells[3].innerHTML = '<span style="color:var(--green)">' + inst.heartbeat_display + '</span>';
-        } else if (inst.has_health) {
-            cells[3].innerHTML = '<span style="color:var(--yellow)">' + inst.heartbeat_display + '</span>';
-        } else {
-            cells[3].innerHTML = '<span class="no-data">N/A</span>';
+        // Strategy/Pair cell [1] - update auto_comment
+        const commentEl = cells[1].querySelector('.strategy-comment');
+        if (commentEl && inst.auto_comment) {
+            commentEl.textContent = inst.auto_comment;
         }
 
-        // Positions
-        cells[4].textContent = inst.has_health ? inst.positions : '-';
+        // Heartbeat [2]
+        if (inst.heartbeat_ok) {
+            cells[2].innerHTML = '<span style="color:var(--green)">' + inst.heartbeat_display + '</span>';
+        } else if (inst.has_health) {
+            cells[2].innerHTML = '<span style="color:var(--yellow)">' + inst.heartbeat_display + '</span>';
+        } else {
+            cells[2].innerHTML = '<span class="no-data">N/A</span>';
+        }
 
-        // Daily P&L
+        // Positions [3]
+        cells[3].textContent = inst.has_health ? inst.positions : '-';
+
+        // Daily P&L [4]
         if (inst.daily_pnl !== 0) {
             const cls = inst.daily_pnl > 0 ? 'positive' : 'negative';
             const sign = inst.daily_pnl > 0 ? '+' : '';
-            cells[5].innerHTML = '<span class="' + cls + '">' + sign + inst.daily_pnl.toFixed(2) + '</span>';
+            cells[4].innerHTML = '<span class="' + cls + '">' + sign + inst.daily_pnl.toFixed(2) + '</span>';
         } else {
-            cells[5].innerHTML = '<span class="no-data">0.00</span>';
+            cells[4].innerHTML = '<span class="no-data">0.00</span>';
         }
 
-        // W/L
+        // W/L [5]
         if (inst.daily_trades > 0) {
-            cells[6].innerHTML = '<span class="positive">' + inst.daily_wins + '</span> / <span class="negative">' + inst.daily_losses + '</span>';
+            cells[5].innerHTML = '<span class="positive">' + inst.daily_wins + '</span> / <span class="negative">' + inst.daily_losses + '</span>';
         } else {
-            cells[6].innerHTML = '<span class="no-data">- / -</span>';
+            cells[5].innerHTML = '<span class="no-data">- / -</span>';
         }
     });
 }

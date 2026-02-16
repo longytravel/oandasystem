@@ -267,7 +267,8 @@ class OandaClient:
         instrument: str,
         units: int,
         stop_loss_price: Optional[float] = None,
-        take_profit_price: Optional[float] = None
+        take_profit_price: Optional[float] = None,
+        strategy_tag: Optional[str] = None
     ) -> Dict:
         """
         Place a market order.
@@ -277,6 +278,7 @@ class OandaClient:
             units: Positive for buy, negative for sell
             stop_loss_price: Stop loss price
             take_profit_price: Take profit price
+            strategy_tag: Strategy identifier for clientExtensions (e.g., "rsi_v3_GBP_USD_M15")
 
         Returns:
             Order response
@@ -299,6 +301,18 @@ class OandaClient:
         if take_profit_price is not None:
             order_data["order"]["takeProfitOnFill"] = {
                 "price": f"{take_profit_price:.5f}"
+            }
+
+        if strategy_tag:
+            # OANDA clientExtensions: tag (max 128 chars), comment (max 128 chars)
+            order_data["order"]["clientExtensions"] = {
+                "tag": strategy_tag[:128],
+                "comment": strategy_tag[:128],
+            }
+            # Also tag the trade itself so closed trades retain the strategy ID
+            order_data["order"]["tradeClientExtensions"] = {
+                "tag": strategy_tag[:128],
+                "comment": strategy_tag[:128],
             }
 
         return self._request(

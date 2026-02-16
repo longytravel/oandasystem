@@ -290,6 +290,7 @@ class PositionManager:
             'realized_pnl': realized_pnl,
             'stop_loss': position.stop_loss,
             'take_profit': position.take_profit,
+            'strategy_id': position.metadata.get('strategy_id', ''),
         }
         self.trade_history.append(history_entry)
 
