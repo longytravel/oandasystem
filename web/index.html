@@ -372,6 +372,166 @@
   .rd-params-table td { padding: 6px 12px; border-bottom: 1px solid rgba(30,41,59,0.2); }
   .rd-params-table td:first-child { color: #8896ab; width: 50%; }
   .rd-params-table td:last-child { font-family: 'JetBrains Mono', monospace; }
+
+  /* ══════════════════════════════════════
+     MOBILE RESPONSIVE
+     ══════════════════════════════════════ */
+  @media (max-width: 768px) {
+    /* Nav */
+    .nav { padding: 0 12px; }
+    .nav-brand { font-size: 0.85rem; margin-right: 12px; }
+    .nav-tab { padding: 10px 14px; font-size: 0.78rem; min-height: 44px; display: flex; align-items: center; }
+    .nav-right { font-size: 0.68rem; gap: 8px; }
+
+    /* Dashboard */
+    .dash-container { padding: 12px; }
+    .cards { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+    .card { padding: 12px; }
+    .card-value { font-size: 1.2rem; }
+    .dash-table table { font-size: 0.75rem; }
+    .dash-table th, .dash-table td { padding: 6px 8px; }
+    .dash-table th:nth-child(5), .dash-table td:nth-child(5),
+    .dash-table th:nth-child(7), .dash-table td:nth-child(7) { display: none; }
+    .btn { padding: 6px 8px; font-size: 0.68rem; min-height: 36px; }
+
+    /* Leaderboard header */
+    .page-header { padding: 16px; flex-direction: column; align-items: flex-start; gap: 12px; }
+    .page-title { font-size: 1.1rem; }
+    .summary-strip { gap: 16px; }
+    .summary-num { font-size: 1.1rem; }
+    .summary-label { font-size: 0.62rem; }
+
+    /* Filter bar - horizontal scroll */
+    .filter-bar {
+      padding: 10px 12px; gap: 8px; overflow-x: auto;
+      -webkit-overflow-scrolling: touch; flex-wrap: nowrap;
+    }
+    .filter-group { flex-shrink: 0; }
+    .filter-btn { padding: 6px 8px; font-size: 0.7rem; min-height: 36px; touch-action: manipulation; }
+
+    /* Leaderboard table */
+    .table-container { padding: 0 8px; -webkit-overflow-scrolling: touch; }
+    #leaderboard { font-size: 0.72rem; }
+    #leaderboard th, #leaderboard td { padding: 6px 6px; }
+    #leaderboard td { font-size: 0.7rem; }
+    .score-col { font-size: 0.88rem; }
+    /* Hide: Strategy(4), Description(5), BackSh(11), FwdSh(12), MaxDD(15), Time(18), RunID(19) */
+    #leaderboard th:nth-child(4), #leaderboard td:nth-child(4),
+    #leaderboard th:nth-child(5), #leaderboard td:nth-child(5),
+    #leaderboard th:nth-child(11), #leaderboard td:nth-child(11),
+    #leaderboard th:nth-child(12), #leaderboard td:nth-child(12),
+    #leaderboard th:nth-child(15), #leaderboard td:nth-child(15),
+    #leaderboard th:nth-child(18), #leaderboard td:nth-child(18),
+    #leaderboard th:nth-child(19), #leaderboard td:nth-child(19) { display: none; }
+    .compare-check { width: 20px; height: 20px; }
+
+    /* Compare */
+    #compare-section { padding: 16px; }
+    #compare-chart { height: 280px !important; }
+    .compare-toolbar { padding: 10px 16px; gap: 10px; }
+    .compare-toolbar button { padding: 8px 14px; font-size: 0.78rem; min-height: 44px; touch-action: manipulation; }
+    .compare-metrics-table th, .compare-metrics-table td { padding: 6px 8px; font-size: 0.72rem; }
+
+    /* Run Detail */
+    .rd-inner { padding: 16px; }
+    .rd-header { padding: 18px 16px; }
+    .rd-title { font-size: 1.1rem; }
+    .rd-score-big { font-size: 2rem; }
+    .rd-score-big > span { font-size: 0.75rem !important; }
+    .rd-recommendation { font-size: 0.68rem; max-width: 140px; }
+    .rd-config-strip { gap: 8px; }
+    .rd-config-item { font-size: 0.72rem; }
+    .rd-close-btn button { padding: 8px 14px; font-size: 0.82rem; min-height: 44px; touch-action: manipulation; }
+
+    /* Charts */
+    #rd-equity-chart { height: 280px !important; }
+    #rd-dd-chart { height: 180px !important; }
+
+    /* Sections */
+    .rd-section-body { padding: 16px; }
+    .rd-section-head { padding: 12px 16px; min-height: 44px; touch-action: manipulation; }
+    .rd-section-head h3 { font-size: 0.82rem; }
+
+    /* Performance table */
+    .rd-perf-table td { font-size: 0.82rem; padding: 8px 10px; }
+    .rd-perf-table td:first-child { font-size: 0.8rem; }
+    .rd-fb-value { font-size: 1.3rem; }
+
+    /* Confidence */
+    .rd-conf-label { width: 85px; font-size: 0.75rem; }
+    .rd-conf-score { font-size: 0.82rem; }
+    .rd-conf-total .score { font-size: 1.8rem; }
+
+    /* MC grid - single column on mobile */
+    .rd-mc-grid { grid-template-columns: 1fr; }
+    .rd-mc-row { font-size: 0.82rem; }
+    .rd-mc-row .lbl { font-size: 0.78rem; }
+
+    /* Stability */
+    .rd-stab-card { padding: 14px 18px; min-width: 100px; }
+    .rd-stab-card .val { font-size: 1.2rem; }
+
+    /* Trade grid - 2 columns */
+    .rd-trade-grid { grid-template-columns: repeat(2, 1fr); }
+    .rd-trade-card .val { font-size: 1rem; }
+
+    /* WF table */
+    .rd-wf-table { font-size: 0.72rem; }
+    .rd-wf-table th, .rd-wf-table td { padding: 5px 6px; }
+
+    /* Monthly table */
+    .rd-monthly-table td { min-width: 40px; padding: 5px 6px; font-size: 0.72rem; }
+    .rd-monthly-table th { padding: 5px 6px; font-size: 0.62rem; }
+
+    /* Params - single column */
+    .rd-params-grid { grid-template-columns: 1fr; }
+
+    /* Footer */
+    .footer { font-size: 0.65rem; padding: 12px; }
+  }
+
+  @media (max-width: 480px) {
+    /* Nav - hide clock, tighter spacing */
+    .nav-brand { font-size: 0.78rem; margin-right: 8px; }
+    .nav-tab { padding: 10px 10px; font-size: 0.72rem; }
+    .nav-right { display: none; }
+
+    /* Dashboard cards - 2 columns fixed */
+    .cards { grid-template-columns: repeat(2, 1fr); }
+    .card-value { font-size: 1rem; }
+    .card-label { font-size: 0.62rem; }
+    /* Also hide Heartbeat column */
+    .dash-table th:nth-child(4), .dash-table td:nth-child(4) { display: none; }
+
+    /* Leaderboard - hide more: checkbox(1), Date(9), BackTr(13), FwdTr(14) */
+    #leaderboard th:nth-child(1), #leaderboard td:nth-child(1),
+    #leaderboard th:nth-child(9), #leaderboard td:nth-child(9),
+    #leaderboard th:nth-child(13), #leaderboard td:nth-child(13),
+    #leaderboard th:nth-child(14), #leaderboard td:nth-child(14) { display: none; }
+
+    .summary-strip { gap: 10px; }
+    .summary-num { font-size: 0.95rem; }
+
+    /* Run detail - stack header vertically */
+    .rd-title-row { flex-direction: column; }
+    .rd-score-block { text-align: left; }
+    .rd-score-big { font-size: 1.8rem; }
+    .rd-title { font-size: 1rem; }
+    .rd-meta { font-size: 0.72rem; }
+
+    /* Even smaller charts */
+    #rd-equity-chart { height: 240px !important; }
+    #rd-dd-chart { height: 150px !important; }
+    #compare-chart { height: 240px !important; }
+
+    .rd-trade-card { padding: 10px 12px; }
+    .rd-trade-card .val { font-size: 0.92rem; }
+    .rd-stab-grid { gap: 8px; }
+    .rd-stab-card { padding: 10px 14px; }
+    .rd-stab-card .val { font-size: 1rem; }
+
+    .compare-toolbar { flex-wrap: wrap; padding: 8px 12px; }
+  }
 </style>
 </head>
 <body>
@@ -482,6 +642,16 @@
 // GLOBALS
 // ═══════════════════════════════════════
 var COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+function isMobile() { return window.innerWidth < 768; }
+function mobileLayout(l) {
+  if (!isMobile()) return l;
+  l.margin = { l: 40, r: 10, t: 10, b: 30 };
+  if (l.font) l.font.size = 10;
+  if (l.legend) l.legend.font = Object.assign({}, l.legend.font || {}, { size: 9 });
+  if (l.xaxis && l.xaxis.tickfont) l.xaxis.tickfont.size = 9;
+  if (l.yaxis && l.yaxis.tickfont) l.yaxis.tickfont.size = 9;
+  return l;
+}
 var currentView = 'dashboard';
 var dashTimer = null;
 var lbData = null;
@@ -912,7 +1082,7 @@ function buildEquityOverlay(chartDiv, allData) {
     }
   }
 
-  Plotly.newPlot(chartDiv, traces, {
+  Plotly.newPlot(chartDiv, traces, mobileLayout({
     paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
     font: { color: '#8896ab', family: 'Inter, system-ui, sans-serif', size: 12 },
     xaxis: { gridcolor: 'rgba(42,58,82,0.4)', zerolinecolor: '#2a3a52', tickfont: { color: '#5a6a80' } },
@@ -921,7 +1091,7 @@ function buildEquityOverlay(chartDiv, allData) {
     legend: { orientation: 'h', y: -0.15, x: 0.5, xanchor: 'center', font: { size: 11 } },
     hoverlabel: { bgcolor: '#111827', bordercolor: '#2a3a52', font: { color: '#e2e8f0', size: 12 } },
     shapes: shapes, annotations: annotations,
-  }, { responsive: true, displayModeBar: false });
+  }), { responsive: true, displayModeBar: false });
 }
 
 function buildMetricsTable(container, allData) {
@@ -1281,7 +1451,7 @@ function rdRenderCharts(comp, det) {
       traces.push({ x: comp.forward_equity.map(function(p){return p.timestamp;}), y: comp.forward_equity.map(function(p){return p.equity-ic;}), name: 'Forward (R\u00B2=' + rdN(comp.forward_r_squared,3) + ')', line:{color:'#10b981',width:2,dash:'dash'}, type:'scatter' });
     }
     var layout = { paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)', font:{color:'#8896ab',family:'Inter,system-ui,sans-serif',size:11}, xaxis:{gridcolor:'rgba(42,58,82,0.4)',zerolinecolor:'#2a3a52',tickfont:{color:'#5a6a80'}}, yaxis:{title:'Profit ($)',gridcolor:'rgba(42,58,82,0.4)',zerolinecolor:'#2a3a52',tickfont:{color:'#5a6a80'}}, margin:{l:55,r:20,t:15,b:40}, legend:{orientation:'h',y:-0.18,x:0.5,xanchor:'center',font:{size:10}}, hoverlabel:{bgcolor:'#111827',bordercolor:'#2a3a52',font:{color:'#e2e8f0',size:11}}, shapes:shapes };
-    Plotly.newPlot(eqDiv, traces, layout, {responsive:true,displayModeBar:false});
+    Plotly.newPlot(eqDiv, traces, mobileLayout(layout), {responsive:true,displayModeBar:false});
   } else {
     eqDiv.innerHTML = '<div style="text-align:center;padding:50px;color:#5a6a80">No equity data</div>';
   }
@@ -1291,7 +1461,7 @@ function rdRenderCharts(comp, det) {
   if (ddCurve && ddCurve.length > 0) {
     var dx = ddCurve.map(function(p){return p.timestamp||p.trade_num;});
     var dy = ddCurve.map(function(p){return -(p.drawdown||0);});
-    Plotly.newPlot(ddDiv, [{x:dx,y:dy,type:'scatter',mode:'lines',fill:'tozeroy',fillcolor:'rgba(239,68,68,0.15)',line:{color:'#ef4444',width:1.5},name:'Drawdown %'}], { paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)', font:{color:'#8896ab',family:'Inter,system-ui,sans-serif',size:11}, xaxis:{gridcolor:'rgba(42,58,82,0.4)',zerolinecolor:'#2a3a52',tickfont:{color:'#5a6a80'}}, yaxis:{title:'Drawdown %',gridcolor:'rgba(42,58,82,0.4)',zerolinecolor:'#2a3a52',tickfont:{color:'#5a6a80'}}, margin:{l:55,r:20,t:10,b:40}, showlegend:false, hoverlabel:{bgcolor:'#111827',bordercolor:'#2a3a52',font:{color:'#e2e8f0',size:11}} }, {responsive:true,displayModeBar:false});
+    Plotly.newPlot(ddDiv, [{x:dx,y:dy,type:'scatter',mode:'lines',fill:'tozeroy',fillcolor:'rgba(239,68,68,0.15)',line:{color:'#ef4444',width:1.5},name:'Drawdown %'}], mobileLayout({ paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)', font:{color:'#8896ab',family:'Inter,system-ui,sans-serif',size:11}, xaxis:{gridcolor:'rgba(42,58,82,0.4)',zerolinecolor:'#2a3a52',tickfont:{color:'#5a6a80'}}, yaxis:{title:'Drawdown %',gridcolor:'rgba(42,58,82,0.4)',zerolinecolor:'#2a3a52',tickfont:{color:'#5a6a80'}}, margin:{l:55,r:20,t:10,b:40}, showlegend:false, hoverlabel:{bgcolor:'#111827',bordercolor:'#2a3a52',font:{color:'#e2e8f0',size:11}} }), {responsive:true,displayModeBar:false});
   } else {
     ddDiv.innerHTML = '<div style="text-align:center;padding:30px;color:#5a6a80">No drawdown data</div>';
   }
