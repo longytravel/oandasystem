@@ -77,7 +77,8 @@ class OandaClient:
                 url=url,
                 headers=self.headers,
                 params=params,
-                json=data
+                json=data,
+                timeout=(10, 30)
             )
             response.raise_for_status()
             return response.json()
@@ -290,12 +291,12 @@ class OandaClient:
             }
         }
 
-        if stop_loss_price:
+        if stop_loss_price is not None:
             order_data["order"]["stopLossOnFill"] = {
                 "price": f"{stop_loss_price:.5f}"
             }
 
-        if take_profit_price:
+        if take_profit_price is not None:
             order_data["order"]["takeProfitOnFill"] = {
                 "price": f"{take_profit_price:.5f}"
             }
@@ -324,12 +325,12 @@ class OandaClient:
         )
         return response.get("position", {})
 
-    def close_position(self, instrument: str, long_units: str = "ALL", short_units: str = "ALL") -> Dict:
+    def close_position(self, instrument: str, long_units: Optional[str] = None, short_units: Optional[str] = None) -> Dict:
         """Close a position."""
         data = {}
-        if long_units:
+        if long_units is not None:
             data["longUnits"] = long_units
-        if short_units:
+        if short_units is not None:
             data["shortUnits"] = short_units
 
         return self._request(

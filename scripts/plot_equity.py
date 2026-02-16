@@ -139,6 +139,8 @@ def run_backtest(strategy, df, params, initial_capital=10000, risk_pct=1.0, spre
         pip_size,
         0,    # max_daily_trades (0 = unlimited)
         5.0,  # max_daily_loss_pct
+        spread_pips=spread_pips,
+        slippage_pips=0.5,
     )
 
     n_trades, win_rate, pf, sharpe, max_dd, total_ret, r_squared, ontester, sortino, ulcer = result

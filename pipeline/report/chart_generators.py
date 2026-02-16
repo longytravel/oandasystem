@@ -4,7 +4,6 @@ All functions return a dict with 'data' and 'layout' keys suitable
 for JSON serialization and Plotly.newPlot() in the browser.
 """
 import json
-import numpy as np
 from typing import Dict, Any, List, Optional
 
 from pipeline.report import style
@@ -110,8 +109,8 @@ def score_breakdown_bar(confidence: Dict) -> str:
          confidence.get('weights', {}).get('stability', 0.15), style.YELLOW),
         ('Monte Carlo', confidence.get('montecarlo_score', 0),
          confidence.get('weights', {}).get('montecarlo', 0.15), style.ORANGE),
-        ('Quality Score', confidence.get('sharpe_score', 0),
-         confidence.get('weights', {}).get('sharpe', 0.15), style.PURPLE),
+        ('Quality Score', confidence.get('quality_score', 0),
+         confidence.get('weights', {}).get('quality_score', 0.15), style.PURPLE),
     ]
 
     data = []

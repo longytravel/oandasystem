@@ -60,3 +60,13 @@ Thumbs.db
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Generated/temporary
+.playwright-mcp/
+.claudeskillscheck-trades/
+results/scan_*.csv
+results/scan_progress.json
+results/pipelines/_run_summary.csv
+ea_sources/
+dashboardtemplates/
+web/data/leaderboard.json

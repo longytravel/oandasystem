@@ -74,7 +74,8 @@ class StabilityStage:
             strategy=strategy,
             initial_capital=self.config.initial_capital,
             risk_per_trade=self.config.risk_per_trade,
-            spread_pips=self.config.spread_pips + self.config.slippage_pips,
+            spread_pips=self.config.spread_pips,
+            slippage_pips=self.config.slippage_pips,
             min_trades=self.config.optimization.min_trades,
         )
 

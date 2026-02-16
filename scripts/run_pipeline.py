@@ -158,37 +158,6 @@ Examples:
         help='Existing run directory (for resuming)'
     )
 
-    # ML exit
-    parser.add_argument(
-        '--ml-exit',
-        action='store_true',
-        help='Enable ML-based exit strategy (trains per walk-forward window)'
-    )
-    parser.add_argument(
-        '--policy-mode',
-        default='dual_model',
-        choices=['dual_model', 'risk_only', 'hold_only'],
-        help='ML exit policy mode (default: dual_model)'
-    )
-    parser.add_argument(
-        '--ml-cooldown',
-        type=int,
-        default=10,
-        help='Bars to skip new entries after ML exit (prevents trade inflation, default: 10)'
-    )
-    parser.add_argument(
-        '--ml-mode',
-        default='exit',
-        choices=['exit', 'entry_filter', 'adaptive_sl', 'adaptive_sl_reg'],
-        help='ML mode: exit = per-bar exit timing, entry_filter = signal filter, adaptive_sl = ML-tightened SL (classify), adaptive_sl_reg = ML-tightened SL (regress MAE) (default: exit)'
-    )
-    parser.add_argument(
-        '--signal-filter-threshold',
-        type=float,
-        default=0.5,
-        help='Probability threshold for signal filter (default: 0.5)'
-    )
-
     # OOS holdout
     parser.add_argument(
         '--holdout-months',
@@ -273,14 +242,6 @@ def build_config(args) -> PipelineConfig:
 
     # Data holdout config
     config.data.holdout_months = args.holdout_months
-
-    # ML exit config
-    if args.ml_exit:
-        config.ml_exit.enabled = True
-    config.ml_exit.policy_mode = args.policy_mode
-    config.ml_exit.ml_exit_cooldown_bars = args.ml_cooldown
-    config.ml_exit.ml_mode = args.ml_mode
-    config.ml_exit.signal_filter_threshold = args.signal_filter_threshold
 
     # Output config
     if args.output_dir:

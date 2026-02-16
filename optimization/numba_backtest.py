@@ -34,7 +34,7 @@ class Metrics(NamedTuple):
     r_squared: float       # Equity curve smoothness (0-1, higher=smoother)
     ontester_score: float  # Legacy MT5-style combined score
     sortino: float         # Sortino ratio (downside-only volatility, better for asymmetric strategies)
-    ulcer: float           # Ulcer Index (RMS of drawdown %, captures chronic underwater pain)
+    ulcer: float           # Ulcer Index (RMS of per-bar drawdown %, calendar-time-aware chronic underwater pain)
 
 
 @njit(cache=True, fastmath=True)
@@ -191,6 +191,9 @@ def calculate_quality_score(
     if trades < 1 or sortino <= 0 or profit_factor <= 0 or r_squared <= 0:
         return 0.0
 
+    # Cap inputs to prevent near-zero-loss regimes from inflating metrics
+    sortino = min(sortino, 20.0)
+
     # Cap PF to prevent outlier dominance (single-trade strategies)
     pf_capped = min(profit_factor, 5.0)
 
@@ -278,6 +281,7 @@ def full_backtest_numba(
 
     # === Spread modeling ===
     spread_pips: float = 0.0,  # Bid-ask spread in pips (deducted from PnL per trade)
+    slippage_pips: float = 0.0,  # Exit slippage in pips (applied to SL fills only, not TP)
 ) -> Tuple[int, float, float, float, float, float, float, float, float, float]:
     """
     Full-featured Numba-compiled backtest engine.
@@ -302,6 +306,7 @@ def full_backtest_numba(
     max_trades = n_signals * 2  # Allow for partial closes
     pnls = np.zeros(max_trades, dtype=np.float64)
     equity_curve = np.zeros(max_trades, dtype=np.float64)
+    bar_equity = np.zeros(n_bars, dtype=np.float64)  # Per-bar realized equity for calendar-time Ulcer
     n_trades = 0
 
     # Account tracking
@@ -312,7 +317,6 @@ def full_backtest_numba(
     # Daily tracking
     current_day = -1
     daily_trades = 0
-    daily_pnl = 0.0
     daily_start_equity = initial_capital
 
     # Position state (primitives for Numba)
@@ -345,14 +349,12 @@ def full_backtest_numba(
         if days[bar] != current_day:
             current_day = days[bar]
             daily_trades = 0
-            daily_pnl = 0.0
             daily_start_equity = equity
 
         # === Check position exit ===
         if in_pos:
             exited = False
             exit_price = 0.0
-            exit_size = pos_remaining_size
             partial_exit = False
             ml_triggered_exit = False
 
@@ -399,16 +401,17 @@ def full_backtest_numba(
                 # to avoid intrabar look-ahead bias. Management adjustments
                 # apply to the NEXT bar only.
                 # === SL/TP check (using pre-adjustment levels) ===
+                # SL exits get slippage (stop orders convert to market), TP exits don't (limit orders)
                 if pos_dir == 1:  # Long
                     if bar_low <= pos_sl:
-                        exit_price = pos_sl
+                        exit_price = pos_sl - slippage_pips * pip_size
                         exited = True
                     elif bar_high >= pos_tp:
                         exit_price = pos_tp
                         exited = True
                 else:  # Short
                     if bar_high >= pos_sl:
-                        exit_price = pos_sl
+                        exit_price = pos_sl + slippage_pips * pip_size
                         exited = True
                     elif bar_low <= pos_tp:
                         exit_price = pos_tp
@@ -499,7 +502,6 @@ def full_backtest_numba(
                             # Accumulate partial PnL - will be added to final exit trade
                             pos_partial_pnl += partial_pnl
                             equity += partial_pnl
-                            daily_pnl += partial_pnl
 
                             pos_remaining_size = pos_size * (1.0 - pct)
                             pos_partial_done = True
@@ -517,7 +519,6 @@ def full_backtest_numba(
 
                             pos_partial_pnl += partial_pnl
                             equity += partial_pnl
-                            daily_pnl += partial_pnl
 
                             pos_remaining_size = pos_size * (1.0 - pct)
                             pos_partial_done = True
@@ -543,7 +544,6 @@ def full_backtest_numba(
                 equity += pnl
                 equity_curve[n_trades] = equity
                 n_trades += 1
-                daily_pnl += pnl
 
                 # Track drawdown
                 if equity > peak_equity:
@@ -615,6 +615,8 @@ def full_backtest_numba(
         while sig_idx < n_signals and entry_bars[sig_idx] < bar:
             sig_idx += 1
 
+        bar_equity[bar] = equity
+
     # === Force close remaining position at end ===
     if in_pos and n_bars > 0:
         exit_price = closes[n_bars - 1]
@@ -655,7 +657,7 @@ def full_backtest_numba(
             gross_loss -= pnls[i]
 
     win_rate = wins / n_trades
-    pf = gross_profit / gross_loss if gross_loss > 0 else 0.0
+    pf = gross_profit / gross_loss if gross_loss > 0.01 else (100.0 if gross_profit > 0 else 0.0)
 
     # Sharpe ratio - FIX V4: annualize by actual trade frequency, not sqrt(252)
     mean_pnl = 0.0
@@ -681,21 +683,21 @@ def full_backtest_numba(
     if downside_dev > 0:
         sortino = np.sqrt(trades_per_year) * mean_pnl / downside_dev
     else:
-        # All trades profitable — cap at 100.0
-        sortino = 100.0 if mean_pnl > 0 else 0.0
+        sortino = 20.0 if mean_pnl > 0 else 0.0
+    sortino = min(sortino, 20.0)  # Cap: near-zero-loss regimes (e.g. BE offset = spread+slippage) blow up to infinity
 
-    # Ulcer Index: RMS of per-trade drawdown % from equity peak
+    # Ulcer Index: RMS of per-bar drawdown % from equity peak (calendar-time-aware)
     ulcer_sum = 0.0
-    eq_peak = equity_curve[0]
-    for i in range(n_trades):
-        if equity_curve[i] > eq_peak:
-            eq_peak = equity_curve[i]
+    eq_peak = initial_capital
+    for i in range(n_bars):
+        if bar_equity[i] > eq_peak:
+            eq_peak = bar_equity[i]
         if eq_peak > 0:
-            dd_pct = (eq_peak - equity_curve[i]) / eq_peak * 100.0
+            dd_pct = (eq_peak - bar_equity[i]) / eq_peak * 100.0
         else:
             dd_pct = 0.0
         ulcer_sum += dd_pct * dd_pct
-    ulcer = np.sqrt(ulcer_sum / n_trades) if n_trades > 0 else 0.0
+    ulcer = np.sqrt(ulcer_sum / n_bars) if n_bars > 0 else 0.0
 
     total_profit = equity - initial_capital
     total_ret = total_profit / initial_capital * 100
@@ -725,6 +727,7 @@ def basic_backtest_numba(
     quote_conversion_rate: float = 1.0,  # FIX V3: Quote currency to account currency rate
     bars_per_year: float = 5544.0,  # Fix Finding 11: configurable for different timeframes
     spread_pips: float = 0.0,  # Bid-ask spread in pips (deducted from PnL per trade)
+    slippage_pips: float = 0.0,  # Exit slippage in pips (applied to SL fills only, not TP)
 ) -> Tuple[int, float, float, float, float, float, float, float, float, float]:
     """
     Basic Numba backtest - SL/TP only, maximum speed.
@@ -762,6 +765,7 @@ def basic_backtest_numba(
     pos_size = 0.0
 
     n_bars = len(highs)
+    bar_equity = np.zeros(n_bars, dtype=np.float64)  # Per-bar realized equity for calendar-time Ulcer
 
     for bar in range(n_bars):
         # Check exit
@@ -771,14 +775,14 @@ def basic_backtest_numba(
 
             if pos_dir == 1:  # Long
                 if lows[bar] <= pos_sl:
-                    exit_price = pos_sl
+                    exit_price = pos_sl - slippage_pips * pip_size
                     exited = True
                 elif highs[bar] >= pos_tp:
                     exit_price = pos_tp
                     exited = True
             else:  # Short
                 if highs[bar] >= pos_sl:
-                    exit_price = pos_sl
+                    exit_price = pos_sl + slippage_pips * pip_size
                     exited = True
                 elif lows[bar] <= pos_tp:
                     exit_price = pos_tp
@@ -799,7 +803,7 @@ def basic_backtest_numba(
                 # Track drawdown
                 if equity > peak_equity:
                     peak_equity = equity
-                dd = (peak_equity - equity) / peak_equity
+                dd = (peak_equity - equity) / peak_equity if peak_equity > 0 else 0.0
                 if dd > max_dd:
                     max_dd = dd
 
@@ -822,6 +826,8 @@ def basic_backtest_numba(
         # Advance past expired signals (matching full_backtest_numba behavior)
         while sig_idx < n_signals and entry_bars[sig_idx] < bar:
             sig_idx += 1
+
+        bar_equity[bar] = equity
 
     # Force close remaining position
     if in_pos and n_bars > 0:
@@ -861,7 +867,7 @@ def basic_backtest_numba(
             gross_loss -= pnls[i]
 
     win_rate = wins / n_trades
-    pf = gross_profit / gross_loss if gross_loss > 0 else 0.0
+    pf = gross_profit / gross_loss if gross_loss > 0.01 else (100.0 if gross_profit > 0 else 0.0)
 
     # Sharpe ratio - FIX V4: annualize by actual trade frequency
     mean_pnl = 0.0
@@ -887,20 +893,21 @@ def basic_backtest_numba(
     if downside_dev > 0:
         sortino = np.sqrt(trades_per_year) * mean_pnl / downside_dev
     else:
-        sortino = 100.0 if mean_pnl > 0 else 0.0
+        sortino = 20.0 if mean_pnl > 0 else 0.0
+    sortino = min(sortino, 20.0)  # Cap: near-zero-loss regimes blow up to infinity
 
-    # Ulcer Index: RMS of per-trade drawdown % from equity peak
+    # Ulcer Index: RMS of per-bar drawdown % from equity peak (calendar-time-aware)
     ulcer_sum = 0.0
-    eq_peak = equity_curve[0]
-    for i in range(n_trades):
-        if equity_curve[i] > eq_peak:
-            eq_peak = equity_curve[i]
+    eq_peak = initial_capital
+    for i in range(n_bars):
+        if bar_equity[i] > eq_peak:
+            eq_peak = bar_equity[i]
         if eq_peak > 0:
-            dd_pct = (eq_peak - equity_curve[i]) / eq_peak * 100.0
+            dd_pct = (eq_peak - bar_equity[i]) / eq_peak * 100.0
         else:
             dd_pct = 0.0
         ulcer_sum += dd_pct * dd_pct
-    ulcer = np.sqrt(ulcer_sum / n_trades) if n_trades > 0 else 0.0
+    ulcer = np.sqrt(ulcer_sum / n_bars) if n_bars > 0 else 0.0
 
     total_profit = equity - initial_capital
     total_ret = total_profit / initial_capital * 100
@@ -972,6 +979,7 @@ def full_backtest_with_trades(
 
     # === Spread modeling ===
     spread_pips: float = 0.0,  # Bid-ask spread in pips (deducted from PnL per trade)
+    slippage_pips: float = 0.0,  # Exit slippage in pips (applied to SL fills only, not TP)
 ) -> Tuple[np.ndarray, np.ndarray, int, float, float, float, float, float, float, float, float, float]:
     """
     Full-featured backtest that RETURNS trade PnL array for Monte Carlo analysis.
@@ -993,6 +1001,7 @@ def full_backtest_with_trades(
     max_trades = n_signals * 2
     pnls = np.zeros(max_trades, dtype=np.float64)
     equity_curve = np.zeros(max_trades, dtype=np.float64)
+    bar_equity = np.zeros(n_bars, dtype=np.float64)  # Per-bar realized equity for calendar-time Ulcer
     n_trades = 0
 
     # Account tracking
@@ -1003,7 +1012,6 @@ def full_backtest_with_trades(
     # Daily tracking
     current_day = -1
     daily_trades = 0
-    daily_pnl = 0.0
     daily_start_equity = initial_capital
 
     # Position state
@@ -1032,14 +1040,12 @@ def full_backtest_with_trades(
         if days[bar] != current_day:
             current_day = days[bar]
             daily_trades = 0
-            daily_pnl = 0.0
             daily_start_equity = equity
 
         # Check position exit
         if in_pos:
             exited = False
             exit_price = 0.0
-            exit_size = pos_remaining_size
 
             bar_high = highs[bar]
             bar_low = lows[bar]
@@ -1080,16 +1086,17 @@ def full_backtest_with_trades(
                 # Fix Finding 3: Check SL/TP BEFORE management adjustments
                 # to avoid intrabar look-ahead bias.
                 # === SL/TP check (using pre-adjustment levels) ===
+                # SL exits get slippage (stop orders), TP exits don't (limit orders)
                 if pos_dir == 1:
                     if bar_low <= pos_sl:
-                        exit_price = pos_sl
+                        exit_price = pos_sl - slippage_pips * pip_size
                         exited = True
                     elif bar_high >= pos_tp:
                         exit_price = pos_tp
                         exited = True
                 else:
                     if bar_high >= pos_sl:
-                        exit_price = pos_sl
+                        exit_price = pos_sl + slippage_pips * pip_size
                         exited = True
                     elif bar_low <= pos_tp:
                         exit_price = pos_tp
@@ -1179,7 +1186,6 @@ def full_backtest_with_trades(
 
                             pos_partial_pnl += partial_pnl
                             equity += partial_pnl
-                            daily_pnl += partial_pnl
 
                             pos_remaining_size = pos_size * (1.0 - pct)
                             pos_partial_done = True
@@ -1197,7 +1203,6 @@ def full_backtest_with_trades(
 
                             pos_partial_pnl += partial_pnl
                             equity += partial_pnl
-                            daily_pnl += partial_pnl
 
                             pos_remaining_size = pos_size * (1.0 - pct)
                             pos_partial_done = True
@@ -1221,7 +1226,6 @@ def full_backtest_with_trades(
                 equity += pnl
                 equity_curve[n_trades] = equity
                 n_trades += 1
-                daily_pnl += pnl
 
                 if equity > peak_equity:
                     peak_equity = equity
@@ -1277,6 +1281,8 @@ def full_backtest_with_trades(
         while sig_idx < n_signals and entry_bars[sig_idx] < bar:
             sig_idx += 1
 
+        bar_equity[bar] = equity
+
     # Force close remaining position
     if in_pos and n_bars > 0:
         exit_price = closes[n_bars - 1]
@@ -1318,7 +1324,7 @@ def full_backtest_with_trades(
             gross_loss -= pnls_out[i]
 
     win_rate = wins / n_trades
-    pf = gross_profit / gross_loss if gross_loss > 0 else 0.0
+    pf = gross_profit / gross_loss if gross_loss > 0.01 else (100.0 if gross_profit > 0 else 0.0)
 
     # Sharpe ratio - FIX V4: annualize by actual trade frequency
     mean_pnl = 0.0
@@ -1344,20 +1350,21 @@ def full_backtest_with_trades(
     if downside_dev > 0:
         sortino = np.sqrt(trades_per_year) * mean_pnl / downside_dev
     else:
-        sortino = 100.0 if mean_pnl > 0 else 0.0
+        sortino = 20.0 if mean_pnl > 0 else 0.0
+    sortino = min(sortino, 20.0)  # Cap: near-zero-loss regimes blow up to infinity
 
-    # Ulcer Index
+    # Ulcer Index: RMS of per-bar drawdown % from equity peak (calendar-time-aware)
     ulcer_sum = 0.0
-    eq_peak = equity_out[0]
-    for i in range(n_trades):
-        if equity_out[i] > eq_peak:
-            eq_peak = equity_out[i]
+    eq_peak = initial_capital
+    for i in range(n_bars):
+        if bar_equity[i] > eq_peak:
+            eq_peak = bar_equity[i]
         if eq_peak > 0:
-            dd_pct = (eq_peak - equity_out[i]) / eq_peak * 100.0
+            dd_pct = (eq_peak - bar_equity[i]) / eq_peak * 100.0
         else:
             dd_pct = 0.0
         ulcer_sum += dd_pct * dd_pct
-    ulcer = np.sqrt(ulcer_sum / n_trades) if n_trades > 0 else 0.0
+    ulcer = np.sqrt(ulcer_sum / n_bars) if n_bars > 0 else 0.0
 
     total_profit = equity - initial_capital
     total_ret = total_profit / initial_capital * 100
@@ -1429,6 +1436,7 @@ def full_backtest_with_telemetry(
 
     # === Spread modeling ===
     spread_pips: float = 0.0,  # Bid-ask spread in pips (deducted from PnL per trade)
+    slippage_pips: float = 0.0,  # Exit slippage in pips (applied to SL fills only, not TP)
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray,
            np.ndarray, np.ndarray, np.ndarray, int, float, float, float, float, float, float, float, float, float]:
     """
@@ -1461,6 +1469,7 @@ def full_backtest_with_telemetry(
     max_trades = n_signals * 2
     pnls = np.zeros(max_trades, dtype=np.float64)
     equity_curve = np.zeros(max_trades, dtype=np.float64)
+    bar_equity = np.zeros(n_bars, dtype=np.float64)  # Per-bar realized equity for calendar-time Ulcer
     # Telemetry arrays
     exit_reasons = np.zeros(max_trades, dtype=np.int64)
     bars_held_arr = np.zeros(max_trades, dtype=np.int64)
@@ -1479,7 +1488,6 @@ def full_backtest_with_telemetry(
     # Daily tracking
     current_day = -1
     daily_trades = 0
-    daily_pnl = 0.0
     daily_start_equity = initial_capital
 
     # Position state
@@ -1516,14 +1524,12 @@ def full_backtest_with_telemetry(
         if days[bar] != current_day:
             current_day = days[bar]
             daily_trades = 0
-            daily_pnl = 0.0
             daily_start_equity = equity
 
         # Check position exit
         if in_pos:
             exited = False
             exit_price = 0.0
-            exit_size = pos_remaining_size
             pos_exit_reason = 0  # default SL
             ml_triggered_exit = False
 
@@ -1574,9 +1580,10 @@ def full_backtest_with_telemetry(
 
             if not exited:
                 # Fix Finding 3: Check SL/TP BEFORE management adjustments
+                # SL exits get slippage (stop orders), TP exits don't (limit orders)
                 if pos_dir == 1:
                     if bar_low <= pos_sl:
-                        exit_price = pos_sl
+                        exit_price = pos_sl - slippage_pips * pip_size
                         # Distinguish trailing SL from initial SL
                         if pos_trail_active:
                             pos_exit_reason = 2  # trailing
@@ -1589,7 +1596,7 @@ def full_backtest_with_telemetry(
                         exited = True
                 else:
                     if bar_high >= pos_sl:
-                        exit_price = pos_sl
+                        exit_price = pos_sl + slippage_pips * pip_size
                         if pos_trail_active:
                             pos_exit_reason = 2  # trailing
                         else:
@@ -1683,7 +1690,6 @@ def full_backtest_with_telemetry(
 
                             pos_partial_pnl += partial_pnl
                             equity += partial_pnl
-                            daily_pnl += partial_pnl
 
                             pos_remaining_size = pos_size * (1.0 - pct)
                             pos_partial_done = True
@@ -1701,7 +1707,6 @@ def full_backtest_with_telemetry(
 
                             pos_partial_pnl += partial_pnl
                             equity += partial_pnl
-                            daily_pnl += partial_pnl
 
                             pos_remaining_size = pos_size * (1.0 - pct)
                             pos_partial_done = True
@@ -1723,7 +1728,6 @@ def full_backtest_with_telemetry(
                 pnls[n_trades] = pnl + pos_partial_pnl
                 equity += pnl
                 equity_curve[n_trades] = equity
-                daily_pnl += pnl
 
                 # Record telemetry
                 exit_reasons[n_trades] = pos_exit_reason
@@ -1812,6 +1816,8 @@ def full_backtest_with_telemetry(
         while sig_idx < n_signals and entry_bars[sig_idx] < bar:
             sig_idx += 1
 
+        bar_equity[bar] = equity
+
     # Force close remaining position
     if in_pos and n_bars > 0:
         exit_price = closes[n_bars - 1]
@@ -1876,7 +1882,7 @@ def full_backtest_with_telemetry(
             gross_loss -= pnls_out[i]
 
     win_rate = wins / n_trades
-    pf = gross_profit / gross_loss if gross_loss > 0 else 0.0
+    pf = gross_profit / gross_loss if gross_loss > 0.01 else (100.0 if gross_profit > 0 else 0.0)
 
     # Sharpe ratio
     mean_pnl = 0.0
@@ -1901,20 +1907,21 @@ def full_backtest_with_telemetry(
     if downside_dev > 0:
         sortino = np.sqrt(trades_per_year) * mean_pnl / downside_dev
     else:
-        sortino = 100.0 if mean_pnl > 0 else 0.0
+        sortino = 20.0 if mean_pnl > 0 else 0.0
+    sortino = min(sortino, 20.0)  # Cap: near-zero-loss regimes blow up to infinity
 
-    # Ulcer Index
+    # Ulcer Index: RMS of per-bar drawdown % from equity peak (calendar-time-aware)
     ulcer_sum = 0.0
-    eq_peak = equity_out[0]
-    for i in range(n_trades):
-        if equity_out[i] > eq_peak:
-            eq_peak = equity_out[i]
+    eq_peak = initial_capital
+    for i in range(n_bars):
+        if bar_equity[i] > eq_peak:
+            eq_peak = bar_equity[i]
         if eq_peak > 0:
-            dd_pct = (eq_peak - equity_out[i]) / eq_peak * 100.0
+            dd_pct = (eq_peak - bar_equity[i]) / eq_peak * 100.0
         else:
             dd_pct = 0.0
         ulcer_sum += dd_pct * dd_pct
-    ulcer = np.sqrt(ulcer_sum / n_trades) if n_trades > 0 else 0.0
+    ulcer = np.sqrt(ulcer_sum / n_bars) if n_bars > 0 else 0.0
 
     total_profit = equity - initial_capital
     total_ret = total_profit / initial_capital * 100
@@ -2065,6 +2072,7 @@ def grid_backtest_numba(
     quote_conversion_rate: float = 1.0,
     bars_per_year: float = 5544.0,
     spread_pips: float = 0.0,
+    slippage_pips: float = 0.0,  # Exit slippage in pips (applied to SL fills only, not TP)
 ) -> Tuple[int, float, float, float, float, float, float, float, float, float]:
     """
     Grid backtest engine supporting multiple concurrent positions.
@@ -2102,6 +2110,7 @@ def grid_backtest_numba(
     max_trades = n_signals * 2
     pnls = np.zeros(max_trades, dtype=np.float64)
     equity_curve = np.zeros(max_trades, dtype=np.float64)
+    bar_equity = np.zeros(n_bars, dtype=np.float64)  # Per-bar realized equity for calendar-time Ulcer
     n_trades = 0
 
     # Account tracking
@@ -2126,14 +2135,14 @@ def grid_backtest_numba(
 
             if pos_dir[p] == 1:  # Long
                 if bar_low <= pos_sl[p]:
-                    exit_price = pos_sl[p]
+                    exit_price = pos_sl[p] - slippage_pips * pip_size
                     exited = True
                 elif bar_high >= pos_tp[p]:
                     exit_price = pos_tp[p]
                     exited = True
             else:  # Short
                 if bar_high >= pos_sl[p]:
-                    exit_price = pos_sl[p]
+                    exit_price = pos_sl[p] + slippage_pips * pip_size
                     exited = True
                 elif bar_low <= pos_tp[p]:
                     exit_price = pos_tp[p]
@@ -2189,6 +2198,8 @@ def grid_backtest_numba(
         while sig_idx < n_signals and entry_bars[sig_idx] < bar:
             sig_idx += 1
 
+        bar_equity[bar] = equity
+
     # === Force close remaining positions ===
     if n_bars > 0:
         for p in range(MAX_POS):
@@ -2231,7 +2242,7 @@ def grid_backtest_numba(
             gross_loss -= pnls[i]
 
     win_rate = wins / n_trades
-    pf = gross_profit / gross_loss if gross_loss > 0 else 0.0
+    pf = gross_profit / gross_loss if gross_loss > 0.01 else (100.0 if gross_profit > 0 else 0.0)
 
     mean_pnl = 0.0
     for i in range(n_trades):
@@ -2255,20 +2266,21 @@ def grid_backtest_numba(
     if downside_dev > 0:
         sortino = np.sqrt(trades_per_year) * mean_pnl / downside_dev
     else:
-        sortino = 100.0 if mean_pnl > 0 else 0.0
+        sortino = 20.0 if mean_pnl > 0 else 0.0
+    sortino = min(sortino, 20.0)  # Cap: near-zero-loss regimes blow up to infinity
 
-    # Ulcer Index
+    # Ulcer Index: RMS of per-bar drawdown % from equity peak (calendar-time-aware)
     ulcer_sum = 0.0
-    eq_peak = equity_curve[0]
-    for i in range(n_trades):
-        if equity_curve[i] > eq_peak:
-            eq_peak = equity_curve[i]
+    eq_peak = initial_capital
+    for i in range(n_bars):
+        if bar_equity[i] > eq_peak:
+            eq_peak = bar_equity[i]
         if eq_peak > 0:
-            dd_pct = (eq_peak - equity_curve[i]) / eq_peak * 100.0
+            dd_pct = (eq_peak - bar_equity[i]) / eq_peak * 100.0
         else:
             dd_pct = 0.0
         ulcer_sum += dd_pct * dd_pct
-    ulcer = np.sqrt(ulcer_sum / n_trades) if n_trades > 0 else 0.0
+    ulcer = np.sqrt(ulcer_sum / n_bars) if n_bars > 0 else 0.0
 
     total_profit = equity - initial_capital
     total_ret = total_profit / initial_capital * 100
@@ -2297,6 +2309,7 @@ def grid_backtest_with_trades(
     quote_conversion_rate: float = 1.0,
     bars_per_year: float = 5544.0,
     spread_pips: float = 0.0,
+    slippage_pips: float = 0.0,  # Exit slippage in pips (applied to SL fills only, not TP)
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, int, float, float, float, float, float, float, float, float, float]:
     """
     Grid backtest that RETURNS trade PnL array + group_ids for Monte Carlo analysis.
@@ -2325,6 +2338,7 @@ def grid_backtest_with_trades(
     max_trades = n_signals * 2
     pnls = np.zeros(max_trades, dtype=np.float64)
     equity_curve = np.zeros(max_trades, dtype=np.float64)
+    bar_equity = np.zeros(n_bars, dtype=np.float64)  # Per-bar realized equity for calendar-time Ulcer
     trade_groups = np.zeros(max_trades, dtype=np.int64)
     n_trades = 0
 
@@ -2344,14 +2358,14 @@ def grid_backtest_with_trades(
 
             if pos_dir[p] == 1:
                 if lows[bar] <= pos_sl[p]:
-                    exit_price = pos_sl[p]
+                    exit_price = pos_sl[p] - slippage_pips * pip_size
                     exited = True
                 elif highs[bar] >= pos_tp[p]:
                     exit_price = pos_tp[p]
                     exited = True
             else:
                 if highs[bar] >= pos_sl[p]:
-                    exit_price = pos_sl[p]
+                    exit_price = pos_sl[p] + slippage_pips * pip_size
                     exited = True
                 elif lows[bar] <= pos_tp[p]:
                     exit_price = pos_tp[p]
@@ -2406,6 +2420,8 @@ def grid_backtest_with_trades(
         while sig_idx < n_signals and entry_bars[sig_idx] < bar:
             sig_idx += 1
 
+        bar_equity[bar] = equity
+
     # Force close remaining positions
     if n_bars > 0:
         for p in range(MAX_POS):
@@ -2451,7 +2467,7 @@ def grid_backtest_with_trades(
             gross_loss -= pnls[i]
 
     win_rate = wins / n_trades
-    pf = gross_profit / gross_loss if gross_loss > 0 else 0.0
+    pf = gross_profit / gross_loss if gross_loss > 0.01 else (100.0 if gross_profit > 0 else 0.0)
 
     mean_pnl = 0.0
     for i in range(n_trades):
@@ -2474,19 +2490,21 @@ def grid_backtest_with_trades(
     if downside_dev > 0:
         sortino = np.sqrt(trades_per_year) * mean_pnl / downside_dev
     else:
-        sortino = 100.0 if mean_pnl > 0 else 0.0
+        sortino = 20.0 if mean_pnl > 0 else 0.0
+    sortino = min(sortino, 20.0)  # Cap: near-zero-loss regimes blow up to infinity
 
+    # Ulcer Index: RMS of per-bar drawdown % from equity peak (calendar-time-aware)
     ulcer_sum = 0.0
-    eq_peak = equity_curve[0]
-    for i in range(n_trades):
-        if equity_curve[i] > eq_peak:
-            eq_peak = equity_curve[i]
+    eq_peak = initial_capital
+    for i in range(n_bars):
+        if bar_equity[i] > eq_peak:
+            eq_peak = bar_equity[i]
         if eq_peak > 0:
-            dd_pct = (eq_peak - equity_curve[i]) / eq_peak * 100.0
+            dd_pct = (eq_peak - bar_equity[i]) / eq_peak * 100.0
         else:
             dd_pct = 0.0
         ulcer_sum += dd_pct * dd_pct
-    ulcer = np.sqrt(ulcer_sum / n_trades) if n_trades > 0 else 0.0
+    ulcer = np.sqrt(ulcer_sum / n_bars) if n_bars > 0 else 0.0
 
     total_profit = equity - initial_capital
     total_ret = total_profit / initial_capital * 100
@@ -2516,6 +2534,7 @@ def grid_backtest_with_telemetry(
     quote_conversion_rate: float = 1.0,
     bars_per_year: float = 5544.0,
     spread_pips: float = 0.0,
+    slippage_pips: float = 0.0,  # Exit slippage in pips (applied to SL fills only, not TP)
 ):
     """
     Grid backtest with full per-trade telemetry for report visualization.
@@ -2559,6 +2578,7 @@ def grid_backtest_with_telemetry(
     max_trades = n_signals * 2
     pnls = np.zeros(max_trades, dtype=np.float64)
     equity_curve = np.zeros(max_trades, dtype=np.float64)
+    bar_equity = np.zeros(n_bars, dtype=np.float64)  # Per-bar realized equity for calendar-time Ulcer
     exit_reasons = np.zeros(max_trades, dtype=np.int64)
     bars_held_arr = np.zeros(max_trades, dtype=np.int64)
     entry_bar_indices = np.zeros(max_trades, dtype=np.int64)
@@ -2601,7 +2621,7 @@ def grid_backtest_with_telemetry(
 
             if pos_dir[p] == 1:  # Long
                 if lows[bar] <= pos_sl[p]:
-                    exit_price = pos_sl[p]
+                    exit_price = pos_sl[p] - slippage_pips * pip_size
                     exit_reason = 0  # SL
                     exited = True
                 elif highs[bar] >= pos_tp[p]:
@@ -2610,7 +2630,7 @@ def grid_backtest_with_telemetry(
                     exited = True
             else:  # Short
                 if highs[bar] >= pos_sl[p]:
-                    exit_price = pos_sl[p]
+                    exit_price = pos_sl[p] + slippage_pips * pip_size
                     exit_reason = 0  # SL
                     exited = True
                 elif lows[bar] <= pos_tp[p]:
@@ -2682,6 +2702,8 @@ def grid_backtest_with_telemetry(
         while sig_idx < n_signals and entry_bars[sig_idx] < bar:
             sig_idx += 1
 
+        bar_equity[bar] = equity
+
     # Force close remaining positions
     if n_bars > 0:
         for p in range(MAX_POS):
@@ -2744,7 +2766,7 @@ def grid_backtest_with_telemetry(
             gross_loss -= pnls[i]
 
     win_rate = wins / n_trades
-    pf = gross_profit / gross_loss if gross_loss > 0 else 0.0
+    pf = gross_profit / gross_loss if gross_loss > 0.01 else (100.0 if gross_profit > 0 else 0.0)
 
     mean_pnl = 0.0
     for i in range(n_trades):
@@ -2767,19 +2789,21 @@ def grid_backtest_with_telemetry(
     if downside_dev > 0:
         sortino = np.sqrt(trades_per_year) * mean_pnl / downside_dev
     else:
-        sortino = 100.0 if mean_pnl > 0 else 0.0
+        sortino = 20.0 if mean_pnl > 0 else 0.0
+    sortino = min(sortino, 20.0)  # Cap: near-zero-loss regimes blow up to infinity
 
+    # Ulcer Index: RMS of per-bar drawdown % from equity peak (calendar-time-aware)
     ulcer_sum = 0.0
-    eq_peak = equity_curve[0]
-    for i in range(n_trades):
-        if equity_curve[i] > eq_peak:
-            eq_peak = equity_curve[i]
+    eq_peak = initial_capital
+    for i in range(n_bars):
+        if bar_equity[i] > eq_peak:
+            eq_peak = bar_equity[i]
         if eq_peak > 0:
-            dd_pct = (eq_peak - equity_curve[i]) / eq_peak * 100.0
+            dd_pct = (eq_peak - bar_equity[i]) / eq_peak * 100.0
         else:
             dd_pct = 0.0
         ulcer_sum += dd_pct * dd_pct
-    ulcer = np.sqrt(ulcer_sum / n_trades) if n_trades > 0 else 0.0
+    ulcer = np.sqrt(ulcer_sum / n_bars) if n_bars > 0 else 0.0
 
     total_profit = equity - initial_capital
     total_ret = total_profit / initial_capital * 100

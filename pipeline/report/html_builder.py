@@ -34,19 +34,16 @@ def build_report_html(data: Dict[str, Any]) -> str:
 
     # Pre-generate all chart JSON
     initial_capital = data.get('config', {}).get('initial_capital', 10000)
+    equity_json = equity_curve(
+        data.get('back_equity', []),
+        data.get('forward_equity', []),
+        initial_capital,
+    )
     charts = {
         'gauge': confidence_gauge(score, rating),
-        'dash_equity': equity_curve(
-            data.get('back_equity', []),
-            data.get('forward_equity', []),
-            initial_capital,
-        ),
+        'dash_equity': equity_json,
         'score_bar': score_breakdown_bar(confidence),
-        'equity': equity_curve(
-            data.get('back_equity', []),
-            data.get('forward_equity', []),
-            initial_capital,
-        ),
+        'equity': equity_json,
         'drawdown': drawdown_chart(data.get('drawdown_curve', [])),
         'monthly': monthly_heatmap(data.get('monthly_returns', {})),
         'yearly': yearly_bars(data.get('monthly_returns', {})),

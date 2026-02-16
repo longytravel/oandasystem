@@ -26,8 +26,10 @@ def find_broken_runs(pipelines_dir: Path):
         if not rd_path.exists() or not state_path.exists():
             continue
         try:
-            rd = json.load(open(rd_path))
-            st = json.load(open(state_path))
+            with open(rd_path) as f:
+                rd = json.load(f)
+            with open(state_path) as f:
+                st = json.load(f)
         except (json.JSONDecodeError, OSError):
             continue
 

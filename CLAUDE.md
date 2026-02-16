@@ -5,16 +5,16 @@
 Python-based algorithmic trading system using OANDA API with a 7-stage optimization pipeline (Data -> Optimization -> Walk-Forward -> Stability -> Monte Carlo -> Confidence -> Report).
 
 Key directories:
-- `strategies/` - Strategy implementations (V1-V5 RSI divergence, V6 EMA cross)
-- `pipeline/` - Pipeline stages (`stages/s1-s7_*.py`), config, state, ML exit, report generation
+- `strategies/` - Strategy implementations (V3-V5 RSI divergence, V6 EMA cross, Fair Price MA, RSI Fast). Archived: `strategies/archive/` (V1, V2, trend_simple)
+- `pipeline/` - Pipeline stages (`stages/s1-s7_*.py`), config, state, report generation. Archived: `pipeline/archive/ml_exit/` (ML exit code, concluded as dead end)
 - `optimization/` - Optuna optimizer (`unified_optimizer.py`), numba backtesting, ML features
 - `live/` - Live/paper trading (trader.py, oanda_client.py, position_manager.py, pipeline_adapter.py)
 - `data/` - Data download and caching (M1 parquet -> any timeframe)
 - `results/pipelines/` - Pipeline run outputs (each run gets a unique timestamped directory)
 - `config/` - Settings, exported parameter files
-- `docs/` - Documentation (README, SYSTEM, STRATEGY_EVOLUTION, KNOWN_ISSUES)
+- `docs/` - Documentation (README, SYSTEM, STRATEGY_EVOLUTION, KNOWN_ISSUES). Archived: `docs/archive/`
 
-Best strategy: V3 RSI Divergence (89.8/100 GREEN on H1, 87.2/100 GREEN on M15).
+Best strategy: V3 RSI Divergence (89.8/100 GREEN on H1, 87.2/100 GREEN on M15). Note: these scores are pre-exit-slippage-model (added Feb 16). M15 results are invalidated by slippage; H1 results less affected but need re-validation.
 
 ## Critical Rules
 

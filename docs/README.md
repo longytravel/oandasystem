@@ -52,18 +52,11 @@ python scripts/run_multi_symbol.py --strategy Simple_Trend
 ### Archived (Historical Reference)
 | Doc | Purpose |
 |-----|---------|
-| [archive/ML_EXIT_PROGRAM.md](archive/ML_EXIT_PROGRAM.md) | ML exit development program (concluded: neutral) |
-| [archive/ML_EXIT_V2.md](archive/ML_EXIT_V2.md) | ML exit V2 research (concluded: neutral) |
-| [archive/ML_ENTRY_FILTER.md](archive/ML_ENTRY_FILTER.md) | ML entry filter experiments (concluded: neutral) |
-| [archive/HANDOVER_sprint5.md](archive/HANDOVER_sprint5.md) | Sprint 5 ML exit handover |
+| [archive/ML_EXIT_PROGRAM.md](archive/ML_EXIT_PROGRAM.md) | ML exit development program (concluded: dead end) |
 | [archive/EXIT_FIRST_ML_DEVELOPMENT_WRITEUP.md](archive/EXIT_FIRST_ML_DEVELOPMENT_WRITEUP.md) | Original ML exit writeup (reference) |
 | [archive/chatGPTMLresearch.txt](archive/chatGPTMLresearch.txt) | ChatGPT ML research notes |
 | [archive/PROJECT_PLAN.md](archive/PROJECT_PLAN.md) | Original project plan (2026-02-01) |
 | [archive/HANDOVER.md](archive/HANDOVER.md) | Development session notes (2026-02-02/03) |
-| [archive/V2_IMPROVEMENTS.md](archive/V2_IMPROVEMENTS.md) | V2 strategy features (superseded by V3+) |
-| [archive/ROBUSTNESS_ANALYSIS.md](archive/ROBUSTNESS_ANALYSIS.md) | EUR vs GBP pair analysis |
-| [archive/OPTIMIZATION_IMPROVEMENTS.md](archive/OPTIMIZATION_IMPROVEMENTS.md) | Speed improvement ideas |
-| [archive/PLAN-team-dashboard.md](archive/PLAN-team-dashboard.md) | Agent team dashboard proposal |
 
 ## Key Directories
 
@@ -77,10 +70,12 @@ python scripts/run_multi_symbol.py --strategy Simple_Trend
 
 ## Current Strategies
 
+> **Note:** All scores below are pre-exit-slippage-model (slippage added Feb 16, 2026). M15 results are particularly affected and considered invalid without re-optimization. H1 results are less affected but need re-validation.
+
 | Strategy | File | Params | Best Score (H1) | Best Score (M15) | Notes |
 |----------|------|--------|-----------------|-------------------|-------|
-| RSI Divergence v1 | `rsi_full.py` | 35 | 93/100 GREEN | - | Original, fragile params |
-| RSI Divergence v2 | `rsi_full_v2.py` | 35 | - | - | Stability fixes |
+| RSI Divergence v1 | archived | 35 | 93/100 GREEN | - | Archived to `strategies/archive/` |
+| RSI Divergence v2 | archived | 35 | - | - | Archived to `strategies/archive/` |
 | RSI Divergence v3 | `rsi_full_v3.py` | 32 | 89.8/100 GREEN | 87.2/100 GREEN | **Recommended** - stability-hardened |
 | RSI Divergence v4 | `rsi_full_v4.py` | 34 | 81.5/100 GREEN | - | Trade management optimization |
 | RSI Divergence v5 | `rsi_full_v5.py` | 37 | 71.8/100 GREEN | - | Chandelier + stale exit |
@@ -98,8 +93,8 @@ python scripts/run_multi_symbol.py --strategy Simple_Trend
 - [x] HTML report generation (7-tab interactive dashboard)
 - [x] Multi-symbol parallel testing
 - [x] Paper/live trading infrastructure
-- [x] ML exit model (concluded: neutral across 5 A/B tests)
-- [x] ML entry filter (concluded: neutral across 7 A/B tests)
+- [x] ML exit model (concluded: dead end, code archived to `pipeline/archive/ml_exit/`)
+- [x] ML entry filter (concluded: dead end, 8 A/B tests all neutral)
 - [x] VPS deployment (Windows Server)
 - [ ] Telegram alerts (implemented, not wired in)
 - [ ] Multi-pair simultaneous trading

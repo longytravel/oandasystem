@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 from loguru import logger
 
-from strategies.rsi_full import RSIDivergenceFullFast
+from pipeline.stages.s2_optimization import get_strategy
 from optimization.unified_optimizer import UnifiedOptimizer
 from optimization.numba_backtest import full_backtest_numba
 
@@ -129,6 +129,8 @@ def run_backtest_get_equity(strategy, params, df, pip_size, spread_pips=1.5):
         params.get('max_daily_trades', 0),
         params.get('max_daily_loss_pct', 0.0),
         quality_mult,
+        spread_pips=spread_pips,
+        slippage_pips=0.5,
     )
 
     # Reconstruct equity curve from trades
@@ -303,7 +305,7 @@ def plot_stability(pair: str, timeframe: str = 'H1', config_path: str = None):
     print(f"Forward: {df_forward.index[0]} to {df_forward.index[-1]} ({len(df_forward)} bars)")
 
     # Initialize strategy
-    strategy = RSIDivergenceFullFast()
+    strategy = get_strategy('RSI_Divergence_v3')
     strategy.set_pip_size(pair)
     pip_size = strategy._pip_size
 

@@ -1,6 +1,6 @@
 # OANDA Trading System - Developer Guide
 
-**Last Updated:** 2026-02-10
+**Last Updated:** 2026-02-16
 
 ---
 
@@ -25,7 +25,7 @@ python scripts/run_pipeline.py --pair GBP_USD --timeframe H1 --strategy rsi_full
 python scripts/run_live.py --strategy rsi_v3 --from-run GBP_USD_M15_20260210_063223
 ```
 
-**IMPORTANT:** `--test-months` defaults to 3 in CLI, overriding config.py's default of 6. Always specify explicitly.
+**Note:** CLI defaults now match config.py (both default to `--test-months 6`).
 
 ---
 
@@ -80,16 +80,11 @@ oandasystem/
 |   |   +-- data_collector.py    # Gathers data from all stages
 |   |   +-- chart_generators.py  # Plotly chart generation
 |   |   +-- html_builder.py      # 7-tab HTML dashboard builder
-|   +-- ml_exit/                 # ML exit model package (concluded neutral)
-|       +-- features.py          # 14-feature computation
-|       +-- labeling.py          # Trade outcome labeling
-|       +-- dataset_builder.py   # Training dataset construction
-|       +-- train.py             # CatBoost/sklearn model training
-|       +-- inference.py         # Per-bar score generation
-|       +-- policy.py            # Exit decision policy
+|   +-- archive/
+|       +-- ml_exit/             # ML exit model package (archived, concluded neutral)
 |
 +-- optimization/                # CORE: Fast backtesting engine
-|   +-- numba_backtest.py        # Numba JIT backtester (3 functions)
+|   +-- numba_backtest.py        # Numba JIT backtester (7 functions)
 |   +-- unified_optimizer.py     # Optuna + staged optimization
 |   +-- fast_strategy.py         # Strategy interface for optimization
 |   +-- ml_features.py           # ML feature computation (8 OHLC features)
@@ -106,6 +101,7 @@ oandasystem/
 |   +-- rsi_full_v4.py           # V4: + BE/trail chaining (34 params)
 |   +-- rsi_full_v5.py           # V5: + chandelier/stale exit (37 params)
 |   +-- ema_cross_ml.py          # V6: EMA cross (6 params)
+|   +-- fair_price_ma.py         # Fair Price MA (deployed EUR_JPY H1, EUR_AUD H1)
 |   +-- rsi_divergence.py        # Legacy (not used by pipeline)
 |   +-- rsi_fast.py              # Strategy registry helper
 |   +-- trend_simple.py          # Simple trend (6 params, baseline)
@@ -129,9 +125,6 @@ oandasystem/
 |   +-- plot_stability.py        # Stability chart visualization
 |   +-- run_optimization.py      # Standalone optimization (legacy)
 |   +-- run_robust_optimization.py # Robust optimization (legacy)
-|
-+-- backtesting/                 # Legacy backtest engine (NOT used by pipeline)
-|   +-- engine.py                # Old Python backtester
 |
 +-- config/                      # Configuration
 |   +-- settings.py              # Global settings from .env
@@ -174,7 +167,7 @@ oandasystem/
 ### 2. Optimization Engine
 | File | Purpose | Key |
 |------|---------|-----|
-| `optimization/numba_backtest.py` | Numba JIT backtester | 3 functions: basic, full, full_with_trades |
+| `optimization/numba_backtest.py` | Numba JIT backtester | 7 functions: basic, full, full_with_trades + entry/exit slippage variants |
 | `optimization/unified_optimizer.py` | Optuna + staged optimization + stability testing | 5 stages + final |
 | `optimization/fast_strategy.py` | Strategy interface | precompute, filter_signals, compute_sl_tp |
 | `optimization/ml_features.py` | ML feature computation | 8 OHLC features, direction-aware scoring |
@@ -219,7 +212,7 @@ OANDA_ACCOUNT_ID=xxx-xxx-xxxxxxx-xxx
 ### Pipeline Config (pipeline/config.py) - Key Values
 ```python
 # Data
-data.years = 3.0         # 3yr sweet spot (5yr too long, 2yr too few windows)
+data.years = 4.0         # 4yr = ~11 WF windows (5yr too long, 2yr too few windows)
 data.back_pct = 0.8      # 80% back, 20% forward
 
 # Optimization
@@ -229,7 +222,7 @@ optimization.top_n_candidates = 20
 
 # Walk-Forward
 walkforward.train_months = 6
-walkforward.test_months = 6     # CLI default is 3! Always specify --test-months 6
+walkforward.test_months = 6     # CLI default now matches
 walkforward.roll_months = 3
 walkforward.min_trades_per_window = 5  # Low-freq strategies need lower threshold
 
@@ -239,6 +232,10 @@ stability.perturbation_pct = 0.10  # +-10% perturbation
 # Confidence
 confidence.green_threshold = 70
 confidence.yellow_threshold = 40
+
+# Cost Model
+spread_pips = 1.5          # Entry spread cost (deducted from PnL)
+slippage_pips = 0.5        # Exit slippage on SL orders (stop->market)
 
 # Candidate Filtering
 min_forward_ratio = 0.15   # Forward/back minimum (see QUALITY_ASSESSMENT for discussion)
@@ -302,7 +299,7 @@ Bridges the gap between pipeline's `FastStrategy` (vectorized, numba-based) and 
 
 ## Numba Backtest Signature
 
-The numba functions accept a large parameter signature. V4+ added trade management chaining. V5 added chandelier/stale exit. V6 added ML arrays. All are backward compatible (pass zeros/False to disable).
+The numba functions accept a large parameter signature. V4+ added trade management chaining. V5 added chandelier/stale exit. V6 added ML arrays (now archived). All are backward compatible (pass zeros/False to disable).
 
 Key parameters after the standard ones:
 ```
@@ -312,32 +309,45 @@ chandelier_atr_mult  # ATR multiplier for chandelier
 atr_pips             # Pre-computed ATR in pip units
 stale_exit_bars      # Close after N bars with no progress
 
-# V6 additions
+# V6 additions (ML exit - archived)
 ml_long_scores       # ML exit scores for long positions (array)
 ml_short_scores      # ML exit scores for short positions (array)
 use_ml_exit          # Enable ML exit (0/1)
 ml_min_hold          # Minimum bars before ML can exit
 ml_threshold         # ML score threshold for exit
+
+# Slippage model (Feb 2026)
+slippage_pips        # Exit slippage on SL orders (default 0.0)
+                     # Applied to SL exits only (stop->market orders slip)
+                     # TP exits unaffected (limit orders fill at price)
 ```
 
 ---
 
 ## Key Concepts
 
-### OnTester Score (MT5-style)
+### Quality Score (Universal Metric)
 ```
-OnTester = Profit * R-squared * ProfitFactor * sqrt(Trades) / (MaxDrawdown + 5)
+Quality Score = Sortino * R² * min(PF, 5) * sqrt(min(Trades, 200))
+                * (1 + min(Return%, 200) / 100)
+                / (Ulcer + MaxDD%/2 + 5)
 ```
-**Warning:** Uses absolute dollar profit with compound sizing. Breaks with >200 trades. For high-frequency strategies (M15+), use Sharpe ratio for candidate ranking instead.
+Uses **Sortino** (not Sharpe) -- doesn't penalize upside volatility, better for asymmetric strategies. Uses **Ulcer Index** alongside MaxDD to capture chronic drawdown pain (time underwater). Return% capped at 200% to prevent compound sizing inflation. Returns 0 when Sortino <= 0, PF <= 0, R² <= 0, or no trades. Defined in `optimization/numba_backtest.py`.
+
+Hard pre-filters in the Optuna objective reject garbage before scoring:
+- MaxDD > 30% -> instant reject (`optimization.max_dd_hard_limit`)
+- R² < 0.5 -> instant reject (`optimization.min_r2_hard`)
+
+Used everywhere: Optuna objective, combined ranking, WF pass/fail, stability, confidence scoring, reports.
 
 ### Confidence Score (0-100)
 Weighted combination of 6 components:
-- Walk-forward pass rate (25%) - includes Sharpe consistency adjustment
+- Walk-forward pass rate (25%) - includes quality score consistency adjustment
 - Forward/back performance ratio (15%)
 - Stability score (15%)
 - Monte Carlo results (15%)
-- Backtest quality (15%)
-- Forward Sharpe (15%) - uses WF mean Sharpe, not just optimization-phase Sharpe
+- Backtest quality (15%) - uses Sortino + blended DD (Ulcer + MaxDD/2)
+- Quality Score (15%) - uses WF mean quality score
 
 Rating: RED (0-40), YELLOW (40-70), GREEN (70+)
 

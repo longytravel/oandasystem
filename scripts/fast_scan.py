@@ -470,8 +470,8 @@ def main():
                         help='Use full pipeline mode (overrides --fast)')
     parser.add_argument('--overnight', action='store_true',
                         help='After fast scan, auto-run full pipelines on GREEN results')
-    parser.add_argument('--years', type=float, default=3.0,
-                        help='Years of data (default: 3.0)')
+    parser.add_argument('--years', type=float, default=4.0,
+                        help='Years of data (default: 4.0)')
     parser.add_argument('--strategy', '-s', default='RSI_Divergence_v3',
                         help='Strategy name (default: RSI_Divergence_v3)')
 

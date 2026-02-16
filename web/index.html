@@ -1225,7 +1225,7 @@ function rdConfidence(det) {
     ['Walk-Forward', c.walkforward_score, (c.weights||{}).walkforward],
     ['Stability', c.stability_score, (c.weights||{}).stability],
     ['Monte Carlo', c.montecarlo_score, (c.weights||{}).montecarlo],
-    ['Quality Score', c.sharpe_score, (c.weights||{}).sharpe],
+    ['Quality Score', c.quality_score, (c.weights||{}).quality_score],
   ];
   components.forEach(function(r) {
     var score = r[1] != null ? r[1] : 0;

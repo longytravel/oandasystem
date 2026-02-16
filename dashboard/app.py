@@ -7,21 +7,24 @@ Endpoints:
     GET  /api/trades/{instance_id}      Recent closed trades
     GET  /api/performance/{instance_id} Live vs backtest comparison
     GET  /api/export/{instance_id}      CSV download of all trades
-    POST /api/service/{instance_id}/start    Start service
-    POST /api/service/{instance_id}/stop     Stop service
-    POST /api/service/{instance_id}/restart  Restart service
+    POST /api/service/{instance_id}/start    Start service  (auth required)
+    POST /api/service/{instance_id}/stop     Stop service   (auth required)
+    POST /api/service/{instance_id}/restart  Restart service (auth required)
 
-No auth required (VPS is private network).
-# TODO: Add HTTPBasic or API key auth for POST endpoints if exposed publicly.
+POST endpoints require HTTP Basic auth via DASHBOARD_USER / DASHBOARD_PASS env vars.
 """
 import csv
 import io
 import json
+import os
+import re
+import secrets
 from dataclasses import asdict
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
 
 from dashboard.data_reader import (
@@ -47,6 +50,26 @@ TEMPLATES_DIR = Path(__file__).parent / "templates"
 
 app = FastAPI(title="OANDA Trading Dashboard")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+security = HTTPBasic()
+
+
+def _sanitize_id(instance_id: str) -> str:
+    """Validate instance_id to prevent path traversal and command injection."""
+    if not re.match(r'^[a-zA-Z0-9_-]+$', instance_id):
+        raise HTTPException(status_code=400, detail="Invalid instance ID")
+    return instance_id
+
+
+def _require_auth(credentials: HTTPBasicCredentials = Depends(security)):
+    """HTTP Basic auth dependency for POST endpoints."""
+    expected_user = os.environ.get("DASHBOARD_USER", "")
+    expected_pass = os.environ.get("DASHBOARD_PASS", "")
+    if not expected_user or not expected_pass:
+        raise HTTPException(status_code=503, detail="Auth not configured")
+    user_ok = secrets.compare_digest(credentials.username.encode(), expected_user.encode())
+    pass_ok = secrets.compare_digest(credentials.password.encode(), expected_pass.encode())
+    if not (user_ok and pass_ok):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
 
 
 def _load_dashboard_config() -> dict:
@@ -133,6 +156,7 @@ async def api_status():
 @app.get("/api/trades/{instance_id}")
 async def api_trades(instance_id: str, limit: int = 50):
     """Recent closed trades for an instance."""
+    instance_id = _sanitize_id(instance_id)
     instance_dir = INSTANCES_DIR / instance_id
     if not instance_dir.exists():
         return JSONResponse({"error": "Instance not found"}, status_code=404)
@@ -145,6 +169,7 @@ async def api_trades(instance_id: str, limit: int = 50):
 @app.get("/api/performance/{instance_id}")
 async def api_performance(instance_id: str):
     """Live vs backtest comparison data."""
+    instance_id = _sanitize_id(instance_id)
     instance_dir = INSTANCES_DIR / instance_id
 
     # Load expectations from config
@@ -192,6 +217,7 @@ async def api_performance(instance_id: str):
 @app.get("/api/export/{instance_id}")
 async def api_export(instance_id: str):
     """CSV download of all trades."""
+    instance_id = _sanitize_id(instance_id)
     instance_dir = INSTANCES_DIR / instance_id
     all_trades = read_trade_history(instance_dir, limit=0)
 
@@ -230,8 +256,9 @@ async def api_scan():
 # ── Service Control ────────────────────────────────────────
 
 @app.post("/api/service/{instance_id}/start")
-async def api_service_start(instance_id: str):
-    """Start a service."""
+async def api_service_start(instance_id: str, _=Depends(_require_auth)):
+    """Start a service (auth required)."""
+    instance_id = _sanitize_id(instance_id)
     if not NSSM.exists():
         return JSONResponse({"ok": False, "message": "NSSM not found"}, status_code=500)
     ok, msg = start_service(NSSM, instance_id)
@@ -239,8 +266,9 @@ async def api_service_start(instance_id: str):
 
 
 @app.post("/api/service/{instance_id}/stop")
-async def api_service_stop(instance_id: str):
-    """Stop a service."""
+async def api_service_stop(instance_id: str, _=Depends(_require_auth)):
+    """Stop a service (auth required)."""
+    instance_id = _sanitize_id(instance_id)
     if not NSSM.exists():
         return JSONResponse({"ok": False, "message": "NSSM not found"}, status_code=500)
     ok, msg = stop_service(NSSM, instance_id)
@@ -248,8 +276,9 @@ async def api_service_stop(instance_id: str):
 
 
 @app.post("/api/service/{instance_id}/restart")
-async def api_service_restart(instance_id: str):
-    """Restart a service."""
+async def api_service_restart(instance_id: str, _=Depends(_require_auth)):
+    """Restart a service (auth required)."""
+    instance_id = _sanitize_id(instance_id)
     if not NSSM.exists():
         return JSONResponse({"ok": False, "message": "NSSM not found"}, status_code=500)
     ok, msg = restart_service(NSSM, instance_id)

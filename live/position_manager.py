@@ -5,6 +5,7 @@ Tracks open positions, daily statistics, and persists state
 between sessions.
 """
 import json
+import os
 from datetime import datetime, date
 from pathlib import Path
 from typing import Dict, List, Optional, Any
@@ -183,13 +184,19 @@ class PositionManager:
             'last_updated': datetime.now().isoformat()
         }
 
-        with open(state_file, 'w') as f:
+        tmp_file = state_file.with_suffix('.json.tmp')
+        with open(tmp_file, 'w') as f:
             json.dump(data, f, indent=2)
+        os.replace(str(tmp_file), str(state_file))
 
-        # Save trade history
+        # Save trade history (keep only last 500 in memory)
+        if len(self.trade_history) > 500:
+            self.trade_history = self.trade_history[-500:]
         history_file = self._get_history_file()
-        with open(history_file, 'w') as f:
+        tmp_hist = history_file.with_suffix('.json.tmp')
+        with open(tmp_hist, 'w') as f:
             json.dump(self.trade_history, f, indent=2)
+        os.replace(str(tmp_hist), str(history_file))
 
         logger.debug("State saved")
 

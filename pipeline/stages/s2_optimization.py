@@ -22,24 +22,13 @@ from pipeline.state import PipelineState
 def get_strategy(strategy_name: str) -> FastStrategy:
     """Get strategy instance by name."""
     # Import available strategies
-    from strategies.rsi_full import RSIDivergenceFullFast
-    from strategies.rsi_full_v2 import RSIDivergenceFullFastV2
     from strategies.rsi_full_v3 import RSIDivergenceFullFastV3
     from strategies.rsi_full_v4 import RSIDivergenceFullFastV4
     from strategies.rsi_full_v5 import RSIDivergenceFullFastV5
     from strategies.ema_cross_ml import EMACrossMLStrategy
-    from strategies.trend_simple import SimpleTrendStrategy
     from strategies.fair_price_ma import FairPriceMAStrategy
 
     strategies = {
-        # V1 - Original RSI Divergence
-        'RSI_Divergence_Full': RSIDivergenceFullFast,
-        'RSIDivergenceFullFast': RSIDivergenceFullFast,
-        'rsi_full': RSIDivergenceFullFast,
-        # V2 - RSI with stability fixes
-        'RSI_Divergence_v2': RSIDivergenceFullFastV2,
-        'RSIDivergenceFullFastV2': RSIDivergenceFullFastV2,
-        'rsi_full_v2': RSIDivergenceFullFastV2,
         # V3 - RSI Stability-Hardened (multi-RSI consensus, adaptive swings)
         'RSI_Divergence_v3': RSIDivergenceFullFastV3,
         'RSIDivergenceFullFastV3': RSIDivergenceFullFastV3,
@@ -56,10 +45,6 @@ def get_strategy(strategy_name: str) -> FastStrategy:
         'EMA_Cross_ML': EMACrossMLStrategy,
         'EMACrossMLStrategy': EMACrossMLStrategy,
         'ema_cross_ml': EMACrossMLStrategy,
-        # Simple Trend Following
-        'Simple_Trend': SimpleTrendStrategy,
-        'SimpleTrendStrategy': SimpleTrendStrategy,
-        'trend_simple': SimpleTrendStrategy,
         # Fair Price MA (converted from fairPriceMP v4.0 EA, grid strategy)
         'Fair_Price_MA': FairPriceMAStrategy,
         'FairPriceMA': FairPriceMAStrategy,
@@ -123,13 +108,15 @@ class OptimizationStage:
             strategy=strategy,
             initial_capital=self.config.initial_capital,
             risk_per_trade=self.config.risk_per_trade,
-            spread_pips=self.config.spread_pips + self.config.slippage_pips,
+            spread_pips=self.config.spread_pips,
+            slippage_pips=self.config.slippage_pips,
             min_trades=self.config.optimization.min_trades,
             min_forward_ratio=self.config.optimization.min_forward_ratio,
             forward_rank_weight=self.config.optimization.forward_rank_weight,
             n_jobs=self.config.optimization.n_jobs,  # Parallel workers
             pair=self.config.pair,  # For pip value calculation
             account_currency='USD',
+            timeframe=self.config.timeframe,
             max_dd_hard_limit=self.config.optimization.max_dd_hard_limit,
             min_r2_hard=self.config.optimization.min_r2_hard,
         )

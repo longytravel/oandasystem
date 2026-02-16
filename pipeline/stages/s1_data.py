@@ -288,7 +288,7 @@ class DataStage:
         return {
             'n_anomalies': len(anomalies),
             'anomalies': anomalies[:10],  # Only keep first 10
-            'typical_range_pips': round(typical_range * 10000, 1),  # For non-JPY pairs
+            'typical_range_pips': round(typical_range * (100 if 'JPY' in self.config.pair else 10000), 1),
         }
 
     def _check_requirements(self, df: pd.DataFrame, quality_report: Dict) -> bool:

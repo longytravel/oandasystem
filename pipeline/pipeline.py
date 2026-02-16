@@ -90,12 +90,11 @@ class Pipeline:
             # Auto-generate description if not provided
             description = self.config.description
             if not description:
-                ml_part = f"ML {self.config.ml_exit.policy_mode}" if self.config.ml_exit.enabled else "no ML"
                 holdout_part = f" hold={self.config.data.holdout_months}m" if self.config.data.holdout_months > 0 else ""
                 description = (f"{self.config.strategy_name} | "
                               f"{self.config.data.years:.0f}yr "
-                              f"{self.config.walkforward.train_months}m/{self.config.walkforward.test_months}m | "
-                              f"{ml_part}{holdout_part}")
+                              f"{self.config.walkforward.train_months}m/{self.config.walkforward.test_months}m"
+                              f"{holdout_part}")
 
             self.state = PipelineState.create_new(
                 pair=self.config.pair,

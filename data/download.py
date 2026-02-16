@@ -332,7 +332,7 @@ def load_data(
     instrument: str = "GBP_USD",
     timeframe: str = "H1",
     auto_download: bool = True,
-    years: float = 2,
+    years: float = 4.0,
     prefer_m1: bool = True
 ) -> pd.DataFrame:
     """
@@ -362,18 +362,23 @@ def load_data(
     # Priority 1: Build from M1 if available and preferred (most accurate)
     if prefer_m1 and timeframe != "M1" and m1_filepath.exists():
         df_m1 = pd.read_parquet(m1_filepath)
-        # Trim M1 data to requested years before building higher timeframe
-        if years and len(df_m1) > 0:
-            cutoff = df_m1.index[-1] - pd.Timedelta(days=int(years * 365.25))
-            df_m1_trimmed = df_m1[df_m1.index >= cutoff]
-            if len(df_m1_trimmed) < len(df_m1):
-                logger.info(f"Trimmed M1 to last {years}yr: {len(df_m1_trimmed):,}/{len(df_m1):,} candles")
-                df_m1 = df_m1_trimmed
-        df = build_higher_timeframe(df_m1, timeframe)
-        logger.info(f"Built {timeframe} from M1 data: {len(df):,} candles")
-        logger.info(f"Date range: {df.index[0]} to {df.index[-1]}")
-        logger.info(f"(M1 source: {len(df_m1):,} candles)")
-        return df
+        # Check if M1 data covers the requested period (within 20% tolerance)
+        m1_span_years = (df_m1.index[-1] - df_m1.index[0]).days / 365.25 if len(df_m1) > 0 else 0
+        if years and m1_span_years < years * 0.8:
+            logger.info(f"M1 cache only covers {m1_span_years:.1f}yr, need {years}yr — skipping M1, using direct cache")
+        else:
+            # Trim M1 data to requested years before building higher timeframe
+            if years and len(df_m1) > 0:
+                cutoff = df_m1.index[-1] - pd.Timedelta(days=int(years * 365.25))
+                df_m1_trimmed = df_m1[df_m1.index >= cutoff]
+                if len(df_m1_trimmed) < len(df_m1):
+                    logger.info(f"Trimmed M1 to last {years}yr: {len(df_m1_trimmed):,}/{len(df_m1):,} candles")
+                    df_m1 = df_m1_trimmed
+            df = build_higher_timeframe(df_m1, timeframe)
+            logger.info(f"Built {timeframe} from M1 data: {len(df):,} candles")
+            logger.info(f"Date range: {df.index[0]} to {df.index[-1]}")
+            logger.info(f"(M1 source: {len(df_m1):,} candles)")
+            return df
 
     # Priority 2: Direct timeframe cache
     if filepath.exists():

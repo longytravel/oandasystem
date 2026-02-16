@@ -81,8 +81,8 @@ class ConfidenceStage:
                        f"(w={self.config.confidence.stability_weight:.0%})")
             logger.info(f"  Monte Carlo:   {score_breakdown['montecarlo_score']:.1f}/100 "
                        f"(w={self.config.confidence.montecarlo_weight:.0%})")
-            logger.info(f"  Sharpe:        {score_breakdown['sharpe_score']:.1f}/100 "
-                       f"(w={self.config.confidence.sharpe_weight:.0%})")
+            logger.info(f"  Quality Score: {score_breakdown['quality_score']:.1f}/100 "
+                       f"(w={self.config.confidence.quality_score_weight:.0%})")
             logger.info(f"  -----------------------------------------")
             logger.info(f"  TOTAL SCORE:   {score_breakdown['total_score']:.1f}/100")
             logger.info(f"  RATING:        {score_breakdown['rating']}")
@@ -286,7 +286,7 @@ class ConfidenceStage:
         else:
             fwd_quality = candidate.get('forward_quality_score', 0)
         # Scale: 0 -> 0, 1.5 -> 50, 3.0+ -> 100
-        sharpe_score = min(fwd_quality / 3.0, 1.0) * 100
+        qs_score = min(fwd_quality / 3.0, 1.0) * 100
 
         # Hard backtest quality gate: if full backtest shows terrible equity curve
         # or extreme drawdown, cap score at YELLOW regardless of other components.
@@ -295,7 +295,7 @@ class ConfidenceStage:
         back_dd = candidate.get('back_max_dd', 0)
         back_qs = candidate.get('back_quality_score', 0)
         bt_hard_cap = None
-        if back_r2 < 0.3 and back_r2 > 0:
+        if back_r2 < 0.3:
             bt_hard_cap = 50  # R² < 0.3 = random walk equity, YELLOW at best
             logger.warning(f"  Hard gate: back R²={back_r2:.3f} < 0.3 → capped at {bt_hard_cap}")
         if back_dd > 50:
@@ -305,6 +305,16 @@ class ConfidenceStage:
             bt_hard_cap = min(bt_hard_cap or 50, 50)  # Quality score near zero
             logger.warning(f"  Hard gate: back quality_score={back_qs:.3f} < 0.5 → capped at {bt_hard_cap}")
 
+        # Ulcer Index hard cap: chronic underwater equity is not viable for live trading
+        back_stats = candidate.get('back_stats', {})
+        back_ulcer = back_stats.get('ulcer', candidate.get('back_ulcer', 0))
+        if back_ulcer > cfg.max_ulcer_red_cap:
+            bt_hard_cap = min(bt_hard_cap or 40, 40)
+            logger.warning(f"  Hard gate: back Ulcer={back_ulcer:.1f} > {cfg.max_ulcer_red_cap} -> capped at {bt_hard_cap}")
+        elif back_ulcer > cfg.max_ulcer_yellow_cap:
+            bt_hard_cap = min(bt_hard_cap or 70, 70)
+            logger.warning(f"  Hard gate: back Ulcer={back_ulcer:.1f} > {cfg.max_ulcer_yellow_cap} -> capped at {bt_hard_cap}")
+
         # Calculate weighted total (capped at 100)
         total_score = min(100, (
             bt_quality_score * cfg.backtest_quality_weight +
@@ -312,7 +322,7 @@ class ConfidenceStage:
             wf_score * cfg.walkforward_weight +
             stability_score * cfg.stability_weight +
             mc_score * cfg.montecarlo_weight +
-            sharpe_score * cfg.sharpe_weight
+            qs_score * cfg.quality_score_weight
         ))
 
         # Apply hard backtest cap
@@ -344,7 +354,7 @@ class ConfidenceStage:
             'walkforward_score': round(wf_score, 1),
             'stability_score': round(stability_score, 1),
             'montecarlo_score': round(mc_score, 1),
-            'sharpe_score': round(sharpe_score, 1),
+            'quality_score': round(qs_score, 1),
 
             # Raw values
             'raw_values': {
@@ -362,6 +372,7 @@ class ConfidenceStage:
                 'bt_hard_cap': bt_hard_cap,
                 'back_r_squared': round(back_r2, 4),
                 'back_max_dd': round(back_dd, 1),
+                'back_ulcer': round(back_ulcer, 2),
                 'back_quality_score': round(back_qs, 3),
             },
 
@@ -372,6 +383,6 @@ class ConfidenceStage:
                 'walkforward': cfg.walkforward_weight,
                 'stability': cfg.stability_weight,
                 'montecarlo': cfg.montecarlo_weight,
-                'sharpe': cfg.sharpe_weight,
+                'quality_score': cfg.quality_score_weight,
             },
         }

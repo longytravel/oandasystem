@@ -29,10 +29,9 @@ STRATEGIES_FILE = ROOT / "deploy" / "strategies.json"
 
 # Strategy name -> (module, class)
 STRATEGY_MAP = {
+    "rsi_v1": ("strategies.archive.rsi_full", "RSIDivergenceFullFast"),  # archived, kept for VPS compat
     "rsi_v3": ("strategies.rsi_full_v3", "RSIDivergenceFullFastV3"),
     "RSI_Divergence_v3": ("strategies.rsi_full_v3", "RSIDivergenceFullFastV3"),
-    "rsi_v1": ("strategies.rsi_full", "RSIDivergenceFullFast"),
-    "RSI_Divergence": ("strategies.rsi_full", "RSIDivergenceFullFast"),
     "ema_cross": ("strategies.ema_cross_ml", "EMACrossMLFast"),
     "EMA_Cross_ML": ("strategies.ema_cross_ml", "EMACrossMLFast"),
     "fair_price_ma": ("strategies.fair_price_ma", "FairPriceMAStrategy"),

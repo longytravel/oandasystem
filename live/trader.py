@@ -6,7 +6,7 @@ based on strategy signals.
 """
 import json
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from loguru import logger
@@ -124,7 +124,7 @@ class LiveTrader:
 
     def _get_next_candle_time(self) -> datetime:
         """Calculate when the next candle closes."""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         minutes = self.TIMEFRAME_MINUTES[self.timeframe]
 
         if minutes < 60:
@@ -154,7 +154,7 @@ class LiveTrader:
     def _wait_for_candle_close(self):
         """Wait until the next candle closes."""
         next_candle = self._get_next_candle_time()
-        wait_seconds = (next_candle - datetime.utcnow()).total_seconds()
+        wait_seconds = (next_candle - datetime.now(timezone.utc)).total_seconds()
 
         if wait_seconds > 0:
             logger.info(f"Waiting {wait_seconds:.0f}s for next candle close at {next_candle}")
@@ -163,7 +163,7 @@ class LiveTrader:
             while wait_seconds > 0 and self.running:
                 sleep_time = min(30, wait_seconds)
                 time.sleep(sleep_time)
-                wait_seconds = (next_candle - datetime.utcnow()).total_seconds()
+                wait_seconds = (next_candle - datetime.now(timezone.utc)).total_seconds()
 
     def _get_account_info(self) -> Dict[str, float]:
         """Get current account information."""
@@ -287,7 +287,7 @@ class LiveTrader:
                     direction=direction,
                     units=abs(units),
                     entry_price=fill_price,
-                    entry_time=datetime.utcnow(),
+                    entry_time=datetime.now(timezone.utc),
                     stop_loss=signal.stop_loss,
                     take_profit=signal.take_profit,
                     metadata=signal.metadata
@@ -326,7 +326,7 @@ class LiveTrader:
             Dict with iteration results
         """
         result = {
-            'timestamp': datetime.utcnow(),
+            'timestamp': datetime.now(timezone.utc),
             'signal': None,
             'trade_executed': False,
             'error': None

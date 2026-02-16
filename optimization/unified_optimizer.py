@@ -12,10 +12,10 @@ Modes:
 - staged: Group-by-group optimization with parameter locking
 
 Usage:
-    from strategies.rsi_full import RSIDivergenceFullFast
+    from strategies.rsi_full_v3 import RSIDivergenceFullFastV3
     from optimization.unified_optimizer import UnifiedOptimizer
 
-    strategy = RSIDivergenceFullFast()
+    strategy = RSIDivergenceFullFastV3()
     optimizer = UnifiedOptimizer(strategy)
 
     # Staged mode with combined ranking
@@ -51,14 +51,25 @@ from optimization.numba_backtest import (
 )
 
 
+_TF_BARS_PER_YEAR = {
+    'M1': 252 * 1440, 'M5': 252 * 288, 'M15': 252 * 96,
+    'M30': 252 * 48, 'H1': 252 * 22, 'H4': 252 * 6, 'D': 252,
+}
+
+
+def _bars_per_year(timeframe: str) -> float:
+    """Return annualised bar count for a given timeframe string."""
+    return float(_TF_BARS_PER_YEAR.get(timeframe, 252 * 22))
+
+
 class UnifiedOptimizer:
     """
     Unified optimizer with quality-score-based combined back+forward ranking.
 
-    Quality Score = Sharpe × R² × min(PF,5) × √min(Trades,200) / (MaxDD% + 5)
+    Quality Score = Sortino × R² × min(PF,5) × √min(Trades,200) × (1 + min(Return%,200)/100) / (Ulcer + MaxDD%/2 + 5)
 
-    This universal metric rewards smooth equity curves, profit, and low drawdown
-    while being comparable across any timeframe or trade frequency.
+    This universal metric rewards smooth equity curves (R²), risk-adjusted profit (Sortino),
+    absolute profit (return multiplier), efficiency (PF), and penalizes drawdown (Ulcer + MaxDD).
 
     Ranking Method:
     1. Run back optimization, maximize quality_score
@@ -79,6 +90,7 @@ class UnifiedOptimizer:
         initial_capital: float = 10000.0,
         risk_per_trade: float = 1.0,
         spread_pips: float = 1.5,
+        slippage_pips: float = 0.0,
         min_trades: int = 20,
         # V2 parameters
         min_forward_ratio: float = 0.0,     # Min forward/back OnTester ratio (0=disabled)
@@ -88,6 +100,7 @@ class UnifiedOptimizer:
         # V3 parameters
         pair: str = 'GBP_USD',              # Currency pair for pip value calculation
         account_currency: str = 'USD',      # Account currency for conversion
+        timeframe: str = 'H1',              # Timeframe for bars_per_year calculation
         # Hard pre-filters
         max_dd_hard_limit: float = 30.0,    # MaxDD > this → instant reject
         min_r2_hard: float = 0.5,           # R² < this → instant reject
@@ -96,6 +109,7 @@ class UnifiedOptimizer:
         self.initial_capital = initial_capital
         self.risk_per_trade = risk_per_trade
         self.spread_pips = spread_pips
+        self.slippage_pips = slippage_pips
         self.min_trades = min_trades
 
         # V2 parameters
@@ -112,6 +126,9 @@ class UnifiedOptimizer:
         # V3: Store pair and account currency for pip value calculation
         self.pair = pair
         self.account_currency = account_currency
+
+        # Compute bars_per_year from timeframe
+        self.bars_per_year = _bars_per_year(timeframe)
 
         # Get pip_size from strategy (must call strategy.set_pip_size(pair) first)
         # This handles JPY pairs (0.01) vs other pairs (0.0001) automatically
@@ -205,8 +222,9 @@ class UnifiedOptimizer:
             self.risk_per_trade,
             self.pip_size,
             self.quote_conversion_rate,  # V3 FIX: Pass quote conversion rate
-            5544.0,  # bars_per_year (positional required for numba)
+            self.bars_per_year,
             self.spread_pips,
+            slippage_pips=self.slippage_pips,
         )
 
         return Metrics(*result)
@@ -285,9 +303,10 @@ class UnifiedOptimizer:
             params.get('max_daily_loss_pct', 0.0),
             quality_mult,  # V2: Quality-based position sizing
             self.quote_conversion_rate,  # V3 FIX: Quote currency conversion
-            5544.0,  # bars_per_year (positional required for numba)
+            self.bars_per_year,
             0,  # ml_exit_cooldown_bars (positional required for numba)
             self.spread_pips,
+            slippage_pips=self.slippage_pips,
         )
 
         return Metrics(*result)
@@ -335,8 +354,9 @@ class UnifiedOptimizer:
             self.pip_size,
             max_concurrent,
             self.quote_conversion_rate,
-            5544.0,
+            self.bars_per_year,
             self.spread_pips,
+            slippage_pips=self.slippage_pips,
         )
 
         return Metrics(*result)
@@ -456,6 +476,10 @@ class UnifiedOptimizer:
                 return -300
             if metrics.r_squared < self.min_r2_hard:
                 return -200
+            if metrics.total_return < 2.0:
+                return -150  # Reject near-zero-return regimes (e.g. BE offset cancels spread+slippage)
+            if metrics.max_dd < 0.5:
+                return -125  # MaxDD < 0.5% over full backtest is always an artifact
 
             # Optimize for quality_score: Sortino × R² × min(PF,5) × √min(Trades,200) / (Ulcer + MaxDD/2 + 5)
             return quality_score_from_metrics(metrics)

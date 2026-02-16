@@ -1,6 +1,6 @@
 # Strategy Evolution - V1 to V6
 
-**Last Updated:** 2026-02-10
+**Last Updated:** 2026-02-16
 
 This document tracks the evolution of trading strategies, their results, and the lessons learned at each stage.
 
@@ -16,8 +16,11 @@ This document tracks the evolution of trading strategies, their results, and the
 | V4 | 81.5/100 GREEN | - | 83.3% | 95.2% | 59.7 | BE->trail chaining, partial close | Optimizer turned OFF headline feature |
 | V5 | 71.8/100 GREEN | - | 100% | 97.2% | 0.0 | Chandelier, stale exit, wider mgmt | Optimizer disabled ALL management |
 | V6.1 | 72.8/100 GREEN | - | 100% | - | - | EMA cross entry | Weaker signal than RSI divergence |
+| Fair Price MA | - | - | - | - | - | MA mean-reversion | Deployed EUR_JPY H1, EUR_AUD H1 |
 
 **Key finding: V3 (simplest hardened version) > V4 > V5 (most complex). More management params does NOT equal better results.**
+
+**Important (Feb 16):** All results above were computed without exit slippage. Re-optimization with `slippage_pips=0.5` required. M15 strategies especially affected.
 
 ---
 
@@ -241,6 +244,34 @@ Sharpe ratio comparison is essential for high-frequency strategies. With 85% bas
 
 ---
 
+## Fair Price MA (2026-02-11)
+
+**File:** `strategies/fair_price_ma.py`
+
+A moving-average-based mean-reversion strategy, separate from the RSI divergence lineage. Deployed to VPS for live paper trading on EUR_JPY H1 and EUR_AUD H1 (92.9/100 GREEN).
+
+---
+
+## Exit Slippage Model (2026-02-16)
+
+### Problem
+Backtest previously assumed exact SL fills. In live trading, SL orders execute as stop-to-market and slip 0.5+ pips. Combined with tight break-even triggers on M15 (ATR x 0.3 ~ 1.4 pips), BE "wins" became live losses because spread (1.5 pip) + exit slippage (0.5 pip) exceeded the locked profit.
+
+### Fix
+Added `slippage_pips` parameter to all 7 numba backtest functions (14 SL exit sites). SL exits now apply unfavorable slippage: `exit_price = pos_sl -/+ slippage_pips * pip_size`. TP exits are unaffected (limit orders fill at price). Entry spread was already modeled; this completes the cost model.
+
+Pipeline config: `spread_pips=1.5`, `slippage_pips=0.5`. All callers updated: s2, s3, s4, s5, unified_optimizer, plot_equity, plot_stability, verify_live, ml_exit/dataset_builder.
+
+### Impact
+- **M15 severely affected:** WR 90% -> 54%, Return +32% -> -6.3% for tight BE strategies
+- **H1 less affected:** Wider stops absorb 0.5 pip slippage with minimal impact
+- **All pre-slippage pipeline results are invalid** and need re-optimization with slippage enabled
+
+### Lesson
+Cost modeling must match live execution. Entry slippage (spread) was modeled from the start, but exit slippage on stop orders was overlooked. Tight trade management (small BE triggers, trailing on M15) is especially vulnerable to execution costs.
+
+---
+
 ## Overall Lessons
 
 1. **Simplicity wins.** V3 (32 params, hardened defaults) outperformed V4 (34) and V5 (37).
@@ -250,4 +281,5 @@ Sharpe ratio comparison is essential for high-frequency strategies. With 85% bas
 5. **ML can't fix a weak signal.** 7 A/B tests (entry filter) and 5 A/B tests (exit model) all neutral.
 6. **More trades != better strategy.** V1 had 30 forward trades but scored 93; V4 had 93 trades but scored 81.5.
 7. **Use Sharpe for scoring, not dollar profit.** Compound position sizing breaks with >200 trades.
-8. **M15 works.** Same strategy (V3) validates well on both H1 (89.8) and M15 (87.2).
+8. **M15 works** (pre-slippage). Same strategy (V3) validates well on both H1 (89.8) and M15 (87.2). However, M15 results are invalidated by exit slippage modeling (Feb 16).
+9. **Model all execution costs.** Exit slippage on SL orders (0.5+ pips) destroyed M15 profitability. Tight BE triggers are especially vulnerable.

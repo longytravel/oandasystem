@@ -15,33 +15,16 @@ from typing import Dict, Any, List, Tuple, Optional
 
 from loguru import logger
 
-from optimization.unified_optimizer import UnifiedOptimizer
+from optimization.unified_optimizer import UnifiedOptimizer, _bars_per_year
 from optimization.fast_strategy import FastStrategy
 from optimization.numba_backtest import Metrics, get_quote_conversion_rate, calculate_quality_score, grid_backtest_numba
 from pipeline.config import PipelineConfig
 from pipeline.state import PipelineState
 from pipeline.stages.s2_optimization import get_strategy
 
-# ML Exit integration (optional - graceful degradation if unavailable)
-try:
-    from pipeline.ml_exit.dataset_builder import build_exit_dataset
-    from pipeline.ml_exit.train import train_ml_exit_models, get_ml_backend
-    from pipeline.ml_exit.inference import predict_exit_scores
-    from pipeline.ml_exit.policy import apply_exit_policy, generate_ml_score_arrays
-    from pipeline.ml_exit.features import precompute_market_features, compute_decision_features, get_feature_names
-    ML_EXIT_AVAILABLE = True
-except ImportError:
-    ML_EXIT_AVAILABLE = False
-
-# Meta-labeling signal filter (optional)
-try:
-    from pipeline.ml_exit.signal_features import (
-        compute_signal_features, train_signal_classifier, predict_signal_filter,
-        calibrate_threshold,
-    )
-    SIGNAL_FILTER_AVAILABLE = True
-except ImportError:
-    SIGNAL_FILTER_AVAILABLE = False
+# ML exit was archived (all 8 A/B tests neutral). See pipeline/archive/ml_exit/
+ML_EXIT_AVAILABLE = False
+SIGNAL_FILTER_AVAILABLE = False
 
 
 class WalkForwardStage:
@@ -691,8 +674,9 @@ class WalkForwardStage:
                         pip_size,
                         max_concurrent,
                         quote_rate,
-                        5544.0,
+                        _bars_per_year(self.config.timeframe),
                         self.config.spread_pips,
+                        slippage_pips=self.config.slippage_pips,
                     )
                 else:
                     result = (0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
@@ -717,9 +701,10 @@ class WalkForwardStage:
                     params.get('max_daily_loss_pct', 0.0),
                     quality_mult,
                     quote_rate,
-                    5544.0,  # bars_per_year
+                    _bars_per_year(self.config.timeframe),
                     cooldown,
                     spread_pips=self.config.spread_pips,
+                    slippage_pips=self.config.slippage_pips,
                 )
 
             metrics = Metrics(*result)
@@ -924,6 +909,7 @@ class WalkForwardStage:
                 quality_mult,
                 quote_rate,
                 spread_pips=self.config.spread_pips,
+                slippage_pips=self.config.slippage_pips,
             )
 
             # Unpack telemetry:
@@ -1332,6 +1318,7 @@ class WalkForwardStage:
                 quality_mult,
                 quote_rate,
                 spread_pips=self.config.spread_pips,
+                slippage_pips=self.config.slippage_pips,
             )
 
             # Unpack telemetry
@@ -1592,6 +1579,7 @@ class WalkForwardStage:
                 quality_mult,
                 quote_rate,
                 spread_pips=self.config.spread_pips,
+                slippage_pips=self.config.slippage_pips,
             )
 
             # Unpack telemetry (index 6=mfe_r, 7=mae_r, 8=signal_indices, 9=n_trades)
@@ -1960,6 +1948,7 @@ class WalkForwardStage:
             quality_mult,
             get_quote_conversion_rate(self.config.pair, 'USD'),
             spread_pips=self.config.spread_pips,
+            slippage_pips=self.config.slippage_pips,
         )
 
         return Metrics(*result)

@@ -40,11 +40,9 @@ EXIT_REASON_NAMES = {0: 'SL', 1: 'TP', 2: 'trailing', 3: 'time',
                      4: 'stale', 5: 'ml', 6: 'force_close'}
 
 STRATEGY_MAP = {
+    "rsi_v1": ("strategies.archive.rsi_full", "RSIDivergenceFullFast"),  # archived, kept for VPS compat
     "rsi_v3": ("strategies.rsi_full_v3", "RSIDivergenceFullFastV3"),
     "RSI_Divergence_v3": ("strategies.rsi_full_v3", "RSIDivergenceFullFastV3"),
-    "rsi_v1": ("strategies.rsi_full", "RSIDivergenceFullFast"),
-    "RSI_Divergence": ("strategies.rsi_full", "RSIDivergenceFullFast"),
-    "RSI_Divergence_Full": ("strategies.rsi_full", "RSIDivergenceFullFast"),
     "ema_cross": ("strategies.ema_cross_ml", "EMACrossMLFast"),
     "EMA_Cross_ML": ("strategies.ema_cross_ml", "EMACrossMLFast"),
     "fair_price_ma": ("strategies.fair_price_ma", "FairPriceMAStrategy"),
@@ -122,7 +120,9 @@ def pip_distance(price1: float, price2: float, pair: str = "") -> float:
     return abs(price1 - price2) * mult
 
 
-def run_backtest_verification(config: dict, df: pd.DataFrame, start_date: datetime = None):
+def run_backtest_verification(config: dict, df: pd.DataFrame, start_date: datetime = None,
+                              spread_pips: float = 1.5, slippage_pips: float = 0.5,
+                              initial_capital: float = 10000.0, risk_pct: float = 1.0):
     """
     Run full backtest with telemetry and return per-trade details.
 
@@ -193,6 +193,9 @@ def run_backtest_verification(config: dict, df: pd.DataFrame, start_date: dateti
     quote_rate = get_quote_conversion_rate(pair, 'USD')
 
     # Run backtest
+    print(f"  Costs:       spread={spread_pips} + exit_slippage={slippage_pips} pips (SL orders only)")
+    print(f"  Capital:     {initial_capital:.0f}")
+
     result = full_backtest_with_telemetry(
         signal_arrays['entry_bars'],
         signal_arrays['entry_prices'],
@@ -206,14 +209,16 @@ def run_backtest_verification(config: dict, df: pd.DataFrame, start_date: dateti
         trail_mode, chandelier_atr_mult, atr_pips_arr, stale_exit_bars,
         ml_long, ml_short, use_ml, ml_min_hold, ml_threshold,
         highs, lows, closes, days,
-        10000.0,  # initial capital
-        2.0,      # risk pct
+        initial_capital,
+        risk_pct,
         pip_size,
         0,        # max daily trades
         0.0,      # max daily loss
         quality_mult,
         quote_rate,
         bars_per_year,
+        spread_pips=spread_pips,
+        slippage_pips=slippage_pips,
     )
 
     (pnls, equity_curve, exit_reasons, bars_held, entry_bar_indices,
@@ -373,7 +378,9 @@ def match_live_trades(backtest_trades: list, live_trades: list, pair: str, timef
 
 
 def verify_instance(instance_id: str, start: str = None, end: str = None,
-                    last_n: int = 0, do_download: bool = False, do_replay: bool = False):
+                    last_n: int = 0, do_download: bool = False, do_replay: bool = False,
+                    spread_pips: float = 1.5, slippage_pips: float = 0.5,
+                    initial_capital: float = 10000.0, risk_pct: float = 1.0):
     """Full verification for one instance."""
     config = load_instance(instance_id)
     if not config:
@@ -428,7 +435,11 @@ def verify_instance(instance_id: str, start: str = None, end: str = None,
 
     # Run full backtest
     print(f"\n--- Running Backtest Simulation ---")
-    trades, summary = run_backtest_verification(config, df, start_date)
+    trades, summary = run_backtest_verification(config, df, start_date,
+                                                spread_pips=spread_pips,
+                                                slippage_pips=slippage_pips,
+                                                initial_capital=initial_capital,
+                                                risk_pct=risk_pct)
 
     if not trades:
         print("  [WARN] No trades generated in this period!")
@@ -516,6 +527,10 @@ def main():
     parser.add_argument("--last", "-n", type=int, default=0, help="Only show last N trades")
     parser.add_argument("--download", "-d", action="store_true", help="Download fresh candles from OANDA first")
     parser.add_argument("--replay", "-r", action="store_true", help="Match live trades against backtest")
+    parser.add_argument("--spread", type=float, default=1.5, help="Spread in pips (default: 1.5)")
+    parser.add_argument("--slippage", type=float, default=0.5, help="Slippage in pips (default: 0.5)")
+    parser.add_argument("--capital", type=float, default=10000.0, help="Initial capital (default: 10000)")
+    parser.add_argument("--risk", type=float, default=1.0, help="Risk per trade %% (default: 1.0)")
     args = parser.parse_args()
 
     if args.instance:
@@ -540,6 +555,10 @@ def main():
             last_n=args.last,
             do_download=args.download,
             do_replay=args.replay,
+            spread_pips=args.spread,
+            slippage_pips=args.slippage,
+            initial_capital=args.capital,
+            risk_pct=args.risk,
         )
 
 

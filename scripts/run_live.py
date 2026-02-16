@@ -34,7 +34,7 @@ from config.settings import settings
 
 # Pipeline strategy map: name -> (module, class)
 PIPELINE_STRATEGIES = {
-    "rsi_v1": ("strategies.rsi_full", "RSIDivergenceFullFast"),
+    "rsi_v1": ("strategies.archive.rsi_full", "RSIDivergenceFullFast"),  # archived, kept for VPS compat
     "rsi_v3": ("strategies.rsi_full_v3", "RSIDivergenceFullFastV3"),
     "rsi_v4": ("strategies.rsi_full_v4", "RSIDivergenceFullFastV4"),
     "rsi_v5": ("strategies.rsi_full_v5", "RSIDivergenceFullFastV5"),
@@ -42,10 +42,8 @@ PIPELINE_STRATEGIES = {
     "fair_price_ma": ("strategies.fair_price_ma", "FairPriceMAStrategy"),
 }
 
-# Legacy strategies (old Strategy interface)
-LEGACY_STRATEGIES = {
-    "rsi_divergence": ("strategies.rsi_divergence", "RSIDivergenceStrategy"),
-}
+# Legacy strategies (old Strategy interface) - all archived
+LEGACY_STRATEGIES = {}
 
 
 # Global trader instance for signal handling

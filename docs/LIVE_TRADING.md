@@ -48,6 +48,14 @@ Mean-reversion grid strategy. Fast EMA(50) + Slow EMA(400) detect trend. Entry o
 
 Confidence: WF 91.4% (1 OOS window), Stability 100%, MC 91.7%, F/B ratio 2.06
 
+### Slippage Model Warning (2026-02-16)
+
+An exit slippage model (`slippage_pips=0.5`) was added to all backtest functions on 2026-02-16 (see KI-22 in [KNOWN_ISSUES.md](KNOWN_ISSUES.md)). Live SL orders (stop->market) slip ~0.5 pips, which the backtest previously ignored. **All strategies above were optimized before this fix and should be re-optimized with the slippage model enabled.**
+
+**M15 most affected:** The rsi_v3 GBP_USD M15 strategy (#1) used tight break-even triggers (ATR x 0.3 ~ 1.4 pip). With `slippage_pips=0.5`, backtest shows WR dropping from 90% to 54% and Return from +32% to -6.3%. This strategy needs re-optimization with slippage before continued live use.
+
+H1 strategies are less affected (larger pip movements relative to slippage) but should still be re-validated.
+
 ---
 
 ## Prerequisites

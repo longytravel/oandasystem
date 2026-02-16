@@ -1,6 +1,6 @@
 # Known Issues Tracker
 
-**Last Updated:** 2026-02-10
+**Last Updated:** 2026-02-16
 **Sources:** Consolidated from REVIEW_FEEDBACK.md, PLAN_CALC_AUDIT.md, PLAN-dashboard-fixes.md
 
 ---
@@ -9,14 +9,14 @@
 - OPEN - Not yet fixed
 - FIXED - Fix applied and verified
 - WONTFIX - Accepted limitation, documented
-- DEFERRED - Will fix as part of ML Exit Program
+- DEFERRED - Known issue, fix postponed
 
 ---
 
 ## CRITICAL Issues
 
 ### KI-1: Monte Carlo return distribution is degenerate
-**Source:** REVIEW_FEEDBACK Finding 1 | **Status:** OPEN -> DEFERRED (ML Sprint 1)
+**Source:** REVIEW_FEEDBACK Finding 1 | **Status:** DEFERRED
 **File:** `pipeline/stages/s5_montecarlo.py`
 **Problem:** Shuffle-only MC preserves sum(pnls), so all iterations produce identical final returns. `pct_5_return`, `std_return`, `prob_positive` etc. are all meaningless (N copies of same value). DD distribution IS valid (different paths = different drawdowns).
 **Impact:** MC return percentiles fed to confidence scoring provide zero information.
@@ -152,6 +152,25 @@
 **Source:** VPS deployment | **Status:** FIXED (documented)
 **Problem:** `.env` is in `.gitignore`, so `git pull` on VPS doesn't create it. OANDA credentials missing on first deploy.
 **Fix:** Documented in LIVE_TRADING.md - manually create `.env` on VPS after first clone.
+
+### KI-22: Exit slippage on SL orders
+**Source:** Live vs backtest divergence | **Status:** FIXED (2026-02-16)
+**File:** `optimization/numba_backtest.py`, all callers
+**Problem:** Backtest assumed exact SL fills. Live SL orders (stop->market) slip 0.5+ pips. Combined with tight BE triggers on M15 (ATR x 0.3 ~ 1.4 pip), BE "wins" became live losses because spread (1.5 pip) + exit slippage (0.5 pip) exceeded the locked profit.
+**Fix applied:** `slippage_pips` parameter added to all 7 numba backtest functions (14 SL exit sites). SL exits adjusted unfavorably: `exit_price = pos_sl -/+ slippage_pips * pip_size`. TP exits unchanged (limit orders fill at exact price). Config: `slippage_pips=0.5`. All callers updated: s2, s3, s4, s5, unified_optimizer, plot_equity, plot_stability, verify_live, ml_exit/dataset_builder.
+**Impact:** All pre-slippage pipeline results are invalid and need re-optimization. M15 most affected (WR 90%->54%, Return +32%->-6.3%).
+
+### KI-23: bars_per_year hardcoded to H1
+**Source:** Metric calculation audit | **Status:** FIXED (2026-02-16)
+**File:** `optimization/numba_backtest.py`, callers
+**Problem:** All callers passed `bars_per_year=5544.0` (H1 assumption). M15 Sortino/Sharpe were ~2x too low because annualization factor was wrong for non-H1 timeframes.
+**Fix applied:** `bars_per_year` is now computed from the actual timeframe instead of being hardcoded.
+
+### KI-24: Dashboard security - no auth, path traversal
+**Source:** Security audit | **Status:** FIXED (2026-02-16)
+**File:** `dashboard/`
+**Problem:** Dashboard had no authentication on POST endpoints and was vulnerable to path traversal on all routes.
+**Fix applied:** Added HTTP Basic auth on POST endpoints. Input sanitization added on all routes to prevent path traversal.
 
 ---
 

@@ -21,9 +21,13 @@ from numba import njit, prange
 from loguru import logger
 
 from optimization.numba_backtest import full_backtest_with_trades, full_backtest_with_telemetry, get_quote_conversion_rate, grid_backtest_with_trades, grid_backtest_with_telemetry
+from optimization.unified_optimizer import _bars_per_year
 from pipeline.config import PipelineConfig
 from pipeline.state import PipelineState
 from pipeline.stages.s2_optimization import get_strategy
+
+EXIT_REASON_NAMES = {0: 'sl', 1: 'tp', 2: 'trailing', 3: 'time',
+                     4: 'stale', 5: 'ml', 6: 'force_close'}
 
 
 @njit(cache=True)
@@ -273,6 +277,11 @@ class MonteCarloStage:
         # Combine back and forward data for MC analysis
         df_full = pd.concat([df_back, df_forward])
 
+        # Precompute signals ONCE for the full dataset (not per-candidate)
+        # Grid strategies like fair_price_ma generate millions of signals (2.6M+)
+        # using 2+ GB RAM per precompute — calling this 50x caused OOM crashes.
+        strategy.precompute_for_dataset(df_full)
+
         # Analyze each candidate
         for i, candidate in enumerate(candidates):
             logger.info(f"\n--- Candidate {candidate['rank']} ---")
@@ -397,8 +406,8 @@ class MonteCarloStage:
         closes = df['close'].values.astype(np.float64)
         days = df.index.dayofweek.values.astype(np.int64)
 
-        # Precompute signals
-        strategy.precompute_for_dataset(df)
+        # NOTE: precompute_for_dataset() is called once in run() before the candidate loop.
+        # Do NOT call it here — grid strategies generate millions of signals (2+ GB each).
 
         # Grid strategy path
         if strategy.supports_grid():
@@ -422,8 +431,9 @@ class MonteCarloStage:
                 pip_size,
                 max_concurrent,
                 get_quote_conversion_rate(self.config.pair, 'USD'),
-                5544.0,
+                _bars_per_year(self.config.timeframe),
                 self.config.spread_pips,
+                slippage_pips=self.config.slippage_pips,
             )
 
             pnls, equity, trade_groups = result[0], result[1], result[2]
@@ -499,6 +509,7 @@ class MonteCarloStage:
             quality_mult,
             get_quote_conversion_rate(self.config.pair, 'USD'),
             spread_pips=self.config.spread_pips,
+            slippage_pips=self.config.slippage_pips,
         )
 
         pnls, equity = result[0], result[1]
@@ -629,7 +640,7 @@ class MonteCarloStage:
         closes = df['close'].values.astype(np.float64)
         days = df.index.dayofweek.values.astype(np.int64)
 
-        strategy.precompute_for_dataset(df)
+        # NOTE: precompute_for_dataset() called by caller (run() or _collect_trade_details)
         signal_arrays, mgmt_arrays = strategy.get_all_arrays(
             params, highs, lows, closes, days
         )
@@ -695,6 +706,7 @@ class MonteCarloStage:
             quality_mult,
             get_quote_conversion_rate(self.config.pair, 'USD'),
             spread_pips=self.config.spread_pips,
+            slippage_pips=self.config.slippage_pips,
         )
 
         return result, signal_arrays, entry_prices
@@ -715,7 +727,7 @@ class MonteCarloStage:
         lows = df['low'].values.astype(np.float64)
         closes = df['close'].values.astype(np.float64)
 
-        strategy.precompute_for_dataset(df)
+        # NOTE: precompute_for_dataset() called by caller (run() or _collect_trade_details)
         grid_result = strategy.get_grid_arrays(params, highs, lows, closes)
 
         if grid_result is None:
@@ -746,8 +758,9 @@ class MonteCarloStage:
             pip_size,
             max_concurrent,
             get_quote_conversion_rate(self.config.pair, 'USD'),
-            5544.0,
+            _bars_per_year(self.config.timeframe),
             self.config.spread_pips,
+            slippage_pips=self.config.slippage_pips,
         )
 
         signal_arrays = {
@@ -888,13 +901,13 @@ class MonteCarloStage:
         - back_equity / forward_equity: split equity curves
         - summary stats: gross_profit, gross_loss, etc.
         """
-        EXIT_REASON_NAMES = {0: 'sl', 1: 'tp', 2: 'trailing', 3: 'time',
-                             4: 'stale', 5: 'ml', 6: 'force_close'}
-
         result = {}
         is_grid = strategy.supports_grid()
 
         for period_name, df in [('back', df_back), ('forward', df_forward)]:
+            # Precompute once per period (back/forward use different data)
+            strategy.precompute_for_dataset(df)
+
             if is_grid:
                 telemetry_result = self._run_grid_telemetry_backtest(
                     params, df, strategy, pip_size

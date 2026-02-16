@@ -3,6 +3,7 @@ Thin wrapper over NSSM subprocess calls for service control.
 
 All commands have 10s timeout. Service name convention: OandaTrader_{instance_id}
 """
+import re
 import subprocess
 from pathlib import Path
 from typing import Tuple
@@ -20,6 +21,8 @@ def _run_nssm(nssm_path: Path, *args, timeout: int = 10) -> subprocess.Completed
 
 
 def _svc_name(instance_id: str) -> str:
+    if not re.match(r'^[a-zA-Z0-9_-]+$', instance_id):
+        raise ValueError(f"Invalid instance ID: {instance_id!r}")
     return f"OandaTrader_{instance_id}"
 
 

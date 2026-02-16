@@ -124,7 +124,7 @@ def collect_detail_data(pipelines_dir: str, runs: list) -> dict:
             'walkforward_score': conf.get('walkforward_score'),
             'stability_score': conf.get('stability_score'),
             'montecarlo_score': conf.get('montecarlo_score'),
-            'sharpe_score': conf.get('sharpe_score'),
+            'quality_score': conf.get('quality_score'),
             'weights': conf.get('weights', {}),
             'raw_values': conf.get('raw_values', {}),
         }

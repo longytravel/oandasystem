@@ -81,7 +81,11 @@ class ConfidenceConfig:
     walkforward_weight: float = 0.25
     stability_weight: float = 0.15
     montecarlo_weight: float = 0.15
-    sharpe_weight: float = 0.15  # Actually uses Quality Score (field name kept for compat)
+    quality_score_weight: float = 0.15
+
+    # Hard caps for Ulcer Index (chronic underwater equity)
+    max_ulcer_yellow_cap: float = 10.0  # Ulcer above this → cap at YELLOW (70)
+    max_ulcer_red_cap: float = 20.0     # Ulcer above this → cap at RED (40)
 
     # Thresholds
     red_threshold: float = 40.0
@@ -219,7 +223,9 @@ class PipelineConfig:
                 'walkforward_weight': self.confidence.walkforward_weight,
                 'stability_weight': self.confidence.stability_weight,
                 'montecarlo_weight': self.confidence.montecarlo_weight,
-                'sharpe_weight': self.confidence.sharpe_weight,
+                'quality_score_weight': self.confidence.quality_score_weight,
+                'max_ulcer_yellow_cap': self.confidence.max_ulcer_yellow_cap,
+                'max_ulcer_red_cap': self.confidence.max_ulcer_red_cap,
                 'red_threshold': self.confidence.red_threshold,
                 'yellow_threshold': self.confidence.yellow_threshold,
                 'green_threshold': self.confidence.green_threshold,
@@ -259,7 +265,7 @@ class PipelineConfig:
             timeframe=data.get('timeframe', 'H1'),
             strategy_name=data.get('strategy_name', 'RSI_Divergence_v3'),
             description=data.get('description', ''),
-            initial_capital=data.get('initial_capital', 10000.0),
+            initial_capital=data.get('initial_capital', 3000.0),
             risk_per_trade=data.get('risk_per_trade', 1.0),
             spread_pips=data.get('spread_pips', 1.5),
             slippage_pips=data.get('slippage_pips', 0.5),
