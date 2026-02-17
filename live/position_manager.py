@@ -333,9 +333,9 @@ class PositionManager:
             position = self.positions[trade_id]
             logger.info(f"Trade {trade_id} closed externally (SL/TP hit)")
 
-            # Try to get real exit details from OANDA
-            exit_price = position.entry_price
-            realized_pnl = 0.0
+            # Fetch real exit details from OANDA - skip if unavailable
+            exit_price = None
+            realized_pnl = None
             exit_reason = "EXTERNAL"
 
             if oanda_client:
@@ -343,7 +343,7 @@ class PositionManager:
                     trade_details = oanda_client.get_trade(trade_id)
                     if trade_details:
                         realized_pnl = float(trade_details.get('realizedPL', 0.0))
-                        exit_price = float(trade_details.get('averageClosePrice', position.entry_price))
+                        exit_price = float(trade_details.get('averageClosePrice', 0.0))
 
                         # Determine exit reason from trade state/stopLossOrder/takeProfitOrder
                         state = trade_details.get('state', '')
@@ -360,15 +360,25 @@ class PositionManager:
 
                         logger.info(f"Trade {trade_id}: exit_price={exit_price:.5f}, "
                                    f"P&L={realized_pnl:+.2f}, reason={exit_reason}")
+                    else:
+                        logger.warning(f"Trade {trade_id}: empty response from get_trade, "
+                                      f"will retry next sync")
                 except Exception as e:
-                    logger.warning(f"Could not fetch trade details for {trade_id}: {e}")
+                    logger.warning(f"Could not fetch trade details for {trade_id}: {e}, "
+                                  f"will retry next sync")
 
-            self.remove_position(
-                trade_id=trade_id,
-                exit_price=exit_price,
-                realized_pnl=realized_pnl,
-                exit_reason=exit_reason,
-            )
+            # Only remove if we got valid P&L data - otherwise keep position
+            # and retry on next sync cycle to avoid recording bogus $0 P&L
+            if exit_price is not None and realized_pnl is not None:
+                self.remove_position(
+                    trade_id=trade_id,
+                    exit_price=exit_price,
+                    realized_pnl=realized_pnl,
+                    exit_reason=exit_reason,
+                )
+            else:
+                logger.warning(f"Trade {trade_id}: skipping removal, no P&L data. "
+                              f"Will retry next sync cycle.")
 
         # Update unrealized P&L for open positions
         for trade in broker_trades:
