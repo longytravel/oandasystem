@@ -220,12 +220,12 @@ def build_config(args) -> PipelineConfig:
 
     # Apply speed presets before explicit args (explicit args override)
     if args.turbo:
-        config.optimization.trials_per_stage = 200
-        config.optimization.final_trials = 500
-        config.optimization.top_n_candidates = 10
-        config.montecarlo.iterations = 100
-        config.montecarlo.bootstrap_iterations = 100
-        logger.info("TURBO MODE: trials=200/stage, final=500, top_n=10, MC=100")
+        config.optimization.trials_per_stage = 500
+        config.optimization.final_trials = 1500
+        config.optimization.top_n_candidates = 15
+        config.montecarlo.iterations = 200
+        config.montecarlo.bootstrap_iterations = 200
+        logger.info("TURBO MODE: trials=500/stage, final=1500, top_n=15, MC=200")
     elif args.fast:
         config.optimization.trials_per_stage = 2000
         config.optimization.final_trials = 5000

@@ -49,6 +49,86 @@
       "enabled": true,
       "from_run": "EUR_AUD_H1_20260215_140708",
       "description": "Fair Price MA H1 - 92.9 GREEN"
+    },
+    {
+      "id": "rsi_v3_EUR_USD_M15",
+      "strategy": "rsi_v3",
+      "pair": "EUR_USD",
+      "timeframe": "M15",
+      "risk_pct": 1.0,
+      "enabled": true,
+      "from_run": "EUR_USD_M15_20260216_220613",
+      "description": "RSI Div V3 M15 | 88 GREEN | 2.7/mo | WR 62% | PF 2.19"
+    },
+    {
+      "id": "rsi_v3_USD_JPY_M15",
+      "strategy": "rsi_v3",
+      "pair": "USD_JPY",
+      "timeframe": "M15",
+      "risk_pct": 1.0,
+      "enabled": true,
+      "from_run": "USD_JPY_M15_20260216_232619",
+      "description": "RSI Div V3 M15 | 88 GREEN | 4.8/mo | WR 83% | PF 3.66"
+    },
+    {
+      "id": "rsi_v3_AUD_USD_M15",
+      "strategy": "rsi_v3",
+      "pair": "AUD_USD",
+      "timeframe": "M15",
+      "risk_pct": 1.0,
+      "enabled": true,
+      "from_run": "AUD_USD_M15_20260216_232929",
+      "description": "RSI Div V3 M15 | 91 GREEN | 1.5/mo | WR 78% | PF 5.30"
+    },
+    {
+      "id": "rsi_v3_USD_CAD_M15",
+      "strategy": "rsi_v3",
+      "pair": "USD_CAD",
+      "timeframe": "M15",
+      "risk_pct": 1.0,
+      "enabled": true,
+      "from_run": "USD_CAD_M15_20260216_233224",
+      "description": "RSI Div V3 M15 | 93 GREEN | 5.2/mo | WR 32% | PF 2.37"
+    },
+    {
+      "id": "rsi_v3_EUR_GBP_M15",
+      "strategy": "rsi_v3",
+      "pair": "EUR_GBP",
+      "timeframe": "M15",
+      "risk_pct": 1.0,
+      "enabled": true,
+      "from_run": "EUR_GBP_M15_20260216_233528",
+      "description": "RSI Div V3 M15 | 88 GREEN | 3.2/mo | WR 84% | PF 2.99"
+    },
+    {
+      "id": "rsi_v3_EUR_JPY_M15",
+      "strategy": "rsi_v3",
+      "pair": "EUR_JPY",
+      "timeframe": "M15",
+      "risk_pct": 1.0,
+      "enabled": true,
+      "from_run": "EUR_JPY_M15_20260216_233820",
+      "description": "RSI Div V3 M15 | 80 GREEN | 5.2/mo | WR 97% | PF 2.69"
+    },
+    {
+      "id": "rsi_v3_GBP_JPY_M15",
+      "strategy": "rsi_v3",
+      "pair": "GBP_JPY",
+      "timeframe": "M15",
+      "risk_pct": 1.0,
+      "enabled": true,
+      "from_run": "GBP_JPY_M15_20260216_234125",
+      "description": "RSI Div V3 M15 | 90 GREEN | 1.8/mo | WR 100% | PF 100.00"
+    },
+    {
+      "id": "ema_v6_USD_JPY_M15",
+      "strategy": "ema_cross_ml",
+      "pair": "USD_JPY",
+      "timeframe": "M15",
+      "risk_pct": 1.0,
+      "enabled": true,
+      "from_run": "USD_JPY_M15_20260216_235417",
+      "description": "EMA Cross V6 M15 | 70 GREEN | 13.5/mo | WR 41% | PF 1.20"
     }
   ],
   "dashboard": {

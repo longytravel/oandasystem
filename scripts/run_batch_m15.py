@@ -213,12 +213,15 @@ def run_single(pair: str, strat_key: str, strat_info: tuple, skip_existing: bool
         strategy_name=pipeline_name,
         initial_capital=1000.0,
     )
-    # Turbo settings
-    config.optimization.trials_per_stage = 200
-    config.optimization.final_trials = 500
-    config.optimization.top_n_candidates = 10
-    config.montecarlo.iterations = 100
-    config.montecarlo.bootstrap_iterations = 100
+    # Turbo settings for trade-generation testing
+    config.optimization.trials_per_stage = 500
+    config.optimization.final_trials = 1500
+    config.optimization.top_n_candidates = 5
+    config.montecarlo.iterations = 200
+    config.montecarlo.bootstrap_iterations = 200
+    # Relaxed filters: we want trades to compare, not profits
+    config.optimization.max_dd_hard_limit = 50.0   # Allow more DD (normal: 30%)
+    config.optimization.min_r2_hard = 0.2           # Allow noisier equity curves (normal: 0.5)
 
     pipeline = Pipeline(config)
     start = time.time()
