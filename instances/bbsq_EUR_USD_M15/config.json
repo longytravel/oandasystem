@@ -1,0 +1,31 @@
+{
+  "run_id": "default_params",
+  "strategy": "Bollinger_Squeeze",
+  "pair": "EUR_USD",
+  "timeframe": "M15",
+  "score": 0,
+  "rating": "N/A",
+  "rank": "default",
+  "params": {
+    "bb_period": 20,
+    "bb_std": 2.0,
+    "squeeze_lookback": 50,
+    "squeeze_percentile": 30,
+    "use_trend_filter": false,
+    "use_time_filter": false,
+    "min_atr_pips": 0,
+    "sl_atr_mult": 2.0,
+    "tp_rr_ratio": 3.0,
+    "max_hold_bars": 100
+  },
+  "expectations": {
+    "win_rate": 0,
+    "sharpe": 0,
+    "profit_factor": 0,
+    "avg_trades_per_month": 0,
+    "max_drawdown_pct": 0,
+    "forward_return_pct": 0,
+    "forward_trades": 0,
+    "forward_months": 0
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "run_id": "USD_JPY_M15_20260216_235417",
+  "strategy": "EMA_Cross_ML",
+  "pair": "USD_JPY",
+  "timeframe": "M15",
+  "score": 70.1,
+  "rating": "GREEN",
+  "rank": 2,
+  "params": {
+    "ema_fast_period": 13,
+    "ema_slow_period": 89,
+    "min_atr_pips": 0,
+    "sl_atr_mult": 3.0,
+    "tp_atr_mult": 8.0,
+    "max_hold_bars": 100
+  },
+  "expectations": {
+    "win_rate": 0.4074,
+    "sharpe": 1.118,
+    "profit_factor": 1.2,
+    "avg_trades_per_month": 13.5,
+    "max_drawdown_pct": 6.06,
+    "forward_return_pct": 10.94,
+    "forward_trades": 81,
+    "forward_months": 6
+  }
+}

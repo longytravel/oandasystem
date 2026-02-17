@@ -43,8 +43,11 @@ logs/
 # CatBoost cache
 catboost_info/
 
-# Deployment runtime (not in git)
-instances/
+# Deployment runtime (logs/state not in git, but config.json IS tracked)
+instances/**/state/
+instances/**/logs/
+instances/**/health.json
+instances/**/*.log
 deploy/nssm/nssm.exe
 deploy/nssm/nssm.zip
 deploy/nssm/temp/

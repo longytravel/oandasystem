@@ -1,0 +1,31 @@
+{
+  "run_id": "GBP_JPY_M15_20260217_074507",
+  "strategy": "Bollinger_Squeeze",
+  "pair": "GBP_JPY",
+  "timeframe": "M15",
+  "score": 63.4,
+  "rating": "YELLOW",
+  "rank": 1,
+  "params": {
+    "bb_period": 20,
+    "bb_std": 2.5,
+    "squeeze_lookback": 20,
+    "squeeze_percentile": 30,
+    "use_trend_filter": true,
+    "use_time_filter": true,
+    "min_atr_pips": 10,
+    "sl_atr_mult": 3.0,
+    "tp_rr_ratio": 3.0,
+    "max_hold_bars": 50
+  },
+  "expectations": {
+    "win_rate": 0.8,
+    "sharpe": 1.493,
+    "profit_factor": 4.525,
+    "avg_trades_per_month": 0.8,
+    "max_drawdown_pct": 1.06,
+    "forward_return_pct": 3.94,
+    "forward_trades": 5,
+    "forward_months": 6
+  }
+}

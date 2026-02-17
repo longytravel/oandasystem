@@ -1,0 +1,31 @@
+{
+  "run_id": "EUR_GBP_M15_20260217_065443",
+  "strategy": "Stochastic_ADX",
+  "pair": "EUR_GBP",
+  "timeframe": "M15",
+  "score": 69.7,
+  "rating": "YELLOW",
+  "rank": 2,
+  "params": {
+    "stoch_k": 21,
+    "stoch_d": 3,
+    "stoch_smooth": 3,
+    "adx_period": 20,
+    "adx_min": 20,
+    "overbought": 75,
+    "oversold": 20,
+    "sl_atr_mult": 3.0,
+    "tp_rr_ratio": 5.0,
+    "max_hold_bars": 0
+  },
+  "expectations": {
+    "win_rate": 0.2712,
+    "sharpe": 1.542,
+    "profit_factor": 1.495,
+    "avg_trades_per_month": 9.8,
+    "max_drawdown_pct": 7.66,
+    "forward_return_pct": 26.22,
+    "forward_trades": 59,
+    "forward_months": 6
+  }
+}

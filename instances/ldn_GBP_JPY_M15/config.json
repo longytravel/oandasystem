@@ -1,0 +1,31 @@
+{
+  "run_id": "default_params",
+  "strategy": "London_Breakout",
+  "pair": "GBP_JPY",
+  "timeframe": "M15",
+  "score": 0,
+  "rating": "N/A",
+  "rank": "default",
+  "params": {
+    "asian_start_hour": 0,
+    "asian_end_hour": 7,
+    "entry_window_hours": 4,
+    "min_range_atr": 0.3,
+    "use_trend_filter": false,
+    "max_range_atr": 5.0,
+    "breakout_buffer_pct": 0,
+    "sl_mode": "range",
+    "sl_atr_mult": 1.5,
+    "tp_rr_ratio": 2.0
+  },
+  "expectations": {
+    "win_rate": 0,
+    "sharpe": 0,
+    "profit_factor": 0,
+    "avg_trades_per_month": 0,
+    "max_drawdown_pct": 0,
+    "forward_return_pct": 0,
+    "forward_trades": 0,
+    "forward_months": 0
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "run_id": "EUR_JPY_M15_20260217_074101",
+  "strategy": "Bollinger_Squeeze",
+  "pair": "EUR_JPY",
+  "timeframe": "M15",
+  "score": 93.1,
+  "rating": "GREEN",
+  "rank": 3,
+  "params": {
+    "bb_period": 30,
+    "bb_std": 1.5,
+    "squeeze_lookback": 50,
+    "squeeze_percentile": 20,
+    "use_trend_filter": true,
+    "use_time_filter": false,
+    "min_atr_pips": 10,
+    "sl_atr_mult": 1.5,
+    "tp_rr_ratio": 2.0,
+    "max_hold_bars": 0
+  },
+  "expectations": {
+    "win_rate": 0.6667,
+    "sharpe": 2.129,
+    "profit_factor": 3.314,
+    "avg_trades_per_month": 1.0,
+    "max_drawdown_pct": 1.11,
+    "forward_return_pct": 5.46,
+    "forward_trades": 6,
+    "forward_months": 6
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "run_id": "default_params",
+  "strategy": "Stochastic_ADX",
+  "pair": "USD_CHF",
+  "timeframe": "M15",
+  "score": 0,
+  "rating": "N/A",
+  "rank": "default",
+  "params": {
+    "stoch_k": 14,
+    "stoch_d": 3,
+    "stoch_smooth": 3,
+    "adx_period": 14,
+    "adx_min": 15,
+    "overbought": 80,
+    "oversold": 20,
+    "sl_atr_mult": 2.0,
+    "tp_rr_ratio": 3.0,
+    "max_hold_bars": 100
+  },
+  "expectations": {
+    "win_rate": 0,
+    "sharpe": 0,
+    "profit_factor": 0,
+    "avg_trades_per_month": 0,
+    "max_drawdown_pct": 0,
+    "forward_return_pct": 0,
+    "forward_trades": 0,
+    "forward_months": 0
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "run_id": "AUD_USD_M15_20260217_070818",
+  "strategy": "London_Breakout",
+  "pair": "AUD_USD",
+  "timeframe": "M15",
+  "score": 47.7,
+  "rating": "YELLOW",
+  "rank": 2,
+  "params": {
+    "asian_start_hour": 1,
+    "asian_end_hour": 6,
+    "entry_window_hours": 6,
+    "min_range_atr": 0.8,
+    "use_trend_filter": false,
+    "max_range_atr": 3.0,
+    "breakout_buffer_pct": 10,
+    "sl_mode": "atr",
+    "sl_atr_mult": 3.0,
+    "tp_rr_ratio": 7.5
+  },
+  "expectations": {
+    "win_rate": 0.2857,
+    "sharpe": 0.409,
+    "profit_factor": 1.457,
+    "avg_trades_per_month": 1.2,
+    "max_drawdown_pct": 4.5,
+    "forward_return_pct": 2.71,
+    "forward_trades": 7,
+    "forward_months": 6
+  }
+}
