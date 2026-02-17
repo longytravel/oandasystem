@@ -27,6 +27,10 @@ def get_strategy(strategy_name: str) -> FastStrategy:
     from strategies.rsi_full_v5 import RSIDivergenceFullFastV5
     from strategies.ema_cross_ml import EMACrossMLStrategy
     from strategies.fair_price_ma import FairPriceMAStrategy
+    from strategies.donchian_breakout import DonchianBreakoutStrategy
+    from strategies.bollinger_squeeze import BollingerSqueezeStrategy
+    from strategies.london_breakout import LondonBreakoutStrategy
+    from strategies.stochastic_adx import StochasticADXStrategy
 
     strategies = {
         # V3 - RSI Stability-Hardened (multi-RSI consensus, adaptive swings)
@@ -50,6 +54,22 @@ def get_strategy(strategy_name: str) -> FastStrategy:
         'FairPriceMA': FairPriceMAStrategy,
         'FairPriceMAStrategy': FairPriceMAStrategy,
         'fair_price_ma': FairPriceMAStrategy,
+        # Donchian Channel Breakout (Turtle Trading)
+        'Donchian_Breakout': DonchianBreakoutStrategy,
+        'donchian_breakout': DonchianBreakoutStrategy,
+        'donchian': DonchianBreakoutStrategy,
+        # Bollinger Band Squeeze Breakout
+        'Bollinger_Squeeze': BollingerSqueezeStrategy,
+        'bollinger_squeeze': BollingerSqueezeStrategy,
+        'bollinger': BollingerSqueezeStrategy,
+        # London Session Breakout
+        'London_Breakout': LondonBreakoutStrategy,
+        'london_breakout': LondonBreakoutStrategy,
+        'london': LondonBreakoutStrategy,
+        # Stochastic + ADX
+        'Stochastic_ADX': StochasticADXStrategy,
+        'stochastic_adx': StochasticADXStrategy,
+        'stoch_adx': StochasticADXStrategy,
     }
 
     if strategy_name not in strategies:

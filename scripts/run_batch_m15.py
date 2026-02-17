@@ -37,6 +37,10 @@ STRATEGIES = {
     'rsi_v3': ('RSI_Divergence_v3', 'rsi_v3', 'RSI Div V3'),
     'ema_cross_ml': ('EMA_Cross_ML', 'ema_cross_ml', 'EMA Cross V6'),
     'fair_price_ma': ('Fair_Price_MA', 'fair_price_ma', 'Fair Price MA'),
+    'donchian_breakout': ('Donchian_Breakout', 'donchian_breakout', 'Donchian Brk'),
+    'bollinger_squeeze': ('Bollinger_Squeeze', 'bollinger_squeeze', 'BB Squeeze'),
+    'london_breakout': ('London_Breakout', 'london_breakout', 'London Brk'),
+    'stochastic_adx': ('Stochastic_ADX', 'stochastic_adx', 'Stoch ADX'),
 }
 
 TIMEFRAME = 'M15'
@@ -61,6 +65,10 @@ def build_instance_id(strat_key: str, pair: str) -> str:
         'rsi_v3': 'rsi_v3',
         'ema_cross_ml': 'ema_v6',
         'fair_price_ma': 'fpma',
+        'donchian_breakout': 'dch',
+        'bollinger_squeeze': 'bbsq',
+        'london_breakout': 'ldn',
+        'stochastic_adx': 'stadx',
     }
     prefix = prefix_map.get(strat_key, strat_key)
     return f"{prefix}_{pair}_{TIMEFRAME}"

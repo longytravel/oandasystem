@@ -40,6 +40,10 @@ PIPELINE_STRATEGIES = {
     "rsi_v5": ("strategies.rsi_full_v5", "RSIDivergenceFullFastV5"),
     "ema_cross": ("strategies.ema_cross_ml", "EMACrossMLStrategy"),
     "fair_price_ma": ("strategies.fair_price_ma", "FairPriceMAStrategy"),
+    "donchian_breakout": ("strategies.donchian_breakout", "DonchianBreakoutStrategy"),
+    "bollinger_squeeze": ("strategies.bollinger_squeeze", "BollingerSqueezeStrategy"),
+    "london_breakout": ("strategies.london_breakout", "LondonBreakoutStrategy"),
+    "stochastic_adx": ("strategies.stochastic_adx", "StochasticADXStrategy"),
 }
 
 # Legacy strategies (old Strategy interface) - all archived
@@ -159,6 +163,10 @@ def create_strategy(args):
             'RSI_Divergence_v5': 'rsi_v5',
             'EMA_Cross_ML': 'ema_cross',
             'fair_price_ma': 'fair_price_ma',
+            'Donchian_Breakout': 'donchian_breakout',
+            'Bollinger_Squeeze': 'bollinger_squeeze',
+            'London_Breakout': 'london_breakout',
+            'Stochastic_ADX': 'stochastic_adx',
         }
         strategy_name = name_map.get(run_data['strategy_name'], args.strategy)
         logger.info(f"Loaded from pipeline run: {args.from_run}")

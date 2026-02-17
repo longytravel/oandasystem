@@ -1,0 +1,31 @@
+{
+  "run_id": "USD_JPY_M15_20260217_064143",
+  "strategy": "Stochastic_ADX",
+  "pair": "USD_JPY",
+  "timeframe": "M15",
+  "score": 58.8,
+  "rating": "YELLOW",
+  "rank": 2,
+  "params": {
+    "stoch_k": 5,
+    "stoch_d": 3,
+    "stoch_smooth": 3,
+    "adx_period": 20,
+    "adx_min": 25,
+    "overbought": 80,
+    "oversold": 20,
+    "sl_atr_mult": 3.0,
+    "tp_rr_ratio": 7.5,
+    "max_hold_bars": 200
+  },
+  "expectations": {
+    "win_rate": 0.275,
+    "sharpe": 0.263,
+    "profit_factor": 1.052,
+    "avg_trades_per_month": 13.3,
+    "max_drawdown_pct": 13.96,
+    "forward_return_pct": 3.23,
+    "forward_trades": 80,
+    "forward_months": 6
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "run_id": "USD_JPY_M15_20260217_060744",
+  "strategy": "Donchian_Breakout",
+  "pair": "USD_JPY",
+  "timeframe": "M15",
+  "score": 81.5,
+  "rating": "GREEN",
+  "rank": 1,
+  "params": {
+    "channel_period": 10,
+    "min_channel_width_atr": 0.5,
+    "confirm_bars": 3,
+    "use_trend_filter": false,
+    "use_time_filter": true,
+    "trade_start_hour": 8,
+    "trade_end_hour": 23,
+    "sl_atr_mult": 3.0,
+    "tp_rr_ratio": 5.0,
+    "max_hold_bars": 100
+  },
+  "expectations": {
+    "win_rate": 0.3985,
+    "sharpe": 2.45,
+    "profit_factor": 1.411,
+    "avg_trades_per_month": 22.2,
+    "max_drawdown_pct": 7.65,
+    "forward_return_pct": 43.96,
+    "forward_trades": 133,
+    "forward_months": 6
+  }
+}

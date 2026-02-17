@@ -168,10 +168,18 @@ STRATEGY_DISPLAY_NAMES = {
     'ema_cross_ml': 'EMA Cross V6',
     'fair_price_ma': 'Fair Price MA',
     'rsi_fast': 'RSI Fast',
+    'donchian_breakout': 'Donchian Breakout',
+    'bollinger_squeeze': 'Bollinger Squeeze',
+    'london_breakout': 'London Breakout',
+    'stochastic_adx': 'Stochastic ADX',
     'RSI_Divergence_v3': 'RSI Divergence V3',
     'RSI_Divergence_v1': 'RSI Divergence V1',
     'EMA_Cross_v6': 'EMA Cross V6',
     'Fair_Price_MA': 'Fair Price MA',
+    'Donchian_Breakout': 'Donchian Breakout',
+    'Bollinger_Squeeze': 'Bollinger Squeeze',
+    'London_Breakout': 'London Breakout',
+    'Stochastic_ADX': 'Stochastic ADX',
 }
 
 # Strategy type tags for visual badges
@@ -183,6 +191,10 @@ STRATEGY_TAGS = {
     'ema_cross_ml': ('EMA', 'trend'),
     'fair_price_ma': ('FPMA', 'value'),
     'rsi_fast': ('RSI', 'momentum'),
+    'donchian_breakout': ('DCH', 'trend'),
+    'bollinger_squeeze': ('BB', 'volatility'),
+    'london_breakout': ('LDN', 'session'),
+    'stochastic_adx': ('STCH', 'momentum'),
 }
 
 

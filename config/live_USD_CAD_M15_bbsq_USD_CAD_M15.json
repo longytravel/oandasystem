@@ -1,0 +1,31 @@
+{
+  "run_id": "USD_CAD_M15_20260217_073415",
+  "strategy": "Bollinger_Squeeze",
+  "pair": "USD_CAD",
+  "timeframe": "M15",
+  "score": 55.0,
+  "rating": "YELLOW",
+  "rank": 1,
+  "params": {
+    "bb_period": 30,
+    "bb_std": 2.0,
+    "squeeze_lookback": 100,
+    "squeeze_percentile": 10,
+    "use_trend_filter": true,
+    "use_time_filter": true,
+    "min_atr_pips": 0,
+    "sl_atr_mult": 3.0,
+    "tp_rr_ratio": 3.0,
+    "max_hold_bars": 200
+  },
+  "expectations": {
+    "win_rate": 0.4286,
+    "sharpe": 1.249,
+    "profit_factor": 1.804,
+    "avg_trades_per_month": 2.3,
+    "max_drawdown_pct": 4.59,
+    "forward_return_pct": 7.92,
+    "forward_trades": 14,
+    "forward_months": 6
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "run_id": "USD_JPY_M15_20260217_072739",
+  "strategy": "Bollinger_Squeeze",
+  "pair": "USD_JPY",
+  "timeframe": "M15",
+  "score": 79.2,
+  "rating": "GREEN",
+  "rank": 3,
+  "params": {
+    "bb_period": 20,
+    "bb_std": 2.5,
+    "squeeze_lookback": 100,
+    "squeeze_percentile": 20,
+    "use_trend_filter": false,
+    "use_time_filter": true,
+    "min_atr_pips": 0,
+    "sl_atr_mult": 2.0,
+    "tp_rr_ratio": 7.5,
+    "max_hold_bars": 200
+  },
+  "expectations": {
+    "win_rate": 0.3077,
+    "sharpe": 1.995,
+    "profit_factor": 2.834,
+    "avg_trades_per_month": 2.2,
+    "max_drawdown_pct": 5.56,
+    "forward_return_pct": 20.05,
+    "forward_trades": 13,
+    "forward_months": 6
+  }
+}
