@@ -361,20 +361,42 @@ class LiveTrader:
                 result['blocked'] = reason
                 return result
 
-            # Fetch candles
+            # Position guard: skip if another instance already has a position on this pair.
+            # Only applies in multi-instance mode (instance_id set).
+            pair_occupied = False
+            if self.instance_id:
+                try:
+                    broker_trades = self.client.get_open_trades()
+                    for bt in broker_trades:
+                        if bt.get('instrument') == self.instrument:
+                            ext = bt.get('clientExtensions', {})
+                            owner = ext.get('tag', '')
+                            if owner != self.instance_id:
+                                logger.info(
+                                    f"Pair {self.instrument} already has open trade "
+                                    f"#{bt.get('id')} ({bt.get('currentUnits')} units, "
+                                    f"owner: {owner or 'unknown'}). Skipping signal check."
+                                )
+                                result['blocked'] = f"pair_occupied_by_{owner or 'other'}"
+                                pair_occupied = True
+                                break
+                except Exception as e:
+                    logger.warning(f"Position guard check failed: {e}")
+
+            # Fetch candles (needed for both signal check and position management)
             df = self._fetch_candles()
             if df is None or df.empty:
                 result['error'] = "No candle data"
                 return result
 
-            # Check for signal
-            signal = self._check_for_signal(df)
-            result['signal'] = signal
+            # Signal generation (skip if pair is occupied by another instance)
+            if not pair_occupied:
+                signal = self._check_for_signal(df)
+                result['signal'] = signal
 
-            if signal:
-                # Execute trade
-                executed = self._execute_signal(signal, account_info)
-                result['trade_executed'] = executed
+                if signal:
+                    executed = self._execute_signal(signal, account_info)
+                    result['trade_executed'] = executed
 
             # Manage positions (trailing stop, breakeven)
             if hasattr(self.strategy, 'manage_positions'):

@@ -46,6 +46,14 @@ STRATEGY_MAP = {
     "ema_cross": ("strategies.ema_cross_ml", "EMACrossMLFast"),
     "EMA_Cross_ML": ("strategies.ema_cross_ml", "EMACrossMLFast"),
     "fair_price_ma": ("strategies.fair_price_ma", "FairPriceMAStrategy"),
+    "donchian_breakout": ("strategies.donchian_breakout", "DonchianBreakoutStrategy"),
+    "Donchian_Breakout": ("strategies.donchian_breakout", "DonchianBreakoutStrategy"),
+    "bollinger_squeeze": ("strategies.bollinger_squeeze", "BollingerSqueezeStrategy"),
+    "Bollinger_Squeeze": ("strategies.bollinger_squeeze", "BollingerSqueezeStrategy"),
+    "london_breakout": ("strategies.london_breakout", "LondonBreakoutStrategy"),
+    "London_Breakout": ("strategies.london_breakout", "LondonBreakoutStrategy"),
+    "stochastic_adx": ("strategies.stochastic_adx", "StochasticADXStrategy"),
+    "Stochastic_ADX": ("strategies.stochastic_adx", "StochasticADXStrategy"),
 }
 
 
@@ -84,7 +92,7 @@ def load_candles(pair: str, timeframe: str, start: datetime = None, end: datetim
     """Load candle data, optionally filtered to date range."""
     from data.download import load_data
     # Load with enough lookback for indicators (RSI needs ~200 bars minimum)
-    df = load_data(instrument=pair, timeframe=timeframe, auto_download=False, years=5)
+    df = load_data(instrument=pair, timeframe=timeframe, auto_download=False, years=1)
     if df.empty:
         return df
 
