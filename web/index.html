@@ -816,6 +816,8 @@ async function loadLeaderboard() {
   try {
     var r = await fetch('/data/leaderboard.json');
     if (!r.ok) throw new Error('HTTP ' + r.status);
+    var ct = r.headers.get('content-type') || '';
+    if (ct.indexOf('json') === -1) throw new Error('leaderboard.json not found (run build_web.py to generate)');
     lbData = await r.json();
     lbLoaded = true;
     buildLB();
