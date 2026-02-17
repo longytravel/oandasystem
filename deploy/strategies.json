@@ -122,7 +122,7 @@
     },
     {
       "id": "ema_v6_USD_JPY_M15",
-      "strategy": "ema_cross_ml",
+      "strategy": "ema_cross",
       "pair": "USD_JPY",
       "timeframe": "M15",
       "risk_pct": 1.0,
