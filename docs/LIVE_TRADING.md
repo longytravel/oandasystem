@@ -1,12 +1,14 @@
 # Live Trading Guide
 
-**Last Updated:** 2026-02-15
+**Last Updated:** 2026-02-17
 
 This guide covers deploying and running the OANDA trading system in paper or live mode, including VPS setup and monitoring.
 
 ---
 
 ## Active Deployments
+
+### Original H1 Strategies (5)
 
 | # | Service ID | Strategy | Pair | TF | Risk | Score | Pipeline Run | Since |
 |---|------------|----------|------|----|------|-------|--------------|-------|
@@ -15,6 +17,27 @@ This guide covers deploying and running the OANDA trading system in paper or liv
 | 3 | rsi_v1_USD_CHF_H1 | RSI Divergence V1 | USD_CHF | H1 | 1.0% | 97.4 GREEN | USD_CHF_H1_20260212_122528 | 2026-02-12 |
 | 4 | fpma_EUR_JPY_H1 | Fair Price MA | EUR_JPY | H1 | 1.0% | 87.6 GREEN | EUR_JPY_H1_20260215_074906 | 2026-02-15 |
 | 5 | fpma_EUR_AUD_H1 | Fair Price MA | EUR_AUD | H1 | 1.0% | 92.9 GREEN | EUR_AUD_H1_20260215_140708 | 2026-02-15 |
+
+### Backtester Validation Fleet - M15 (12 strategies, added 2026-02-17)
+
+Purpose: Generate trades across 7 different strategy types to compare backtest predictions vs actual OANDA fills. Not optimized for profit - optimized for trade volume and strategy diversity.
+
+| # | Instance ID | Strategy | Pair | Source | Score |
+|---|-------------|----------|------|--------|-------|
+| 6 | rv3_EUR_USD_M15 | RSI V3 | EUR_USD | Pipeline optimized | 73.5 GREEN |
+| 7 | rv3_EUR_JPY_M15 | RSI V3 | EUR_JPY | Pipeline optimized | 75.1 GREEN |
+| 8 | rv3_USD_JPY_M15 | RSI V3 | USD_JPY | Pipeline optimized | 82.9 GREEN |
+| 9 | ev6_USD_JPY_M15 | EMA V6 | USD_JPY | Pipeline optimized | 70.2 GREEN |
+| 10 | dch_USD_JPY_M15 | Donchian Breakout | USD_JPY | Pipeline optimized | 82.0 GREEN |
+| 11 | dch_NZD_USD_M15 | Donchian Breakout | NZD_USD | Default params | N/A |
+| 12 | bbsq_EUR_JPY_M15 | Bollinger Squeeze | EUR_JPY | Pipeline optimized | 93.0 GREEN |
+| 13 | bbsq_GBP_USD_M15 | Bollinger Squeeze | GBP_USD | Default params | N/A |
+| 14 | ldn_USD_JPY_M15 | London Breakout | USD_JPY | Pipeline optimized | 85.3 GREEN |
+| 15 | ldn_EUR_JPY_M15 | London Breakout | EUR_JPY | Pipeline optimized | 75.7 GREEN |
+| 16 | stadx_GBP_JPY_M15 | Stochastic ADX | GBP_JPY | Pipeline optimized | 70.4 GREEN |
+| 17 | stadx_USD_CHF_M15 | Stochastic ADX | USD_CHF | Default params | N/A |
+
+**Total: 17 strategies** (~5-7 GB RAM estimated)
 
 **VPS**: 104.128.63.239:5909 (VNC) | **Dashboard**: http://104.128.63.239:8080 | **Account**: 101-004-38418172-001 (practice)
 
@@ -96,7 +119,7 @@ python scripts/run_live.py --strategy rsi_v3 --from-run GBP_USD_M15_20260210_063
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--strategy` | `rsi_v3` | Strategy key: `rsi_v3`, `rsi_v4`, `rsi_v5`, `ema_cross`, `fair_price_ma` |
+| `--strategy` | `rsi_v3` | Strategy key: `rsi_v3`, `rsi_v4`, `rsi_v5`, `ema_cross`, `fair_price_ma`, `donchian_breakout`, `bollinger_squeeze`, `london_breakout`, `stochastic_adx` |
 | `--pair` | `GBP_USD` | Currency pair (OANDA format) |
 | `--timeframe` | `H1` | Candle timeframe: M1, M5, M15, M30, H1, H2, H4, D |
 | `--from-run` | - | Load params from pipeline run ID (e.g., `GBP_USD_M15_20260210_063223`) |
@@ -344,4 +367,135 @@ Each instance gets:
 Monitor all instances:
 ```bash
 python scripts/run_monitor.py --instances-dir instances/
+```
+
+---
+
+## Trade Comparison Workflow (Backtest vs Live)
+
+The primary purpose of the M15 validation fleet is to verify the backtester produces results that match real OANDA execution. Here's the workflow:
+
+### Step 1: Collect Live Trades
+
+After strategies have been running for a few days/weeks, export trade history from OANDA:
+
+1. Log into [OANDA Trade Practice](https://trade.oanda.com/practice)
+2. Go to **Portfolio** → **History** → **Trades**
+3. Filter by date range covering the deployment period
+4. Export as CSV (or copy/paste into a CSV file)
+
+The CSV should contain at minimum: trade ID, instrument, direction (buy/sell), open time, close time, open price, close price, units, P&L.
+
+### Step 2: Run the Check-Trades Skill
+
+Share the CSV with Claude and use the `/check-trades` skill:
+
+```
+/check-trades
+```
+
+This will:
+1. **Download fresh candles** from OANDA for the exact period the trades cover
+2. **Run a full backtest simulation** using the same strategy + params that the live instance uses
+3. **Match live trades to backtest trades** by timestamp and direction
+4. **Compare key metrics** for each matched pair:
+   - Entry price (live vs backtest)
+   - Exit price and reason (SL/TP/trailing/time)
+   - P&L per trade
+   - Signal timing (same candle? off by 1?)
+5. **Flag discrepancies** - any trade that doesn't appear in both live and backtest, or where prices diverge beyond spread+slippage tolerance
+
+### Step 3: Interpret Results
+
+What we're looking for:
+
+| Check | Pass | Fail |
+|-------|------|------|
+| Signal match | Every live entry has a corresponding backtest signal on the same candle | Trades appear in live but not backtest (or vice versa) |
+| Entry price | Within spread (1.5 pips) of backtest entry | Consistently worse than backtest by > 2 pips |
+| SL/TP hit | Same exit reason (SL vs TP) | Backtest says TP but live hit SL (or vice versa) |
+| P&L direction | Same sign (both profit or both loss) | Opposite signs on matched trades |
+| Timing | Entries within same candle | Off by multiple candles |
+
+**Common issues and what they mean:**
+- **Live has extra trades backtest doesn't**: Signal generation bug, or live is processing candles at different boundaries
+- **Backtest has trades live doesn't**: Risk manager blocked them (spread too wide, position limit, daily limit)
+- **Same signal, different exit**: Trailing stop or breakeven logic differs between backtest and live adapter
+- **Consistent slippage bias**: Cost model needs adjustment (spread_pips or slippage_pips too low)
+
+### Step 4: Iterate
+
+Fix any discrepancies found, redeploy, and repeat. The goal is that the backtester and live system produce statistically indistinguishable results, giving us confidence that pipeline scores predict real-world performance.
+
+### Quick Reference
+
+```
+# What to share with Claude:
+1. The OANDA trade CSV
+2. Which instance(s) the trades are from (e.g., "rv3_EUR_USD_M15")
+3. The date range
+
+# Claude will handle the rest using /check-trades
+```
+
+---
+
+## NSSM Service Management (VPS)
+
+The VPS uses NSSM (Non-Sucking Service Manager) to run strategies as Windows services.
+
+### Deploy/Update All Services
+
+```powershell
+# On VPS: pull latest code and reinstall services
+cd C:\Trading\oandasystem
+git pull
+python deploy/install_services.py
+```
+
+This reads `deploy/strategies.json` and creates/updates NSSM services for each enabled strategy. Services auto-start on boot.
+
+### strategies.json Format
+
+```json
+{
+  "strategies": [
+    {
+      "instance_id": "rv3_EUR_USD_M15",
+      "strategy": "rsi_v3",
+      "pair": "EUR_USD",
+      "timeframe": "M15",
+      "from_run": "EUR_USD_M15_20260216_183241",
+      "risk": 1.0,
+      "enabled": true
+    }
+  ]
+}
+```
+
+Key fields:
+- `instance_id`: Unique ID, used as NSSM service name and instance directory name
+- `from_run`: Pipeline run ID to load optimized params from (omit for default params)
+- `enabled`: Set `false` to skip without deleting the entry
+- Services without `from_run` load params from `instances/{instance_id}/config.json`
+
+### Service Commands
+
+```powershell
+# List all OANDA services
+nssm list | findstr oanda
+
+# Check status of one service
+nssm status oanda_rv3_EUR_USD_M15
+
+# Start/stop/restart
+nssm start oanda_rv3_EUR_USD_M15
+nssm stop oanda_rv3_EUR_USD_M15
+nssm restart oanda_rv3_EUR_USD_M15
+
+# View service config
+nssm edit oanda_rv3_EUR_USD_M15
+
+# Remove a service
+nssm remove oanda_rv3_EUR_USD_M15 confirm
 ```

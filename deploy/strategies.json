@@ -66,7 +66,7 @@
       "pair": "USD_JPY",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "USD_JPY_M15_20260216_232619",
       "description": "RSI Div V3 M15 | 88 GREEN | 4.8/mo | WR 83% | PF 3.66"
     },
@@ -76,7 +76,7 @@
       "pair": "AUD_USD",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "AUD_USD_M15_20260216_232929",
       "description": "RSI Div V3 M15 | 91 GREEN | 1.5/mo | WR 78% | PF 5.30"
     },
@@ -96,7 +96,7 @@
       "pair": "EUR_GBP",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "EUR_GBP_M15_20260216_233528",
       "description": "RSI Div V3 M15 | 88 GREEN | 3.2/mo | WR 84% | PF 2.99"
     },
@@ -106,7 +106,7 @@
       "pair": "EUR_JPY",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "EUR_JPY_M15_20260216_233820",
       "description": "RSI Div V3 M15 | 80 GREEN | 5.2/mo | WR 97% | PF 2.69"
     },
@@ -116,7 +116,7 @@
       "pair": "GBP_JPY",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "GBP_JPY_M15_20260216_234125",
       "description": "RSI Div V3 M15 | 90 GREEN | 1.8/mo | WR 100% | PF 100.00"
     },
@@ -156,7 +156,7 @@
       "pair": "USD_JPY",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "USD_JPY_M15_20260217_064143",
       "description": "Stoch ADX M15 | 59 YELLOW | 13.3/mo | WR 28% | PF 1.05"
     },
@@ -176,7 +176,7 @@
       "pair": "GBP_USD",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "Donchian Brk M15 | Default params | Trade generation test"
     },
@@ -186,7 +186,7 @@
       "pair": "AUD_USD",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "Donchian Brk M15 | Default params | Trade generation test"
     },
@@ -196,7 +196,7 @@
       "pair": "USD_CAD",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "Donchian Brk M15 | Default params | Trade generation test"
     },
@@ -206,7 +206,7 @@
       "pair": "EUR_GBP",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "Donchian Brk M15 | Default params | Trade generation test"
     },
@@ -216,7 +216,7 @@
       "pair": "EUR_JPY",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "Donchian Brk M15 | Default params | Trade generation test"
     },
@@ -226,7 +226,7 @@
       "pair": "GBP_JPY",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "Donchian Brk M15 | Default params | Trade generation test"
     },
@@ -236,7 +236,7 @@
       "pair": "NZD_USD",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "Donchian Brk M15 | Default params | Trade generation test"
     },
@@ -246,7 +246,7 @@
       "pair": "USD_CHF",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "Donchian Brk M15 | Default params | Trade generation test"
     },
@@ -256,7 +256,7 @@
       "pair": "EUR_USD",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "BB Squeeze M15 | Default params | Trade generation test"
     },
@@ -266,7 +266,7 @@
       "pair": "GBP_USD",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "BB Squeeze M15 | Default params | Trade generation test"
     },
@@ -276,7 +276,7 @@
       "pair": "AUD_USD",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "BB Squeeze M15 | Default params | Trade generation test"
     },
@@ -286,7 +286,7 @@
       "pair": "EUR_GBP",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "BB Squeeze M15 | Default params | Trade generation test"
     },
@@ -296,7 +296,7 @@
       "pair": "NZD_USD",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "BB Squeeze M15 | Default params | Trade generation test"
     },
@@ -306,7 +306,7 @@
       "pair": "USD_CHF",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "BB Squeeze M15 | Default params | Trade generation test"
     },
@@ -316,7 +316,7 @@
       "pair": "EUR_USD",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "London Brk M15 | Default params | Trade generation test"
     },
@@ -326,7 +326,7 @@
       "pair": "GBP_USD",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "London Brk M15 | Default params | Trade generation test"
     },
@@ -336,7 +336,7 @@
       "pair": "USD_CAD",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "London Brk M15 | Default params | Trade generation test"
     },
@@ -346,7 +346,7 @@
       "pair": "EUR_GBP",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "London Brk M15 | Default params | Trade generation test"
     },
@@ -356,7 +356,7 @@
       "pair": "GBP_JPY",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "London Brk M15 | Default params | Trade generation test"
     },
@@ -366,7 +366,7 @@
       "pair": "NZD_USD",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "London Brk M15 | Default params | Trade generation test"
     },
@@ -376,7 +376,7 @@
       "pair": "USD_CHF",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "London Brk M15 | Default params | Trade generation test"
     },
@@ -386,7 +386,7 @@
       "pair": "GBP_USD",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "Stoch ADX M15 | Default params | Trade generation test"
     },
@@ -396,7 +396,7 @@
       "pair": "AUD_USD",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "Stoch ADX M15 | Default params | Trade generation test"
     },
@@ -406,7 +406,7 @@
       "pair": "USD_CAD",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "Stoch ADX M15 | Default params | Trade generation test"
     },
@@ -416,7 +416,7 @@
       "pair": "EUR_JPY",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "Stoch ADX M15 | Default params | Trade generation test"
     },
@@ -426,7 +426,7 @@
       "pair": "NZD_USD",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "Stoch ADX M15 | Default params | Trade generation test"
     },
@@ -436,7 +436,7 @@
       "pair": "USD_CHF",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "default_params",
       "description": "Stoch ADX M15 | Default params | Trade generation test"
     },
@@ -466,7 +466,7 @@
       "pair": "AUD_USD",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "AUD_USD_M15_20260217_070818",
       "description": "London Brk M15 | 48 YELLOW | 1.2/mo | WR 29% | PF 1.46"
     },
@@ -506,7 +506,7 @@
       "pair": "USD_CAD",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "USD_CAD_M15_20260217_073415",
       "description": "BB Squeeze M15 | 55 YELLOW | 2.3/mo | WR 43% | PF 1.80"
     },
@@ -526,7 +526,7 @@
       "pair": "GBP_JPY",
       "timeframe": "M15",
       "risk_pct": 1.0,
-      "enabled": true,
+      "enabled": false,
       "from_run": "GBP_JPY_M15_20260217_074507",
       "description": "BB Squeeze M15 | 63 YELLOW | 0.8/mo | WR 80% | PF 4.52"
     }
