@@ -99,7 +99,9 @@ def compute_live_performance(trades: list) -> LivePerformance:
         for key in ("exit_time", "entry_time"):
             if t.get(key):
                 try:
-                    dates.append(datetime.fromisoformat(t[key]))
+                    dt = datetime.fromisoformat(str(t[key]).replace("Z", "+00:00"))
+                    # Strip timezone to avoid mixing aware/naive
+                    dates.append(dt.replace(tzinfo=None))
                 except (ValueError, TypeError):
                     pass
                 break
