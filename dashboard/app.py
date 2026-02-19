@@ -178,7 +178,9 @@ async def api_status():
                                        "heartbeat_display": "N/A",
                                        "error_detail": str(e)})
         summary = get_daily_summary(instances)
-        return {"instances": instance_dicts, "summary": summary}
+        payload = {"instances": instance_dicts, "summary": summary}
+        # Serialize explicitly so errors are caught here, not in framework
+        return JSONResponse(content=json.loads(json.dumps(payload, default=str, allow_nan=False)))
     except Exception as e:
         logger.error("api_status crashed: %s\n%s", e, traceback.format_exc())
         return JSONResponse(

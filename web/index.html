@@ -683,17 +683,12 @@ function esc(s) { if (s == null) return ''; var d = document.createElement('div'
 function num(v, dec) { return v != null ? Number(v).toFixed(dec||2) : '\u2014'; }
 
 async function fetchDash() {
+  var errMsg = '';
   try {
     var r = await fetch('/api/vps/status');
     if (!r.ok) {
-      // Try to read error detail from JSON body
-      try {
-        var errData = await r.json();
-        if (errData.traceback) console.error('VPS error:', errData.traceback);
-        throw new Error(errData.message || 'HTTP ' + r.status);
-      } catch(parseErr) {
-        throw new Error('HTTP ' + r.status);
-      }
+      try { var ed = await r.json(); errMsg = ed.message || ''; if (ed.traceback) console.error('VPS error:', ed.traceback); } catch(x) {}
+      throw new Error(errMsg || 'HTTP ' + r.status);
     }
     var data = await r.json();
     if (data.error) throw new Error(data.message);
