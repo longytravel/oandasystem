@@ -329,6 +329,155 @@ def read_scan_progress(results_dir: Path) -> dict:
     return _read_json_safe(results_dir / "scan_progress.json") or {"status": "no_scan", "results": []}
 
 
+def read_daily_history(instance_dir: Path, days: int = 30) -> list:
+    """Read daily_history.json for an instance, returning last N days."""
+    data = _read_json_safe(instance_dir / "state" / "daily_history.json")
+    if not isinstance(data, list):
+        return []
+    if days > 0:
+        return data[-days:]
+    return data
+
+
+def get_portfolio_history(strategies_file: Path, instances_dir: Path, days: int = 30) -> list:
+    """Aggregate daily P&L across all instances into a portfolio time series."""
+    data = _read_json_safe(strategies_file)
+    if not data:
+        return []
+
+    # Collect all daily history entries across all instances
+    from collections import defaultdict
+    daily_agg = defaultdict(lambda: {"pnl": 0.0, "trades": 0, "wins": 0, "losses": 0})
+
+    for strat in data.get("strategies", []):
+        sid = strat["id"]
+        instance_dir = instances_dir / sid
+        history = read_daily_history(instance_dir, days=0)  # all days
+        for entry in history:
+            d = entry.get("date", "")
+            if d:
+                daily_agg[d]["pnl"] += entry.get("pnl", 0)
+                daily_agg[d]["trades"] += entry.get("trades", 0)
+                daily_agg[d]["wins"] += entry.get("wins", 0)
+                daily_agg[d]["losses"] += entry.get("losses", 0)
+
+    # Sort by date, take last N days
+    sorted_days = sorted(daily_agg.items(), key=lambda x: x[0])
+    if days > 0:
+        sorted_days = sorted_days[-days:]
+
+    result = []
+    cumulative = 0.0
+    for date_str, stats in sorted_days:
+        cumulative += stats["pnl"]
+        result.append({
+            "date": date_str,
+            "pnl": round(stats["pnl"], 4),
+            "cumulative_pnl": round(cumulative, 4),
+            "trades": stats["trades"],
+            "wins": stats["wins"],
+            "losses": stats["losses"],
+        })
+    return result
+
+
+def compute_insights(instances: list) -> dict:
+    """Compute analytical insights from instance data.
+
+    Returns best/worst performers, streak alerts, drawdown alerts,
+    frequency alerts, and pair P&L aggregation.
+    """
+    from collections import defaultdict
+
+    # Best/worst by daily P&L
+    with_pnl = [
+        {"id": i.id, "strategy": i.strategy_display or i.strategy,
+         "pair": i.pair, "pnl": round(i.daily_pnl, 2)}
+        for i in instances if i.daily_pnl != 0
+    ]
+    sorted_pnl = sorted(with_pnl, key=lambda x: x["pnl"], reverse=True)
+    best_today = sorted_pnl[:3] if sorted_pnl else []
+    worst_today = sorted_pnl[-3:][::-1] if len(sorted_pnl) > 3 else (
+        [x for x in sorted_pnl if x["pnl"] < 0]
+    )
+
+    # Streak alerts: look at last N trades per instance
+    streak_alerts = []
+    dd_alerts = []
+    frequency_alerts = []
+    pair_pnl = defaultdict(float)
+
+    for inst in instances:
+        # Pair P&L aggregation (daily)
+        pair_pnl[inst.pair] += inst.daily_pnl
+
+        lp = inst.live_performance
+        if not lp:
+            continue
+
+        # Losing streak detection from live performance
+        # We need trade history for this — check if instance has trades
+        if lp.trades_total >= 3:
+            # Frequency alert: actual vs expected trades/month
+            exp = inst.expectations
+            if exp and exp.get("avg_trades_per_month"):
+                expected_tpm = exp["avg_trades_per_month"]
+                actual_tpm = lp.trades_per_month
+                if expected_tpm > 0 and actual_tpm > 0:
+                    ratio = actual_tpm / expected_tpm
+                    if ratio < 0.4 or ratio > 2.5:
+                        frequency_alerts.append({
+                            "id": inst.id,
+                            "strategy": inst.strategy_display or inst.strategy,
+                            "pair": inst.pair,
+                            "actual": round(actual_tpm, 1),
+                            "expected": round(expected_tpm, 1),
+                        })
+
+            # Drawdown alert: live DD exceeds expected DD
+            if exp and exp.get("max_drawdown_pct") and lp.max_drawdown_pct > 0:
+                expected_dd = exp["max_drawdown_pct"]
+                if lp.max_drawdown_pct > expected_dd * 1.5:
+                    dd_alerts.append({
+                        "id": inst.id,
+                        "strategy": inst.strategy_display or inst.strategy,
+                        "pair": inst.pair,
+                        "live_dd": round(lp.max_drawdown_pct, 1),
+                        "expected_dd": round(expected_dd, 1),
+                    })
+
+    # Round pair P&L
+    pair_pnl_rounded = {k: round(v, 2) for k, v in sorted(pair_pnl.items())}
+
+    return {
+        "best_today": best_today,
+        "worst_today": worst_today,
+        "streak_alerts": streak_alerts,
+        "dd_alerts": dd_alerts,
+        "frequency_alerts": frequency_alerts,
+        "pair_pnl": pair_pnl_rounded,
+    }
+
+
+def compute_streak_alerts(instances_dir: Path, instance_ids: list) -> list:
+    """Compute losing streak alerts by reading recent trade history."""
+    alerts = []
+    for sid in instance_ids:
+        trades = read_trade_history(instances_dir / sid, limit=20)
+        if len(trades) < 3:
+            continue
+        # Count consecutive losses from the end
+        streak = 0
+        for t in reversed(trades):
+            if t.get("realized_pnl", 0) < 0:
+                streak += 1
+            else:
+                break
+        if streak >= 3:
+            alerts.append({"id": sid, "type": "losing_streak", "count": streak})
+    return alerts
+
+
 def get_daily_summary(instances: list) -> dict:
     """Aggregate summary across all instances."""
     total_pnl = sum(i.daily_pnl for i in instances)

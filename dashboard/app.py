@@ -34,8 +34,12 @@ logger = logging.getLogger("dashboard")
 
 from dashboard.data_reader import (
     collect_all_instances,
+    compute_insights,
     compute_live_performance,
+    compute_streak_alerts,
     get_daily_summary,
+    get_portfolio_history,
+    read_daily_history,
     read_scan_progress,
     read_trade_history,
     _read_json_safe,
@@ -280,6 +284,43 @@ async def api_export(instance_id: str):
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
+
+
+# ── Daily History & Portfolio ──────────────────────────────
+
+@app.get("/api/daily-history/{instance_id}")
+async def api_daily_history(instance_id: str, days: int = 30):
+    """Daily P&L history for one instance."""
+    instance_id = _sanitize_id(instance_id)
+    instance_dir = INSTANCES_DIR / instance_id
+    if not instance_dir.exists():
+        return JSONResponse({"error": "Instance not found"}, status_code=404)
+    history = read_daily_history(instance_dir, days=days)
+    return {"instance_id": instance_id, "days": days, "history": history}
+
+
+@app.get("/api/portfolio-history")
+async def api_portfolio_history(days: int = 30):
+    """Aggregated daily P&L across all instances."""
+    history = get_portfolio_history(STRATEGIES_FILE, INSTANCES_DIR, days=days)
+    return {"days": days, "history": history}
+
+
+@app.get("/api/insights")
+async def api_insights():
+    """Computed insights: best/worst, streaks, frequency, pair heatmap."""
+    try:
+        instances = collect_all_instances(STRATEGIES_FILE, INSTANCES_DIR)
+        insights = compute_insights(instances)
+
+        # Add streak alerts (requires reading trade history per instance)
+        instance_ids = [i.id for i in instances if i.has_trades]
+        insights["streak_alerts"] = compute_streak_alerts(INSTANCES_DIR, instance_ids)
+
+        return _sanitize_floats(insights)
+    except Exception as e:
+        logger.error("api_insights crashed: %s\n%s", e, traceback.format_exc())
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 
 # ── Scan Progress ─────────────────────────────────────────

@@ -129,6 +129,57 @@ class PositionManager:
         # Load persisted state
         self._load_state()
 
+    def _get_daily_history_file(self) -> Path:
+        """Get path to daily history file."""
+        return self.state_dir / "daily_history.json"
+
+    def _load_daily_history(self) -> List[dict]:
+        """Load daily history from disk."""
+        history_file = self._get_daily_history_file()
+        if history_file.exists():
+            try:
+                with open(history_file) as f:
+                    data = json.load(f)
+                if isinstance(data, list):
+                    return data
+            except (json.JSONDecodeError, IOError, OSError):
+                pass
+        return []
+
+    def _save_daily_history(self, history: List[dict]):
+        """Save daily history to disk (atomic write)."""
+        history_file = self._get_daily_history_file()
+        tmp_file = history_file.with_suffix('.json.tmp')
+        with open(tmp_file, 'w') as f:
+            json.dump(history, f, indent=2)
+        os.replace(str(tmp_file), str(history_file))
+
+    def _rollover_day(self, new_balance: float):
+        """Archive completed day's stats to daily_history.json before resetting."""
+        if self.daily_stats is None:
+            return
+
+        history = self._load_daily_history()
+
+        # Don't duplicate if this date already exists
+        existing_dates = {entry["date"] for entry in history}
+        day_str = self.daily_stats.date.isoformat()
+        if day_str in existing_dates:
+            return
+
+        entry = {
+            "date": day_str,
+            "pnl": round(self.daily_stats.net_pnl, 4),
+            "trades": self.daily_stats.trades_closed,
+            "wins": self.daily_stats.wins,
+            "losses": self.daily_stats.losses,
+            "balance": round(self.daily_stats.current_balance, 2),
+            "max_dd": round(self.daily_stats.max_drawdown, 4),
+        }
+        history.append(entry)
+        self._save_daily_history(history)
+        logger.info(f"Archived daily stats for {day_str}: PnL={entry['pnl']}, trades={entry['trades']}")
+
     def _get_state_file(self) -> Path:
         """Get path to state file."""
         return self.state_dir / "position_state.json"
@@ -155,9 +206,10 @@ class PositionManager:
                 if data.get('daily_stats'):
                     self.daily_stats = DailyStats.from_dict(data['daily_stats'])
 
-                    # Reset if new day
+                    # Reset if new day — archive first
                     if self.daily_stats.date != date.today():
-                        logger.info("New day - resetting daily stats")
+                        logger.info("New day - archiving and resetting daily stats")
+                        self._rollover_day(self.daily_stats.current_balance)
                         self.daily_stats = None
 
                 logger.info(f"Loaded state: {len(self.positions)} positions")
@@ -205,6 +257,9 @@ class PositionManager:
         today = date.today()
 
         if self.daily_stats is None or self.daily_stats.date != today:
+            # Archive previous day if it exists
+            if self.daily_stats is not None and self.daily_stats.date != today:
+                self._rollover_day(balance)
             self.daily_stats = DailyStats(
                 date=today,
                 starting_balance=balance,
