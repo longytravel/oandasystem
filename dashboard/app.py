@@ -16,9 +16,12 @@ POST endpoints require HTTP Basic auth via DASHBOARD_USER / DASHBOARD_PASS env v
 import csv
 import io
 import json
+import logging
+import math
 import os
 import re
 import secrets
+import traceback
 from dataclasses import asdict
 from pathlib import Path
 
@@ -26,6 +29,8 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
+
+logger = logging.getLogger("dashboard")
 
 from dashboard.data_reader import (
     collect_all_instances,
@@ -80,9 +85,21 @@ def _load_dashboard_config() -> dict:
     return {}
 
 
+def _sanitize_floats(obj):
+    """Replace inf/nan floats with JSON-safe values (recursive)."""
+    if isinstance(obj, dict):
+        return {k: _sanitize_floats(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize_floats(v) for v in obj]
+    if isinstance(obj, float) and (math.isinf(obj) or math.isnan(obj)):
+        return 0.0
+    return obj
+
+
 def _instance_to_dict(inst) -> dict:
     """Convert InstanceStatus to JSON-safe dict."""
     d = asdict(inst)
+    d = _sanitize_floats(d)
     if d.get("live_performance") is None:
         d["live_performance"] = None
     # Format heartbeat age
@@ -147,10 +164,27 @@ async def dashboard_page(request: Request):
 @app.get("/api/status")
 async def api_status():
     """JSON status for auto-refresh."""
-    instances = collect_all_instances(STRATEGIES_FILE, INSTANCES_DIR)
-    instance_dicts = [_instance_to_dict(i) for i in instances]
-    summary = get_daily_summary(instances)
-    return {"instances": instance_dicts, "summary": summary}
+    try:
+        instances = collect_all_instances(STRATEGIES_FILE, INSTANCES_DIR)
+        instance_dicts = []
+        for inst in instances:
+            try:
+                instance_dicts.append(_instance_to_dict(inst))
+            except Exception as e:
+                logger.error("Failed to serialize instance %s: %s", inst.id, e)
+                instance_dicts.append({"id": inst.id, "strategy": inst.strategy,
+                                       "pair": inst.pair, "timeframe": inst.timeframe,
+                                       "status": "error", "heartbeat_ok": False,
+                                       "heartbeat_display": "N/A",
+                                       "error_detail": str(e)})
+        summary = get_daily_summary(instances)
+        return {"instances": instance_dicts, "summary": summary}
+    except Exception as e:
+        logger.error("api_status crashed: %s\n%s", e, traceback.format_exc())
+        return JSONResponse(
+            {"error": True, "message": str(e), "traceback": traceback.format_exc()},
+            status_code=500,
+        )
 
 
 @app.get("/api/trades/{instance_id}")

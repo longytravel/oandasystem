@@ -685,13 +685,24 @@ function num(v, dec) { return v != null ? Number(v).toFixed(dec||2) : '\u2014'; 
 async function fetchDash() {
   try {
     var r = await fetch('/api/vps/status');
-    if (!r.ok) throw new Error('HTTP ' + r.status);
+    if (!r.ok) {
+      // Try to read error detail from JSON body
+      try {
+        var errData = await r.json();
+        if (errData.traceback) console.error('VPS error:', errData.traceback);
+        throw new Error(errData.message || 'HTTP ' + r.status);
+      } catch(parseErr) {
+        throw new Error('HTTP ' + r.status);
+      }
+    }
     var data = await r.json();
     if (data.error) throw new Error(data.message);
     document.getElementById('vps-banner').classList.remove('show');
     renderDash(data);
   } catch(e) {
-    document.getElementById('vps-banner').classList.add('show');
+    var banner = document.getElementById('vps-banner');
+    banner.classList.add('show');
+    banner.innerHTML = 'VPS Error &mdash; ' + esc(e.message) + '. The Pipeline tab still works.';
     renderDashOff();
   }
 }

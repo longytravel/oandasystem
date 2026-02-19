@@ -87,7 +87,7 @@ def compute_live_performance(trades: list) -> LivePerformance:
 
     gross_profit = sum(t["realized_pnl"] for t in trades if t.get("realized_pnl", 0) > 0)
     gross_loss = abs(sum(t["realized_pnl"] for t in trades if t.get("realized_pnl", 0) < 0))
-    perf.profit_factor = gross_profit / gross_loss if gross_loss > 0 else float("inf") if gross_profit > 0 else 0
+    perf.profit_factor = gross_profit / gross_loss if gross_loss > 0 else 999.0 if gross_profit > 0 else 0
 
     pnls = [t.get("realized_pnl", 0) for t in trades]
     perf.avg_pnl = sum(pnls) / len(pnls) if pnls else 0
