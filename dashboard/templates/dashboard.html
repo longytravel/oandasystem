@@ -507,9 +507,27 @@
             {{ summary.running }}/{{ summary.total }}
         </div>
     </div>
-    <div class="summary-card">
+    <div class="summary-card" style="cursor: pointer; position: relative;" onclick="toggleErrorPanel()">
         <div class="summary-label">Errors</div>
         <div class="summary-value {{ 'negative' if summary.errors > 0 else '' }}" id="sum-errors">{{ summary.errors }}</div>
+    </div>
+</div>
+
+<!-- ERROR DETAILS PANEL (hidden by default) -->
+<div id="error-panel" style="display: none; margin: 0 20px 10px; padding: 12px 16px; background: #2a1a1a; border: 1px solid #c0392b; border-radius: 8px; font-size: 13px;">
+    <div style="font-weight: bold; color: #e74c3c; margin-bottom: 8px;">Error Details</div>
+    <div id="error-list">
+        {% if summary.error_instances %}
+            {% for e in summary.error_instances %}
+            <div style="padding: 4px 0; border-bottom: 1px solid #3a2020; color: #ddd;">
+                <span style="color: #e74c3c; font-weight: 600;">{{ e.id }}</span>
+                <span style="color: #888; margin-left: 8px;">({{ e.errors }}x, status: {{ e.status }})</span>
+                <div style="color: #aaa; margin-top: 2px; font-family: monospace; font-size: 12px;">{{ e.last_error }}</div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div style="color: #888;">No errors</div>
+        {% endif %}
     </div>
 </div>
 
@@ -764,6 +782,11 @@
 const REFRESH_SECONDS = {{ refresh_seconds }};
 let refreshTimer = null;
 
+function toggleErrorPanel() {
+    const panel = document.getElementById('error-panel');
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
 function updateTime() {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('en-US', {hour12: false, timeZone: 'UTC'});
@@ -797,6 +820,22 @@ function updateSummary(s) {
     const errEl = document.getElementById('sum-errors');
     errEl.textContent = s.errors;
     errEl.className = 'summary-value ' + (s.errors > 0 ? 'negative' : '');
+
+    // Update error details panel
+    const errorList = document.getElementById('error-list');
+    if (errorList && s.error_instances) {
+        if (s.error_instances.length === 0) {
+            errorList.innerHTML = '<div style="color: #888;">No errors</div>';
+        } else {
+            errorList.innerHTML = s.error_instances.map(e =>
+                `<div style="padding: 4px 0; border-bottom: 1px solid #3a2020; color: #ddd;">
+                    <span style="color: #e74c3c; font-weight: 600;">${e.id}</span>
+                    <span style="color: #888; margin-left: 8px;">(${e.errors}x, status: ${e.status})</span>
+                    <div style="color: #aaa; margin-top: 2px; font-family: monospace; font-size: 12px;">${e.last_error || 'no detail'}</div>
+                </div>`
+            ).join('');
+        }
+    }
 }
 
 function updateInstances(instances) {

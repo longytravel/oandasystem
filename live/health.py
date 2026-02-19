@@ -26,6 +26,7 @@ def write_heartbeat(
     positions: int = 0,
     last_candle: str = "",
     errors: int = 0,
+    last_error: str = "",
     instance_dir: Optional[Path] = None,
 ):
     """
@@ -37,6 +38,7 @@ def write_heartbeat(
         positions: Number of open positions
         last_candle: Timestamp of last processed candle
         errors: Consecutive error count
+        last_error: Last error message (truncated to 500 chars)
         instance_dir: Override directory (uses module default if None)
     """
     target_dir = instance_dir or _instance_dir
@@ -51,6 +53,7 @@ def write_heartbeat(
         "positions": positions,
         "last_candle": last_candle,
         "errors": errors,
+        "last_error": str(last_error)[:500] if last_error else "",
     }
 
     try:

@@ -86,6 +86,7 @@ class LiveTrader:
         self.last_signal_time: Optional[datetime] = None
         self.last_candle_time: Optional[datetime] = None
         self.error_count: int = 0
+        self.last_error: str = ""
 
         # Validate timeframe
         if timeframe not in self.TIMEFRAME_MINUTES:
@@ -112,6 +113,7 @@ class LiveTrader:
                 positions=self.position_manager.open_position_count,
                 last_candle=last_candle,
                 errors=self.error_count,
+                last_error=self.last_error,
                 instance_dir=instance_dir,
             )
         except Exception as e:
@@ -486,8 +488,10 @@ class LiveTrader:
 
                 if result.get('error'):
                     self.error_count += 1
+                    self.last_error = str(result.get('error_msg', 'unknown error'))
                 elif not result.get('blocked'):
                     self.error_count = 0
+                    self.last_error = ""
 
                 self._write_heartbeat(
                     status="running",
@@ -499,6 +503,7 @@ class LiveTrader:
                 break
             except Exception as e:
                 self.error_count += 1
+                self.last_error = str(e)
                 logger.error(f"Loop error: {e}")
                 self._write_heartbeat(status="error")
                 time.sleep(10)  # Wait before retrying

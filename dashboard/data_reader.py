@@ -43,6 +43,7 @@ class InstanceStatus:
     heartbeat_age_seconds: float = -1
     positions: int = 0
     errors: int = 0
+    last_error: str = ""
     last_signal: str = ""
 
     # Service
@@ -270,6 +271,7 @@ def collect_instance(strategy: dict, instances_dir: Path) -> InstanceStatus:
         inst.status = health.get("status", "unknown")
         inst.positions = health.get("positions", 0)
         inst.errors = health.get("errors", 0)
+        inst.last_error = health.get("last_error", "")
         inst.last_signal = health.get("last_signal", "")
 
         ts_str = health.get("timestamp")
@@ -334,7 +336,15 @@ def get_daily_summary(instances: list) -> dict:
     total_trades = sum(i.daily_trades for i in instances)
     open_positions = sum(i.positions for i in instances)
     running = sum(1 for i in instances if i.status == "running" and i.heartbeat_age_seconds < i.max_heartbeat_age)
-    errors = sum(1 for i in instances if i.errors > 0 or i.status == "error")
+    error_instances = []
+    for i in instances:
+        if i.errors > 0 or i.status == "error":
+            error_instances.append({
+                "id": i.id,
+                "errors": i.errors,
+                "status": i.status,
+                "last_error": i.last_error or "no detail available",
+            })
 
     return {
         "daily_pnl": round(total_pnl, 2),
@@ -343,5 +353,6 @@ def get_daily_summary(instances: list) -> dict:
         "open_positions": open_positions,
         "running": running,
         "total": len(instances),
-        "errors": errors,
+        "errors": len(error_instances),
+        "error_instances": error_instances,
     }
