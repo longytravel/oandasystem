@@ -25,7 +25,7 @@
     "tp_rr_ratio": 1.5,
     "tp_atr_mult": 4.0,
     "tp_fixed_pips": 75,
-    "use_trailing": false,
+    "use_trailing": true,
     "trail_start_pips": 15,
     "trail_step_pips": 20,
     "use_break_even": false,
@@ -38,7 +38,10 @@
     "trade_end_hour": 20,
     "trade_monday": true,
     "trade_friday": true,
-    "friday_close_hour": 18
+    "friday_close_hour": 18,
+    "trail_mode": 1,
+    "chandelier_atr_mult": 2.0,
+    "stale_exit_bars": 30
   },
   "expectations": {
     "win_rate": 0.625,

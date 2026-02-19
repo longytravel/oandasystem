@@ -8,8 +8,13 @@ This adapter:
 1. Wraps a FastStrategy + optimized params
 2. On generate_signals(df): runs precompute + get_all_arrays
 3. Returns Signal objects for the latest bar
-4. Provides trade management (trailing stop, breakeven) via manage_positions()
+4. Provides trade management (trailing stop, breakeven, chandelier,
+   partial close, stale exit, max bars) via manage_positions()
 """
+import json
+import os
+from datetime import datetime, timezone
+from pathlib import Path
 import numpy as np
 import pandas as pd
 from typing import Dict, Any, List, Optional
@@ -48,24 +53,131 @@ class PipelineStrategyAdapter(Strategy):
         self.name = f"Pipeline_{fast_strategy.name}"
         self.version = fast_strategy.version
 
-        # Trade management params (extracted from optimized_params)
+        # === Trade management params (extracted from optimized_params) ===
+
+        # Trailing stop
         self.use_trailing = optimized_params.get('use_trailing', False)
+        self.trail_mode = optimized_params.get('trail_mode', 0)  # 0=fixed, 1=chandelier
         self.trail_start_pips = optimized_params.get('trail_start_pips', 50)
         self.trail_step_pips = optimized_params.get('trail_step_pips', 10)
+        # Cap step at start distance (matches backtester)
+        self.trail_step_pips = min(self.trail_step_pips, self.trail_start_pips)
+        self.chandelier_atr_mult = optimized_params.get('chandelier_atr_mult', 3.0)
+
+        # Breakeven
         self.use_break_even = optimized_params.get('use_break_even', False)
-        self.be_atr_mult = optimized_params.get('be_atr_mult', 0.5)
+        self.be_trigger_pips = optimized_params.get('be_trigger_pips', None)  # Fixed pips (backtester)
+        self.be_atr_mult = optimized_params.get('be_atr_mult', 0.5)  # Dynamic (legacy)
         self.be_offset_pips = optimized_params.get('be_offset_pips', 5)
 
-        # Trail high/low tracking per trade (matches backtest pos_trail_high)
-        self._trail_highs: Dict[str, float] = {}
+        # Partial close
+        self.use_partial_close = optimized_params.get('use_partial_close', False)
+        self.partial_close_pct = optimized_params.get('partial_close_pct', 0.5)
+        self.partial_target_pips = optimized_params.get('partial_target_pips', 20)
+
+        # Stale & max bars exit
+        self.stale_exit_bars = optimized_params.get('stale_exit_bars', 0)
+        self.max_bars_in_trade = optimized_params.get('max_bars_in_trade', 0)
+
+        # Fixed ATR from params (for chandelier, stale exit — matches backtester per-signal atr)
+        self._param_atr_pips = optimized_params.get('atr_pips', 35.0)
+
+        # === Per-trade state tracking ===
+        self._trail_highs: Dict[str, float] = {}   # pos_trail_high equivalent
+        self._trail_active: Dict[str, bool] = {}    # pos_trail_active equivalent
+        self._be_triggered: Dict[str, bool] = {}    # pos_be_triggered equivalent
+        self._partial_closed: Dict[str, bool] = {}  # pos_partial_done equivalent
+        self._bars_in_trade: Dict[str, int] = {}    # bar counter per trade
+
+        # === Action logging & persistence ===
+        self._state_dir: Optional[Path] = None
 
         # Initialize base Strategy (needed for LiveTrader compatibility)
         self.params = optimized_params
 
         logger.info(f"PipelineStrategyAdapter: {fast_strategy.name} v{fast_strategy.version}")
         logger.info(f"  Pair: {pair}, Pip size: {self._pip_size}")
-        logger.info(f"  Trailing: {self.use_trailing} (start={self.trail_start_pips}, step={self.trail_step_pips})")
-        logger.info(f"  Breakeven: {self.use_break_even} (mult={self.be_atr_mult}, offset={self.be_offset_pips})")
+        logger.info(f"  Trailing: {self.use_trailing} mode={self.trail_mode} "
+                    f"(start={self.trail_start_pips}, step={self.trail_step_pips})")
+        if self.trail_mode == 1:
+            logger.info(f"  Chandelier: mult={self.chandelier_atr_mult}, "
+                       f"atr_pips={self._param_atr_pips}")
+        logger.info(f"  Breakeven: {self.use_break_even} "
+                    f"(trigger={self.be_trigger_pips or f'{self.be_atr_mult}*ATR'}, "
+                    f"offset={self.be_offset_pips})")
+        logger.info(f"  Partial close: {self.use_partial_close} "
+                    f"(pct={self.partial_close_pct}, target={self.partial_target_pips}pip)")
+        logger.info(f"  Stale exit: {self.stale_exit_bars} bars, "
+                    f"Max bars: {self.max_bars_in_trade}")
+
+    # ═══════════════════════════════════════════════════════════════
+    # State persistence & logging
+    # ═══════════════════════════════════════════════════════════════
+
+    def set_state_dir(self, state_dir):
+        """Set state directory for persistence and action logging."""
+        self._state_dir = Path(state_dir)
+        self._load_mgmt_state()
+
+    def get_mgmt_state(self) -> dict:
+        """Get management state dict for persistence (restart recovery)."""
+        return {
+            'trail_highs': dict(self._trail_highs),
+            'trail_active': {k: bool(v) for k, v in self._trail_active.items()},
+            'be_triggered': {k: bool(v) for k, v in self._be_triggered.items()},
+            'partial_closed': {k: bool(v) for k, v in self._partial_closed.items()},
+            'bars_in_trade': {k: int(v) for k, v in self._bars_in_trade.items()},
+        }
+
+    def restore_mgmt_state(self, state: dict):
+        """Restore management state from dict (restart recovery)."""
+        self._trail_highs = {k: float(v) for k, v in state.get('trail_highs', {}).items()}
+        self._trail_active = {k: bool(v) for k, v in state.get('trail_active', {}).items()}
+        self._be_triggered = {k: bool(v) for k, v in state.get('be_triggered', {}).items()}
+        self._partial_closed = {k: bool(v) for k, v in state.get('partial_closed', {}).items()}
+        self._bars_in_trade = {k: int(v) for k, v in state.get('bars_in_trade', {}).items()}
+
+    def _save_mgmt_state(self):
+        """Persist management state to disk."""
+        if not self._state_dir:
+            return
+        state_file = self._state_dir / 'mgmt_state.json'
+        try:
+            tmp = state_file.with_suffix('.json.tmp')
+            with open(tmp, 'w') as f:
+                json.dump(self.get_mgmt_state(), f, indent=2)
+            os.replace(str(tmp), str(state_file))
+        except Exception as e:
+            logger.warning(f"Failed to save mgmt state: {e}")
+
+    def _load_mgmt_state(self):
+        """Load management state from disk."""
+        if not self._state_dir:
+            return
+        state_file = self._state_dir / 'mgmt_state.json'
+        if state_file.exists():
+            try:
+                with open(state_file) as f:
+                    state = json.load(f)
+                self.restore_mgmt_state(state)
+                logger.info(f"Restored mgmt state: {len(self._bars_in_trade)} tracked trades")
+            except Exception as e:
+                logger.warning(f"Failed to load mgmt state: {e}")
+
+    def _log_mgmt_action(self, action: dict):
+        """Append a management action to mgmt_actions.jsonl (line-delimited JSON)."""
+        if not self._state_dir:
+            return
+        log_file = self._state_dir / 'mgmt_actions.jsonl'
+        try:
+            with open(log_file, 'a') as f:
+                f.write(json.dumps(action) + '\n')
+        except Exception as e:
+            logger.warning(f"Failed to log mgmt action: {e}")
+
+    # ═══════════════════════════════════════════════════════════════
+    # Signal generation (unchanged)
+    # ═══════════════════════════════════════════════════════════════
 
     def get_default_parameters(self) -> Dict[str, Any]:
         return self.optimized_params
@@ -157,6 +269,10 @@ class PipelineStrategyAdapter(Strategy):
             logger.exception(f"Signal generation failed: {e}")
             return []
 
+    # ═══════════════════════════════════════════════════════════════
+    # Position management
+    # ═══════════════════════════════════════════════════════════════
+
     def manage_positions(
         self,
         positions: list,
@@ -165,26 +281,34 @@ class PipelineStrategyAdapter(Strategy):
         client=None,
         bar_high: float = None,
         bar_low: float = None,
+        bar_time=None,
     ) -> List[Dict[str, Any]]:
         """
-        Manage open positions: trailing stop and breakeven.
+        Manage open positions: trailing stop, breakeven, chandelier,
+        partial close, stale exit, max bars exit.
 
         Called by the trading loop on each candle close for each open position.
-        Uses bar_high/bar_low for BE/trailing triggers to match backtest behavior
-        (backtest checks intra-bar excursions, not just close price).
+        Matches backtester logic order (numba_backtest.py):
+          1. Max bars exit
+          2. Stale exit
+          3. Breakeven (one-time trigger)
+          4. Trailing stop (mode 0: fixed pip, mode 1: chandelier)
+          5. Partial close
 
         Args:
             positions: List of LivePosition objects
             current_price: Current market price (candle close)
-            atr_pips: Current ATR in pips (for breakeven calculation)
-            client: OandaClient for modifying trades (None for dry run)
-            bar_high: High of current candle (for BE/trailing trigger check)
-            bar_low: Low of current candle (for BE/trailing trigger check)
+            atr_pips: Current ATR in pips (for legacy BE calculation)
+            client: OandaClient for modifying/closing trades (None for dry run)
+            bar_high: High of current candle
+            bar_low: Low of current candle
+            bar_time: Timestamp of current bar (for action logging)
 
         Returns:
             List of management actions taken
         """
         actions = []
+        bar_time_str = str(bar_time) if bar_time else datetime.now(timezone.utc).isoformat()
 
         # Fall back to current_price if high/low not provided
         if bar_high is None:
@@ -196,96 +320,297 @@ class PipelineStrategyAdapter(Strategy):
             if pos.instrument != self.pair:
                 continue
 
+            tid = pos.trade_id
             is_long = pos.direction == "BUY"
             entry_price = pos.entry_price
             current_sl = pos.stop_loss
 
-            # Use bar_high for longs, bar_low for shorts to check max favorable excursion
-            # This matches the backtest engine which uses intra-bar highs/lows
-            if is_long:
-                best_price = bar_high
-                profit_pips = (best_price - entry_price) / self._pip_size
-            else:
-                best_price = bar_low
-                profit_pips = (entry_price - best_price) / self._pip_size
+            # --- Initialize state for new trades (entry bar) ---
+            # Backtester does `continue` on entry bar, skipping management
+            if tid not in self._bars_in_trade:
+                self._bars_in_trade[tid] = 0
+                self._trail_highs[tid] = 0.0
+                self._trail_active[tid] = False
+                self._be_triggered[tid] = False
+                self._partial_closed[tid] = False
+                continue
+
+            # Increment bar counter
+            self._bars_in_trade[tid] += 1
+            bars = self._bars_in_trade[tid]
+
+            # ── 1. Max bars exit ──────────────────────────────────
+            # Backtester: if bars_in_trade >= max_bars → exit at close
+            if self.max_bars_in_trade > 0 and bars >= self.max_bars_in_trade:
+                action = {
+                    'timestamp': bar_time_str,
+                    'trade_id': tid,
+                    'bar_number': bars,
+                    'action': 'max_bars_exit',
+                    'trigger': f'bars={bars} >= max={self.max_bars_in_trade}',
+                }
+                actions.append(action)
+                self._log_mgmt_action(action)
+                logger.info(f"Trade {tid}: MAX BARS EXIT after {bars} bars")
+                if client is not None:
+                    try:
+                        client.close_trade(tid)
+                    except Exception as e:
+                        logger.error(f"Failed to close trade {tid} (max bars): {e}")
+                continue  # Trade is closing, skip management
+
+            # ── 2. Stale exit ─────────────────────────────────────
+            # Backtester: if bars >= stale_exit_bars AND move < 0.5R → exit
+            if self.stale_exit_bars > 0 and bars >= self.stale_exit_bars:
+                half_r = self._param_atr_pips * self._pip_size * 0.5
+                if is_long:
+                    move = current_price - entry_price
+                else:
+                    move = entry_price - current_price
+
+                if move < half_r:
+                    action = {
+                        'timestamp': bar_time_str,
+                        'trade_id': tid,
+                        'bar_number': bars,
+                        'action': 'stale_exit',
+                        'trigger': (
+                            f'move={move / self._pip_size:.1f}pip '
+                            f'< 0.5R={half_r / self._pip_size:.1f}pip '
+                            f'after {bars} bars'
+                        ),
+                    }
+                    actions.append(action)
+                    self._log_mgmt_action(action)
+                    logger.info(
+                        f"Trade {tid}: STALE EXIT after {bars} bars "
+                        f"(move={move / self._pip_size:.1f}pip "
+                        f"< {half_r / self._pip_size:.1f}pip)"
+                    )
+                    if client is not None:
+                        try:
+                            client.close_trade(tid)
+                        except Exception as e:
+                            logger.error(f"Failed to close trade {tid} (stale): {e}")
+                    continue  # Trade is closing, skip management
 
             new_sl = None
 
-            # --- Breakeven ---
-            if self.use_break_even and profit_pips > 0:
-                be_trigger_pips = self.be_atr_mult * atr_pips
-                effective_offset = min(self.be_offset_pips, be_trigger_pips)  # Cap offset at trigger
-                be_sl = entry_price + (effective_offset * self._pip_size if is_long
-                                       else -effective_offset * self._pip_size)
-
-                if profit_pips >= be_trigger_pips:
-                    # Check if SL hasn't already been moved to breakeven or better
-                    if is_long and current_sl < be_sl:
-                        new_sl = be_sl
-                        actions.append({
-                            'trade_id': pos.trade_id,
-                            'action': 'breakeven',
-                            'old_sl': current_sl,
-                            'new_sl': new_sl,
-                            'profit_pips': profit_pips,
-                            'trigger': f'bar_high={bar_high:.5f}',
-                        })
-                    elif not is_long and current_sl > be_sl:
-                        new_sl = be_sl
-                        actions.append({
-                            'trade_id': pos.trade_id,
-                            'action': 'breakeven',
-                            'old_sl': current_sl,
-                            'new_sl': new_sl,
-                            'profit_pips': profit_pips,
-                            'trigger': f'bar_low={bar_low:.5f}',
-                        })
-
-            # --- Trailing Stop ---
-            # Track bar high/low extremes per trade to match backtest pos_trail_high behavior
-            if self.use_trailing and profit_pips >= self.trail_start_pips:
-                tid = pos.trade_id
-                if is_long:
-                    self._trail_highs[tid] = max(self._trail_highs.get(tid, bar_high), bar_high)
-                    trail_sl = self._trail_highs[tid] - self.trail_step_pips * self._pip_size
-                    if trail_sl > current_sl and (new_sl is None or trail_sl > new_sl):
-                        new_sl = trail_sl
-                        actions.append({
-                            'trade_id': pos.trade_id,
-                            'action': 'trailing',
-                            'old_sl': current_sl,
-                            'new_sl': new_sl,
-                            'profit_pips': profit_pips,
-                        })
+            # ── 3. Breakeven (one-time trigger) ───────────────────
+            # Backtester: once pos_be_triggered is set, never re-checks
+            if self.use_break_even and not self._be_triggered.get(tid, False):
+                # Use fixed be_trigger_pips if in params, else compute from ATR
+                if self.be_trigger_pips is not None:
+                    trigger_pips = self.be_trigger_pips
                 else:
-                    self._trail_highs[tid] = min(self._trail_highs.get(tid, bar_low), bar_low)
-                    trail_sl = self._trail_highs[tid] + self.trail_step_pips * self._pip_size
-                    if trail_sl < current_sl and (new_sl is None or trail_sl < new_sl):
-                        new_sl = trail_sl
-                        actions.append({
-                            'trade_id': pos.trade_id,
-                            'action': 'trailing',
-                            'old_sl': current_sl,
-                            'new_sl': new_sl,
-                            'profit_pips': profit_pips,
-                        })
+                    trigger_pips = self.be_atr_mult * atr_pips
 
-            # Execute SL modification
+                be_trigger_dist = trigger_pips * self._pip_size
+                effective_offset = min(self.be_offset_pips, trigger_pips)
+
+                if is_long:
+                    if bar_high - entry_price >= be_trigger_dist:
+                        self._be_triggered[tid] = True
+                        be_sl = entry_price + effective_offset * self._pip_size
+                        if be_sl > current_sl:
+                            new_sl = be_sl
+                            action = {
+                                'timestamp': bar_time_str,
+                                'trade_id': tid,
+                                'bar_number': bars,
+                                'action': 'breakeven',
+                                'old_sl': current_sl,
+                                'new_sl': new_sl,
+                                'trigger': (
+                                    f'bar_high={bar_high:.5f} '
+                                    f'profit={( bar_high - entry_price) / self._pip_size:.1f}pip '
+                                    f'>= {trigger_pips:.1f}pip'
+                                ),
+                            }
+                            actions.append(action)
+                            self._log_mgmt_action(action)
+                else:
+                    if entry_price - bar_low >= be_trigger_dist:
+                        self._be_triggered[tid] = True
+                        be_sl = entry_price - effective_offset * self._pip_size
+                        if be_sl < current_sl:
+                            new_sl = be_sl
+                            action = {
+                                'timestamp': bar_time_str,
+                                'trade_id': tid,
+                                'bar_number': bars,
+                                'action': 'breakeven',
+                                'old_sl': current_sl,
+                                'new_sl': new_sl,
+                                'trigger': (
+                                    f'bar_low={bar_low:.5f} '
+                                    f'profit={(entry_price - bar_low) / self._pip_size:.1f}pip '
+                                    f'>= {trigger_pips:.1f}pip'
+                                ),
+                            }
+                            actions.append(action)
+                            self._log_mgmt_action(action)
+
+            # ── 4. Trailing stop ──────────────────────────────────
+            if self.use_trailing:
+
+                if self.trail_mode == 0:
+                    # ═══ Fixed pip trailing (backtester mode 0) ═══
+                    trail_start = self.trail_start_pips * self._pip_size
+                    trail_step = self.trail_step_pips * self._pip_size
+
+                    if is_long:
+                        current_profit = bar_high - entry_price
+                        if not self._trail_active.get(tid, False) and current_profit >= trail_start:
+                            self._trail_active[tid] = True
+                            self._trail_highs[tid] = bar_high
+                        if self._trail_active.get(tid, False):
+                            if bar_high > self._trail_highs[tid]:
+                                self._trail_highs[tid] = bar_high
+                            trail_sl = self._trail_highs[tid] - trail_step
+                            if trail_sl > current_sl and (new_sl is None or trail_sl > new_sl):
+                                new_sl = trail_sl
+                                action = {
+                                    'timestamp': bar_time_str,
+                                    'trade_id': tid,
+                                    'bar_number': bars,
+                                    'action': 'trailing',
+                                    'old_sl': current_sl,
+                                    'new_sl': new_sl,
+                                    'trigger': f'trail_high={self._trail_highs[tid]:.5f}',
+                                }
+                                actions.append(action)
+                                self._log_mgmt_action(action)
+                    else:
+                        current_profit = entry_price - bar_low
+                        if not self._trail_active.get(tid, False) and current_profit >= trail_start:
+                            self._trail_active[tid] = True
+                            self._trail_highs[tid] = bar_low
+                        if self._trail_active.get(tid, False):
+                            if self._trail_highs[tid] == 0.0 or bar_low < self._trail_highs[tid]:
+                                self._trail_highs[tid] = bar_low
+                            trail_sl = self._trail_highs[tid] + trail_step
+                            if trail_sl < current_sl and (new_sl is None or trail_sl < new_sl):
+                                new_sl = trail_sl
+                                action = {
+                                    'timestamp': bar_time_str,
+                                    'trade_id': tid,
+                                    'bar_number': bars,
+                                    'action': 'trailing',
+                                    'old_sl': current_sl,
+                                    'new_sl': new_sl,
+                                    'trigger': f'trail_low={self._trail_highs[tid]:.5f}',
+                                }
+                                actions.append(action)
+                                self._log_mgmt_action(action)
+
+                elif self.trail_mode == 1:
+                    # ═══ Chandelier Exit (ATR-adaptive, active from bar 1) ═══
+                    ch_dist = self.chandelier_atr_mult * self._param_atr_pips * self._pip_size
+
+                    if is_long:
+                        if bar_high > self._trail_highs[tid] or self._trail_highs[tid] == 0.0:
+                            self._trail_highs[tid] = bar_high
+                        trail_sl = self._trail_highs[tid] - ch_dist
+                        if trail_sl > current_sl and (new_sl is None or trail_sl > new_sl):
+                            new_sl = trail_sl
+                            self._trail_active[tid] = True
+                            action = {
+                                'timestamp': bar_time_str,
+                                'trade_id': tid,
+                                'bar_number': bars,
+                                'action': 'chandelier',
+                                'old_sl': current_sl,
+                                'new_sl': new_sl,
+                                'trigger': (
+                                    f'trail_high={self._trail_highs[tid]:.5f} '
+                                    f'ch_dist={ch_dist / self._pip_size:.1f}pip'
+                                ),
+                            }
+                            actions.append(action)
+                            self._log_mgmt_action(action)
+                    else:
+                        if self._trail_highs[tid] == 0.0 or bar_low < self._trail_highs[tid]:
+                            self._trail_highs[tid] = bar_low
+                        trail_sl = self._trail_highs[tid] + ch_dist
+                        if trail_sl < current_sl and (new_sl is None or trail_sl < new_sl):
+                            new_sl = trail_sl
+                            self._trail_active[tid] = True
+                            action = {
+                                'timestamp': bar_time_str,
+                                'trade_id': tid,
+                                'bar_number': bars,
+                                'action': 'chandelier',
+                                'old_sl': current_sl,
+                                'new_sl': new_sl,
+                                'trigger': (
+                                    f'trail_low={self._trail_highs[tid]:.5f} '
+                                    f'ch_dist={ch_dist / self._pip_size:.1f}pip'
+                                ),
+                            }
+                            actions.append(action)
+                            self._log_mgmt_action(action)
+
+            # ── Execute SL modification ───────────────────────────
             if new_sl is not None and client is not None:
                 try:
-                    client.modify_trade(pos.trade_id, stop_loss_price=new_sl)
+                    client.modify_trade(tid, stop_loss_price=new_sl)
                     pos.stop_loss = new_sl
                     logger.info(
-                        f"Trade {pos.trade_id}: SL moved {current_sl:.5f} -> {new_sl:.5f} "
-                        f"({actions[-1]['action']}, profit={profit_pips:.0f}pip)"
+                        f"Trade {tid}: SL {current_sl:.5f} -> {new_sl:.5f} "
+                        f"({actions[-1]['action']}, bar={bars})"
                     )
                 except Exception as e:
-                    logger.error(f"Failed to modify trade {pos.trade_id}: {e}")
+                    logger.error(f"Failed to modify trade {tid}: {e}")
 
-        # Clean up trail tracking for closed positions
+            # ── 5. Partial close ──────────────────────────────────
+            # Backtester: close pct of size when price reaches partial_target
+            if self.use_partial_close and not self._partial_closed.get(tid, False):
+                partial_target = self.partial_target_pips * self._pip_size
+                triggered = False
+                if is_long:
+                    if bar_high - entry_price >= partial_target:
+                        triggered = True
+                else:
+                    if entry_price - bar_low >= partial_target:
+                        triggered = True
+
+                if triggered:
+                    self._partial_closed[tid] = True
+                    partial_units = int(pos.units * self.partial_close_pct)
+                    if partial_units > 0 and client is not None:
+                        try:
+                            client.close_trade(tid, units=str(partial_units))
+                            action = {
+                                'timestamp': bar_time_str,
+                                'trade_id': tid,
+                                'bar_number': bars,
+                                'action': 'partial_close',
+                                'units_closed': partial_units,
+                                'pct': self.partial_close_pct,
+                                'trigger': f'target={self.partial_target_pips}pip reached',
+                            }
+                            actions.append(action)
+                            self._log_mgmt_action(action)
+                            logger.info(
+                                f"Trade {tid}: PARTIAL CLOSE {partial_units} units "
+                                f"({self.partial_close_pct * 100:.0f}%)"
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed partial close trade {tid}: {e}")
+                            self._partial_closed[tid] = False
+
+        # Clean up state for closed positions
         active_ids = {pos.trade_id for pos in positions if pos.instrument == self.pair}
-        for tid in list(self._trail_highs.keys()):
+        for tid in list(self._bars_in_trade.keys()):
             if tid not in active_ids:
-                del self._trail_highs[tid]
+                self._bars_in_trade.pop(tid, None)
+                self._trail_highs.pop(tid, None)
+                self._trail_active.pop(tid, None)
+                self._be_triggered.pop(tid, None)
+                self._partial_closed.pop(tid, None)
+
+        # Persist state for restart recovery
+        self._save_mgmt_state()
 
         return actions

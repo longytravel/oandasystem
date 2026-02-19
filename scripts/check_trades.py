@@ -6,15 +6,22 @@ Reads trade history, compares SL/TP levels, win rates, streak probabilities,
 and REPLAYS the strategy on historical data to verify signals match.
 
 Usage:
+    # From instance trade history (on VPS):
     python scripts/check_trades.py --instance rsi_v3_GBP_USD_M15
     python scripts/check_trades.py --instance rsi_v3_GBP_USD_M15 --replay
     python scripts/check_trades.py --all --replay
-    python scripts/check_trades.py --instance rsi_v3_GBP_USD_H1 --last 10
+
+    # From OANDA CSV export (local or VPS):
+    python scripts/check_trades.py --csv path/to/transactions.csv
+    python scripts/check_trades.py --csv path/to/transactions.csv --replay
 """
 import argparse
+import csv
 import json
 import math
+import importlib
 import sys
+from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -26,15 +33,76 @@ sys.path.insert(0, str(ROOT))
 
 INSTANCES_DIR = ROOT / "instances"
 STRATEGIES_FILE = ROOT / "deploy" / "strategies.json"
+ENV_FILE = ROOT / ".env"
+
+
+def ensure_oanda_credentials(api_key_override: str = None) -> str:
+    """
+    Ensure OANDA API credentials are available.
+    Priority: --api-key arg > .env file > interactive prompt (saves to .env).
+    Returns the API key.
+    """
+    if api_key_override:
+        return api_key_override
+
+    # Check .env file
+    if ENV_FILE.exists():
+        from dotenv import dotenv_values
+        env = dotenv_values(ENV_FILE)
+        key = env.get('OANDA_API_KEY', '')
+        if key and key != 'your-api-key-here':
+            return key
+
+    # Check environment variable
+    import os
+    key = os.environ.get('OANDA_API_KEY', '')
+    if key and key != 'your-api-key-here':
+        return key
+
+    # Prompt interactively and save to .env
+    print("\n  OANDA API credentials not found (.env missing).")
+    print("  Get your API key from: https://www.oanda.com/demo-account/tpa/personal_token")
+    api_key = input("  Enter OANDA API Key: ").strip()
+    if not api_key:
+        raise ValueError("API key is required for signal replay")
+
+    account_id = input("  Enter OANDA Account ID (e.g. 101-004-12345678-001): ").strip()
+    account_type = input("  Account type [practice]: ").strip() or "practice"
+
+    # Save to .env
+    with open(ENV_FILE, 'w') as f:
+        f.write(f"OANDA_API_KEY={api_key}\n")
+        f.write(f"OANDA_ACCOUNT_ID={account_id}\n")
+        f.write(f"OANDA_ACCOUNT_TYPE={account_type}\n")
+    print(f"  Saved credentials to {ENV_FILE}")
+
+    # Reload settings
+    from dotenv import load_dotenv
+    load_dotenv(ENV_FILE, override=True)
+
+    return api_key
 
 # Strategy name -> (module, class)
 STRATEGY_MAP = {
     "rsi_v1": ("strategies.archive.rsi_full", "RSIDivergenceFullFast"),  # archived, kept for VPS compat
     "rsi_v3": ("strategies.rsi_full_v3", "RSIDivergenceFullFastV3"),
     "RSI_Divergence_v3": ("strategies.rsi_full_v3", "RSIDivergenceFullFastV3"),
-    "ema_cross": ("strategies.ema_cross_ml", "EMACrossMLFast"),
-    "EMA_Cross_ML": ("strategies.ema_cross_ml", "EMACrossMLFast"),
+    "rsi_v4": ("strategies.rsi_full_v4", "RSIDivergenceFullFastV4"),
+    "RSI_Divergence_v4": ("strategies.rsi_full_v4", "RSIDivergenceFullFastV4"),
+    "rsi_v5": ("strategies.rsi_full_v5", "RSIDivergenceFullFastV5"),
+    "RSI_Divergence_v5": ("strategies.rsi_full_v5", "RSIDivergenceFullFastV5"),
+    "ema_cross": ("strategies.ema_cross_ml", "EMACrossMLStrategy"),
+    "EMA_Cross_ML": ("strategies.ema_cross_ml", "EMACrossMLStrategy"),
     "fair_price_ma": ("strategies.fair_price_ma", "FairPriceMAStrategy"),
+    "Fair_Price_MA": ("strategies.fair_price_ma", "FairPriceMAStrategy"),
+    "donchian_breakout": ("strategies.donchian_breakout", "DonchianBreakoutStrategy"),
+    "Donchian_Breakout": ("strategies.donchian_breakout", "DonchianBreakoutStrategy"),
+    "bollinger_squeeze": ("strategies.bollinger_squeeze", "BollingerSqueezeStrategy"),
+    "Bollinger_Squeeze": ("strategies.bollinger_squeeze", "BollingerSqueezeStrategy"),
+    "london_breakout": ("strategies.london_breakout", "LondonBreakoutStrategy"),
+    "London_Breakout": ("strategies.london_breakout", "LondonBreakoutStrategy"),
+    "stochastic_adx": ("strategies.stochastic_adx", "StochasticADXStrategy"),
+    "Stochastic_ADX": ("strategies.stochastic_adx", "StochasticADXStrategy"),
 }
 
 
@@ -595,21 +663,991 @@ def check_instance(instance_id: str, last_n: int = 0, do_replay: bool = False) -
     }
 
 
+# ── CSV Import ────────────────────────────────────────────
+
+def parse_oanda_csv(csv_path: str) -> list:
+    """
+    Parse OANDA transaction CSV into normalized trade records.
+
+    Tracks MARKET_ORDER fills as entries, links SL/TP orders set ON_FILL,
+    and matches exits (STOP_LOSS_ORDER / TAKE_PROFIT_ORDER fills).
+    Returns list of trade dicts compatible with check_trade_params().
+    """
+    trades = []
+    pending = {}  # instrument -> entry dict (most recent open)
+
+    with open(csv_path, 'r', encoding='utf-8-sig') as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+
+    last_entry = None  # Track most recent entry for SL/TP linking
+    for row in rows:
+        tx_type = row.get('TRANSACTION TYPE', '').strip()
+        details = row.get('DETAILS', '').strip()
+        instrument = row.get('INSTRUMENT', '').strip()
+        price = row.get('PRICE', '').strip()
+        units = row.get('UNITS', '').strip()
+        direction = row.get('DIRECTION', '').strip()
+        sl_val = row.get('STOP LOSS', '').strip()
+        tp_val = row.get('TAKE PROFIT', '').strip()
+        pl_val = row.get('PL', '').strip()
+        ts_raw = row.get('TRANSACTION DATE', '').strip()
+
+        if not ts_raw:
+            continue
+
+        # Parse timestamp: "2026-02-17 13:00:13 -12" -> UTC datetime
+        try:
+            parts = ts_raw.rsplit(' ', 1)
+            dt_str = parts[0]
+            tz_offset = int(parts[1]) if len(parts) > 1 else 0
+            dt_local = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+            dt_utc = dt_local - timedelta(hours=tz_offset)
+        except Exception:
+            continue
+
+        pair = instrument.replace('/', '_')
+
+        # ── Entry fills ──
+        if tx_type == 'ORDER_FILL' and details == 'MARKET_ORDER' and instrument and price:
+            pending[pair] = {
+                'entry_time': dt_utc.isoformat(),
+                'entry_price': float(price),
+                'units': float(units) if units else 0,
+                'direction': direction.upper(),
+                'instrument': instrument,
+                'pair': pair,
+                'stop_loss': 0.0,
+                'take_profit': 0.0,
+                '_entry_utc': dt_utc,
+            }
+            last_entry = pending[pair]
+
+        # ── SL/TP set on fill (comes right after entry) ──
+        # ON_FILL rows have no instrument, so link to the most recent entry only.
+        # Previous bug: matched ALL entries within 5s, so when multiple trades
+        # open within seconds, later SL/TP overwrote earlier entries.
+        if tx_type == 'STOP_LOSS_ORDER' and details == 'ON_FILL' and price:
+            if last_entry and abs((dt_utc - last_entry['_entry_utc']).total_seconds()) < 5:
+                last_entry['stop_loss'] = float(price)
+        if tx_type == 'TAKE_PROFIT_ORDER' and details == 'ON_FILL' and price:
+            if last_entry and abs((dt_utc - last_entry['_entry_utc']).total_seconds()) < 5:
+                last_entry['take_profit'] = float(price)
+
+        # ── Exits ──
+        if tx_type == 'ORDER_FILL' and details in ('STOP_LOSS_ORDER', 'TAKE_PROFIT_ORDER'):
+            if not instrument:
+                continue
+            exit_type = 'TP' if details == 'TAKE_PROFIT_ORDER' else 'SL'
+            pnl = float(pl_val) if pl_val else 0.0
+
+            if pair in pending:
+                entry = pending.pop(pair)
+                entry['exit_time'] = dt_utc.isoformat()
+                entry['exit_reason'] = exit_type
+                entry['realized_pnl'] = pnl
+                entry.pop('_entry_utc', None)
+                trades.append(entry)
+            else:
+                # Exit of pre-existing position (entry before CSV window)
+                trades.append({
+                    'entry_time': '',
+                    'entry_price': 0,
+                    'direction': direction.upper(),
+                    'instrument': instrument,
+                    'pair': pair,
+                    'stop_loss': 0,
+                    'take_profit': 0,
+                    'exit_time': dt_utc.isoformat(),
+                    'exit_reason': exit_type,
+                    'realized_pnl': pnl,
+                })
+
+    # Remaining open positions
+    for entry in pending.values():
+        entry['exit_time'] = ''
+        entry['exit_reason'] = 'OPEN'
+        entry['realized_pnl'] = 0
+        entry.pop('_entry_utc', None)
+        trades.append(entry)
+
+    return trades
+
+
+def _fetch_instance_tags(client, trades):
+    """
+    Enrich trade dicts with 'instance_id' from OANDA tradeClientExtensions.tag.
+
+    Matches CSV trades to OANDA ORDER_FILL transactions by time, instrument, direction.
+    This eliminates guesswork — we get the exact strategy instance that placed each trade.
+    """
+    entry_trades = [t for t in trades if t.get('entry_time')]
+    if not entry_trades:
+        return
+
+    times = []
+    for t in entry_trades:
+        try:
+            times.append(datetime.fromisoformat(t['entry_time']))
+        except (ValueError, TypeError):
+            pass
+    if not times:
+        return
+
+    from_time = min(times) - timedelta(minutes=5)
+    to_time = max(times) + timedelta(minutes=5)
+
+    try:
+        transactions = client.get_transactions(from_time, to_time, tx_type="ORDER_FILL")
+    except Exception as e:
+        print(f"  [WARN] Could not fetch transactions: {e}")
+        return
+
+    # Filter to MARKET_ORDER fills only (trade entries, not SL/TP exits)
+    entry_fills = [tx for tx in transactions if tx.get('reason') == 'MARKET_ORDER']
+    print(f"  Fetched {len(entry_fills)} entry fills from OANDA transactions")
+
+    for trade in entry_trades:
+        try:
+            trade_time = datetime.fromisoformat(trade['entry_time'])
+        except (ValueError, TypeError):
+            continue
+
+        pair = trade.get('pair', '')
+        direction = trade.get('direction', '').upper()
+
+        for tx in entry_fills:
+            if tx.get('instrument', '') != pair:
+                continue
+
+            tx_units = float(tx.get('units', 0))
+            tx_dir = 'BUY' if tx_units > 0 else 'SELL'
+            if tx_dir != direction:
+                continue
+
+            tx_time_str = tx.get('time', '')
+            try:
+                # OANDA format: "2026-02-17T13:00:13.123456789Z"
+                clean = tx_time_str.replace('Z', '')
+                if '.' in clean:
+                    clean = clean.split('.')[0]
+                tx_time = datetime.fromisoformat(clean)
+                time_diff = abs((trade_time - tx_time).total_seconds())
+                if time_diff < 10:
+                    # Get tag from tradeOpened.clientExtensions
+                    tag = ''
+                    trade_opened = tx.get('tradeOpened', {})
+                    if trade_opened:
+                        ce = trade_opened.get('clientExtensions', {})
+                        tag = ce.get('tag', '')
+                    if not tag:
+                        ce = tx.get('clientExtensions', {})
+                        tag = ce.get('tag', '')
+
+                    if tag:
+                        trade['instance_id'] = tag
+                    break
+            except (ValueError, TypeError):
+                continue
+
+
+def check_csv(csv_path: str, do_replay: bool = False, api_key: str = None):
+    """
+    Parse OANDA CSV, display trade summary, and optionally replay signals
+    from all matching strategy instances to verify backtester alignment.
+    """
+    print("=" * 70)
+    print("  OANDA CSV TRADE CHECK")
+    print("=" * 70)
+
+    # ── 1. Parse CSV ──
+    trades = parse_oanda_csv(csv_path)
+    entries = [t for t in trades if t.get('entry_price')]
+    exits_only = [t for t in trades if not t.get('entry_price')]
+
+    print(f"\n  Parsed {len(entries)} trade entries, "
+          f"{len(exits_only)} exit-only (pre-existing)")
+
+    # Rejected orders
+    rejected = defaultdict(int)
+    margin_cancel = 0
+    with open(csv_path, 'r', encoding='utf-8-sig') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            if row.get('TRANSACTION TYPE', '').strip() == 'MARKET_ORDER_REJECT':
+                inst = row.get('INSTRUMENT', '').strip().replace('/', '_')
+                rejected[inst] += 1
+            if 'INSUFFICIENT_MARGIN' in row.get('DETAILS', ''):
+                margin_cancel += 1
+    if rejected:
+        print(f"\n  Rejected orders:")
+        for inst, cnt in sorted(rejected.items()):
+            print(f"    {inst}: {cnt}")
+    if margin_cancel:
+        print(f"  Insufficient margin cancels: {margin_cancel}")
+
+    # Group by pair
+    pairs = sorted(set(t['pair'] for t in entries))
+    print(f"\n  Pairs traded: {', '.join(pairs)}")
+
+    # ── 2. Trade summary ──
+    print(f"\n{'='*70}")
+    print("  TRADE SUMMARY")
+    print("=" * 70)
+
+    total_pnl = 0
+    wins = 0
+    losses = 0
+
+    for t in exits_only:
+        pnl = t.get('realized_pnl', 0)
+        total_pnl += pnl
+        marker = "+" if pnl > 0 else "X"
+        exit_time = t.get('exit_time', '?')
+        print(f"  [{marker}] {t['pair']:<9} {t.get('direction', '?'):<5} "
+              f"(pre-existing) {t['exit_reason']} P&L={pnl:+.2f}  @{exit_time}")
+
+    for t in entries:
+        pair = t['pair']
+        pnl = t.get('realized_pnl', 0)
+        total_pnl += pnl
+        if pnl > 0:
+            wins += 1
+        elif t.get('exit_reason') != 'OPEN':
+            losses += 1
+
+        pip_sz = 0.01 if 'JPY' in pair else 0.0001
+        ep = t['entry_price']
+        sl = t.get('stop_loss', 0)
+        tp = t.get('take_profit', 0)
+        sl_p = abs(ep - sl) / pip_sz if sl else 0
+        tp_p = abs(tp - ep) / pip_sz if tp else 0
+        rr = tp_p / sl_p if sl_p > 0 else 0
+
+        marker = "+" if pnl > 0 else ("." if t.get('exit_reason') == 'OPEN' else "X")
+        entry_time_str = t.get('entry_time', '?')
+        if 'T' in entry_time_str:
+            entry_time_str = entry_time_str[11:16]  # Just HH:MM
+
+        print(f"  [{marker}] {pair:<9} {t['direction']:<5} @ {ep:.5f}  "
+              f"SL={sl_p:.0f}p TP={tp_p:.0f}p RR={rr:.1f}  "
+              f"{t.get('exit_reason', '?'):<4} P&L={pnl:+.2f}  @{entry_time_str}")
+
+    total_trades = wins + losses
+    wr = wins / total_trades if total_trades else 0
+    print(f"\n  Results: {wins}W / {losses}L  ({wr:.0%} win rate)")
+    print(f"  Net P&L: {total_pnl:+.2f}")
+
+    # ── 3. Signal replay ──
+    if not do_replay:
+        print(f"\n  Run without --no-replay to compare against backtester signals")
+        return
+
+    print(f"\n{'='*70}")
+    print("  SIGNAL REPLAY vs LIVE TRADES")
+    print("=" * 70)
+
+    # Connect to OANDA API
+    resolved_key = ensure_oanda_credentials(api_key)
+    from live.oanda_client import OandaClient
+    client = OandaClient(api_key=resolved_key)
+    if not client.account_id:
+        try:
+            accts = client.get_accounts()
+            if accts:
+                client.account_id = accts[0]['id']
+        except Exception as e:
+            print(f"  [WARN] Could not fetch account list: {e}")
+    print(f"  Connected to OANDA API (account: {client.account_id or 'auto'})")
+
+    # Fetch instance tags from OANDA transactions
+    _fetch_instance_tags(client, entries)
+    tagged = sum(1 for t in entries if t.get('instance_id'))
+    print(f"  Instance tags resolved: {tagged}/{len(entries)} trades")
+
+    tf_minutes = {'M1': 1, 'M5': 5, 'M15': 15, 'M30': 30,
+                  'H1': 60, 'H2': 120, 'H4': 240, 'D': 1440}
+
+    total_ok = 0
+    total_mismatch = 0
+    total_no_tag = 0
+    total_no_signal = 0
+
+    for trade in entries:
+        instance_id = trade.get('instance_id', '')
+        pair = trade.get('pair', '')
+        entry_str = trade.get('entry_time', '')
+        entry_hhmm = entry_str[11:16] if 'T' in entry_str else entry_str
+        direction = trade.get('direction', '').upper()
+        trade_entry = trade.get('entry_price', 0)
+        trade_sl = trade.get('stop_loss', 0)
+        trade_tp = trade.get('take_profit', 0)
+        pnl = trade.get('realized_pnl', 0)
+        pip_sz = 0.01 if 'JPY' in pair else 0.0001
+
+        if not instance_id:
+            total_no_tag += 1
+            print(f"\n    [??] {entry_hhmm} {pair} {direction} @ {trade_entry:.5f}  "
+                  f"{trade.get('exit_reason', '?')} P&L={pnl:+.2f}")
+            print(f"         No instance tag from OANDA - cannot identify strategy")
+            continue
+
+        # Load instance config
+        config_path = INSTANCES_DIR / instance_id / "config.json"
+        if not config_path.exists():
+            total_no_tag += 1
+            print(f"\n    [??] {entry_hhmm} {pair} {direction} @ {trade_entry:.5f}  "
+                  f"({instance_id})")
+            print(f"         Instance config not found: {config_path}")
+            continue
+
+        with open(config_path) as f:
+            config = json.load(f)
+        params = config.get('params', {})
+        strategy_name = config.get('strategy', '')
+        timeframe = config.get('timeframe', 'M15')
+        tf_min = tf_minutes.get(timeframe, 15)
+
+        # Load strategy
+        try:
+            fast = load_strategy(strategy_name)
+            fast._pip_size = pip_sz
+        except (ValueError, Exception) as e:
+            print(f"\n    [!!] {entry_hhmm} {pair} {direction} ({instance_id})")
+            print(f"         Failed to load strategy '{strategy_name}': {e}")
+            total_mismatch += 1
+            continue
+
+        # Compute candle boundary: the open time of the current candle period.
+        # The live trader fetches candles right after candle close, so the most
+        # recent complete candle has open_time < candle_boundary.
+        # Using to_time=candle_boundary gives candles with time < boundary (OANDA exclusive).
+        try:
+            trade_time = datetime.fromisoformat(entry_str)
+        except (ValueError, TypeError):
+            continue
+
+        if tf_min >= 60:
+            hours = tf_min // 60
+            h = (trade_time.hour // hours) * hours
+            candle_boundary = trade_time.replace(hour=h, minute=0, second=0, microsecond=0)
+        else:
+            m = (trade_time.minute // tf_min) * tf_min
+            candle_boundary = trade_time.replace(minute=m, second=0, microsecond=0)
+
+        # Fetch 200 candles ending just before candle_boundary.
+        # This replicates the live trader's get_candles(count=200) call exactly.
+        try:
+            df = client.get_candles(pair, timeframe, count=200, to_time=candle_boundary)
+            if df is None or df.empty:
+                print(f"\n    [!!] {entry_hhmm} {pair} {direction} ({instance_id})")
+                print(f"         No candle data from OANDA for to_time={candle_boundary}")
+                total_mismatch += 1
+                continue
+        except Exception as e:
+            print(f"\n    [!!] {entry_hhmm} {pair} {direction} ({instance_id})")
+            print(f"         Candle fetch error: {e}")
+            total_mismatch += 1
+            continue
+
+        # Run strategy on the exact same data the live trader had
+        try:
+            n_raw = fast.precompute_for_dataset(df)
+            if n_raw == 0:
+                print(f"\n    [!!] {entry_hhmm} {pair} {direction} ({instance_id})")
+                print(f"         Strategy produced 0 raw signals on {len(df)} candles")
+                total_no_signal += 1
+                continue
+
+            highs = df['high'].values.astype(np.float64)
+            lows = df['low'].values.astype(np.float64)
+            closes = df['close'].values.astype(np.float64)
+            days = df.index.dayofweek.values.astype(np.int64)
+            sa, _ = fast.get_all_arrays(params, highs, lows, closes, days)
+            entry_bars = sa['entry_bars']
+        except Exception as e:
+            print(f"\n    [!!] {entry_hhmm} {pair} {direction} ({instance_id})")
+            print(f"         Strategy execution error: {e}")
+            import traceback
+            traceback.print_exc()
+            total_mismatch += 1
+            continue
+
+        # Check for signal on LAST bar only (matching pipeline_adapter.py:114)
+        last_bar = len(df) - 1
+        signal_found = False
+
+        for i in range(len(entry_bars)):
+            if int(entry_bars[i]) != last_bar:
+                continue
+            sig_dir = 'BUY' if int(sa['directions'][i]) == 1 else 'SELL'
+            if sig_dir != direction:
+                continue
+
+            sig_entry = float(sa['entry_prices'][i])
+            sig_sl = float(sa['sl_prices'][i])
+            sig_tp = float(sa['tp_prices'][i])
+            signal_found = True
+
+            # Compare SL/TP prices
+            e_diff = abs(trade_entry - sig_entry) / pip_sz
+            sl_diff = abs(trade_sl - sig_sl) / pip_sz if trade_sl else 0
+            tp_diff = abs(trade_tp - sig_tp) / pip_sz if trade_tp else 0
+
+            ok = sl_diff < 0.5 and tp_diff < 0.5
+            if ok:
+                total_ok += 1
+                marker = "OK"
+            else:
+                total_mismatch += 1
+                marker = "!!"
+
+            print(f"\n    [{marker}] {entry_hhmm} {pair} {direction} @ {trade_entry:.5f}  "
+                  f"-> {trade.get('exit_reason', '?')} P&L={pnl:+.2f}")
+            print(f"         Instance: {instance_id}")
+            print(f"         Replay:   {sig_dir} @ {sig_entry:.5f}  "
+                  f"SL={sig_sl:.5f}  TP={sig_tp:.5f}")
+            print(f"         Live:     {direction} @ {trade_entry:.5f}  "
+                  f"SL={trade_sl:.5f}  TP={trade_tp:.5f}")
+            print(f"         Diff:     entry={e_diff:.1f}p  "
+                  f"SL={sl_diff:.1f}p  TP={tp_diff:.1f}p")
+
+            # Diagnostic dump on mismatch
+            if not ok:
+                sig_sl_pips = abs(sig_entry - sig_sl) / pip_sz
+                sig_tp_pips = abs(sig_tp - sig_entry) / pip_sz
+                live_sl_pips = abs(trade_entry - trade_sl) / pip_sz if trade_sl else 0
+                live_tp_pips = abs(trade_tp - trade_entry) / pip_sz if trade_tp else 0
+                print(f"         --- DIAGNOSTIC ---")
+                print(f"         Replay SL={sig_sl_pips:.1f}p  TP={sig_tp_pips:.1f}p")
+                print(f"         Live   SL={live_sl_pips:.1f}p  TP={live_tp_pips:.1f}p")
+                print(f"         Candles: {len(df)} [{df.index[0]} .. {df.index[-1]}]")
+                print(f"         to_time={candle_boundary}")
+            break
+
+        if not signal_found:
+            total_no_signal += 1
+            print(f"\n    [!!] {entry_hhmm} {pair} {direction} @ {trade_entry:.5f}  "
+                  f"-> {trade.get('exit_reason', '?')} P&L={pnl:+.2f}")
+            print(f"         Instance: {instance_id}")
+            print(f"         NO SIGNAL on last bar (bar {last_bar}, "
+                  f"time {df.index[last_bar]})")
+
+            # Show what signals exist for debugging
+            n_filtered = len(entry_bars)
+            if n_filtered > 0:
+                bar_diffs = [(abs(int(entry_bars[j]) - last_bar), j)
+                             for j in range(n_filtered)]
+                bar_diffs.sort()
+                print(f"         {n_filtered} signals found, nearest bars:")
+                for bd, idx in bar_diffs[:3]:
+                    b = int(entry_bars[idx])
+                    d = 'BUY' if int(sa['directions'][idx]) == 1 else 'SELL'
+                    print(f"           bar {b} ({df.index[b]}) {d} "
+                          f"@ {float(sa['entry_prices'][idx]):.5f}  "
+                          f"({bd} bars away)")
+            else:
+                print(f"         0 signals after filtering (from {n_raw} raw)")
+
+    # Summary
+    total = len(entries)
+    print(f"\n{'='*70}")
+    print(f"  REPLAY SUMMARY")
+    print(f"{'='*70}")
+    print(f"  Trades with entries:    {total}")
+    print(f"  Exact match (0p diff):  {total_ok}/{total}")
+    print(f"  SL/TP mismatch:        {total_mismatch}/{total}")
+    print(f"  No signal on last bar: {total_no_signal}/{total}")
+    print(f"  No instance tag:       {total_no_tag}/{total}")
+
+    if total_mismatch == 0 and total_no_signal == 0 and total_no_tag == 0 and total > 0:
+        print(f"  [OK] All live trades confirmed by backtester with exact SL/TP match")
+    if total_mismatch > 0:
+        print(f"  [ALERT] {total_mismatch} trade(s) had SL/TP mismatch - backtester != live!")
+    if total_no_signal > 0:
+        print(f"  [ALERT] {total_no_signal} trade(s) had no signal on expected bar!")
+    if total_no_tag > 0:
+        print(f"  [WARN] {total_no_tag} trade(s) had no OANDA instance tag")
+
+
+# ── Management Replay ──────────────────────────────────────
+
+def replay_management_for_trade(
+    entry_price: float,
+    direction: str,
+    initial_sl: float,
+    params: dict,
+    candles: pd.DataFrame,
+    pair: str,
+) -> list:
+    """
+    Simulate backtester management logic bar-by-bar for a single trade.
+
+    Replicates the management order from numba_backtest.py:
+    max_bars → stale → breakeven → trailing/chandelier → partial close.
+
+    Args:
+        entry_price: Trade entry price
+        direction: 'BUY' or 'SELL'
+        initial_sl: Initial stop loss price
+        params: Strategy params dict (from instance config)
+        candles: OHLC DataFrame starting from entry bar
+        pair: Currency pair for pip size
+
+    Returns:
+        List of expected management actions with bar_number, action, new_sl
+    """
+    pip_size = 0.01 if 'JPY' in pair else 0.0001
+    is_long = direction.upper() == 'BUY'
+
+    # Extract params (matching pipeline_adapter.py and create_management_arrays)
+    use_trailing = params.get('use_trailing', False)
+    trail_mode = params.get('trail_mode', 0)
+    trail_start_pips = params.get('trail_start_pips', 50)
+    trail_step_pips = params.get('trail_step_pips', 10)
+    trail_step_pips = min(trail_step_pips, trail_start_pips)
+    chandelier_atr_mult = params.get('chandelier_atr_mult', 3.0)
+
+    use_break_even = params.get('use_break_even', False)
+    be_trigger_pips = params.get('be_trigger_pips', None)
+    be_atr_mult = params.get('be_atr_mult', 0.5)
+    be_offset_pips = params.get('be_offset_pips', 5)
+
+    use_partial_close = params.get('use_partial_close', False)
+    partial_target_pips = params.get('partial_target_pips', 20)
+
+    stale_exit_bars = params.get('stale_exit_bars', 0)
+    max_bars_in_trade = params.get('max_bars_in_trade', 0)
+    param_atr_pips = params.get('atr_pips', 35.0)
+
+    # For BE trigger: use fixed if available, else compute from atr
+    if be_trigger_pips is not None:
+        trigger_pips = be_trigger_pips
+    else:
+        trigger_pips = be_atr_mult * param_atr_pips
+
+    # State
+    current_sl = initial_sl
+    trail_high = 0.0
+    trail_active = False
+    be_triggered = False
+    partial_done = False
+
+    expected_actions = []
+
+    # Bar 0 is entry bar — skip (backtester does `continue`)
+    for bar_idx in range(1, len(candles)):
+        bar = candles.iloc[bar_idx]
+        bar_high = float(bar['high'])
+        bar_low = float(bar['low'])
+        bar_close = float(bar['close'])
+        bar_time = str(candles.index[bar_idx])
+        bars = bar_idx
+
+        # ── Max bars exit ──
+        if max_bars_in_trade > 0 and bars >= max_bars_in_trade:
+            expected_actions.append({
+                'bar_number': bars, 'bar_time': bar_time,
+                'action': 'max_bars_exit', 'expected_sl': current_sl,
+            })
+            break
+
+        # ── Stale exit ──
+        if stale_exit_bars > 0 and bars >= stale_exit_bars:
+            half_r = param_atr_pips * pip_size * 0.5
+            move = (bar_close - entry_price) if is_long else (entry_price - bar_close)
+            if move < half_r:
+                expected_actions.append({
+                    'bar_number': bars, 'bar_time': bar_time,
+                    'action': 'stale_exit', 'expected_sl': current_sl,
+                })
+                break
+
+        new_sl = None
+
+        # ── Breakeven ──
+        if use_break_even and not be_triggered:
+            be_trigger_dist = trigger_pips * pip_size
+            effective_offset = min(be_offset_pips, trigger_pips)
+
+            if is_long:
+                if bar_high - entry_price >= be_trigger_dist:
+                    be_triggered = True
+                    be_sl = entry_price + effective_offset * pip_size
+                    if be_sl > current_sl:
+                        new_sl = be_sl
+                        expected_actions.append({
+                            'bar_number': bars, 'bar_time': bar_time,
+                            'action': 'breakeven',
+                            'old_sl': current_sl, 'new_sl': new_sl,
+                        })
+            else:
+                if entry_price - bar_low >= be_trigger_dist:
+                    be_triggered = True
+                    be_sl = entry_price - effective_offset * pip_size
+                    if be_sl < current_sl:
+                        new_sl = be_sl
+                        expected_actions.append({
+                            'bar_number': bars, 'bar_time': bar_time,
+                            'action': 'breakeven',
+                            'old_sl': current_sl, 'new_sl': new_sl,
+                        })
+
+        # ── Trailing (mode 0: fixed pip) ──
+        if use_trailing and trail_mode == 0:
+            trail_start = trail_start_pips * pip_size
+            trail_step = trail_step_pips * pip_size
+
+            if is_long:
+                profit = bar_high - entry_price
+                if not trail_active and profit >= trail_start:
+                    trail_active = True
+                    trail_high = bar_high
+                if trail_active:
+                    if bar_high > trail_high:
+                        trail_high = bar_high
+                    trail_sl = trail_high - trail_step
+                    if trail_sl > current_sl and (new_sl is None or trail_sl > new_sl):
+                        new_sl = trail_sl
+                        expected_actions.append({
+                            'bar_number': bars, 'bar_time': bar_time,
+                            'action': 'trailing',
+                            'old_sl': current_sl, 'new_sl': new_sl,
+                        })
+            else:
+                profit = entry_price - bar_low
+                if not trail_active and profit >= trail_start:
+                    trail_active = True
+                    trail_high = bar_low
+                if trail_active:
+                    if trail_high == 0.0 or bar_low < trail_high:
+                        trail_high = bar_low
+                    trail_sl = trail_high + trail_step
+                    if trail_sl < current_sl and (new_sl is None or trail_sl < new_sl):
+                        new_sl = trail_sl
+                        expected_actions.append({
+                            'bar_number': bars, 'bar_time': bar_time,
+                            'action': 'trailing',
+                            'old_sl': current_sl, 'new_sl': new_sl,
+                        })
+
+        # ── Trailing (mode 1: chandelier) ──
+        elif use_trailing and trail_mode == 1:
+            ch_dist = chandelier_atr_mult * param_atr_pips * pip_size
+
+            if is_long:
+                if bar_high > trail_high or trail_high == 0.0:
+                    trail_high = bar_high
+                trail_sl = trail_high - ch_dist
+                if trail_sl > current_sl and (new_sl is None or trail_sl > new_sl):
+                    new_sl = trail_sl
+                    trail_active = True
+                    expected_actions.append({
+                        'bar_number': bars, 'bar_time': bar_time,
+                        'action': 'chandelier',
+                        'old_sl': current_sl, 'new_sl': new_sl,
+                    })
+            else:
+                if trail_high == 0.0 or bar_low < trail_high:
+                    trail_high = bar_low
+                trail_sl = trail_high + ch_dist
+                if trail_sl < current_sl and (new_sl is None or trail_sl < new_sl):
+                    new_sl = trail_sl
+                    trail_active = True
+                    expected_actions.append({
+                        'bar_number': bars, 'bar_time': bar_time,
+                        'action': 'chandelier',
+                        'old_sl': current_sl, 'new_sl': new_sl,
+                    })
+
+        # Apply SL change
+        if new_sl is not None:
+            current_sl = new_sl
+
+        # ── Partial close ──
+        if use_partial_close and not partial_done:
+            partial_target = partial_target_pips * pip_size
+            if is_long:
+                if bar_high - entry_price >= partial_target:
+                    partial_done = True
+                    expected_actions.append({
+                        'bar_number': bars, 'bar_time': bar_time,
+                        'action': 'partial_close',
+                    })
+            else:
+                if entry_price - bar_low >= partial_target:
+                    partial_done = True
+                    expected_actions.append({
+                        'bar_number': bars, 'bar_time': bar_time,
+                        'action': 'partial_close',
+                    })
+
+    return expected_actions
+
+
+def check_management(instance_id: str, api_key: str = None):
+    """
+    Validate live management actions against backtest replay.
+
+    Loads mgmt_actions.jsonl from the instance state dir, replays
+    management bar-by-bar for each trade, and compares per-bar SL.
+    """
+    idir = INSTANCES_DIR / instance_id
+
+    config_path = idir / "config.json"
+    if not config_path.exists():
+        print(f"  [ERROR] No config.json for {instance_id}")
+        return
+
+    with open(config_path) as f:
+        config = json.load(f)
+
+    params = config.get('params', {})
+    pair = config.get('pair', '')
+    timeframe = config.get('timeframe', 'M15')
+    pip_size = 0.01 if 'JPY' in pair else 0.0001
+
+    # Check if any management features are enabled
+    has_mgmt = any([
+        params.get('use_trailing', False),
+        params.get('use_break_even', False),
+        params.get('use_partial_close', False),
+        params.get('stale_exit_bars', 0) > 0,
+        params.get('max_bars_in_trade', 0) > 0,
+    ])
+    if not has_mgmt:
+        print(f"  [INFO] {instance_id}: No management features enabled in params")
+        return
+
+    # Load mgmt actions log
+    log_path = idir / "state" / "mgmt_actions.jsonl"
+    live_actions = []
+    if log_path.exists():
+        with open(log_path) as f:
+            for line in f:
+                line = line.strip()
+                if line:
+                    try:
+                        live_actions.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        pass
+
+    # Load trade history
+    history_path = idir / "state" / "trade_history.json"
+    trades = []
+    if history_path.exists():
+        with open(history_path) as f:
+            data = json.load(f)
+            if isinstance(data, list):
+                trades = data
+            elif isinstance(data, dict):
+                trades = data.get("trades", data.get("trade_history", []))
+
+    if not trades:
+        print(f"  [INFO] No trade history for {instance_id}")
+        return
+
+    # Group live actions by trade_id
+    live_by_trade = defaultdict(list)
+    for a in live_actions:
+        live_by_trade[a.get('trade_id', '')].append(a)
+
+    print(f"\n{'='*70}")
+    print(f"  MANAGEMENT VALIDATION: {instance_id}")
+    print(f"{'='*70}")
+    print(f"  Strategy: {config.get('strategy', '?')}")
+    print(f"  Pair/TF:  {pair} {timeframe}")
+    print(f"  Params:   trail_mode={params.get('trail_mode', 0)}, "
+          f"use_trailing={params.get('use_trailing', False)}, "
+          f"use_break_even={params.get('use_break_even', False)}, "
+          f"use_partial={params.get('use_partial_close', False)}")
+    print(f"  Stale bars: {params.get('stale_exit_bars', 0)}, "
+          f"Max bars: {params.get('max_bars_in_trade', 0)}")
+    print(f"  Live mgmt actions logged: {len(live_actions)}")
+    print(f"  Trades with mgmt data: {len(live_by_trade)}")
+
+    # Connect to OANDA for candle data
+    resolved_key = ensure_oanda_credentials(api_key)
+    from live.oanda_client import OandaClient
+    client = OandaClient(api_key=resolved_key)
+    if not client.account_id:
+        try:
+            accts = client.get_accounts()
+            if accts:
+                client.account_id = accts[0]['id']
+        except Exception as e:
+            print(f"  [WARN] Could not fetch account list: {e}")
+
+    tf_minutes = {'M1': 1, 'M5': 5, 'M15': 15, 'M30': 30,
+                  'H1': 60, 'H2': 120, 'H4': 240, 'D': 1440}
+
+    total_sl_match = 0
+    total_sl_mismatch = 0
+    total_action_match = 0
+    total_action_mismatch = 0
+    trades_checked = 0
+
+    for trade in trades:
+        tid = trade.get('trade_id', '')
+        entry_str = trade.get('entry_time', '')
+        exit_str = trade.get('exit_time', '')
+        entry_price = trade.get('entry_price', 0)
+        direction = trade.get('direction', '')
+        initial_sl = trade.get('stop_loss', 0)
+
+        if not entry_str or not entry_price or not initial_sl:
+            continue
+
+        # Parse times
+        try:
+            entry_time = datetime.fromisoformat(entry_str)
+            exit_time = datetime.fromisoformat(exit_str) if exit_str else datetime.utcnow()
+        except (ValueError, TypeError):
+            continue
+
+        # Fetch candle data from entry to exit
+        try:
+            candles = client.get_candles_range(
+                pair, timeframe,
+                entry_time - timedelta(minutes=1),
+                exit_time + timedelta(hours=1),
+            )
+        except Exception as e:
+            print(f"    [!!] Trade {tid}: Failed to fetch candles: {e}")
+            continue
+
+        if candles is None or candles.empty:
+            continue
+
+        # Find entry bar in candle data
+        entry_ts = pd.Timestamp(entry_time)
+        if entry_ts.tzinfo is not None:
+            entry_ts = entry_ts.tz_localize(None)
+
+        candle_times = candles.index
+        if candle_times.tzinfo is not None or (len(candle_times) > 0 and hasattr(candle_times[0], 'tzinfo') and candle_times[0].tzinfo is not None):
+            candle_times = candle_times.tz_localize(None)
+
+        diffs = abs(candle_times - entry_ts)
+        entry_bar_idx = diffs.argmin()
+
+        # Slice from entry onward
+        trade_candles = candles.iloc[entry_bar_idx:]
+        if len(trade_candles) < 2:
+            continue
+
+        # Replay management
+        expected = replay_management_for_trade(
+            entry_price, direction, initial_sl,
+            params, trade_candles, pair,
+        )
+
+        live = live_by_trade.get(tid, [])
+        trades_checked += 1
+
+        # Compare: index both by bar_number
+        exp_sl_by_bar = {a['bar_number']: a for a in expected if 'new_sl' in a}
+        live_sl_by_bar = {a['bar_number']: a for a in live if 'new_sl' in a}
+        exp_close_bars = {a['bar_number'] for a in expected if a['action'] in ('stale_exit', 'max_bars_exit', 'partial_close')}
+        live_close_bars = {a['bar_number'] for a in live if a['action'] in ('stale_exit', 'max_bars_exit', 'partial_close')}
+
+        all_sl_bars = sorted(set(exp_sl_by_bar.keys()) | set(live_sl_by_bar.keys()))
+        all_close_bars = sorted(set(exp_close_bars) | set(live_close_bars))
+
+        entry_hhmm = entry_str[11:16] if 'T' in entry_str else entry_str
+        has_issues = False
+
+        # SL modification comparison
+        for bar in all_sl_bars:
+            exp = exp_sl_by_bar.get(bar)
+            liv = live_sl_by_bar.get(bar)
+
+            if exp and liv:
+                sl_diff = abs(exp['new_sl'] - liv['new_sl']) / pip_size
+                if sl_diff < 0.5:
+                    total_sl_match += 1
+                else:
+                    total_sl_mismatch += 1
+                    has_issues = True
+                    print(f"\n    [!!] {entry_hhmm} {tid} bar {bar}: SL MISMATCH")
+                    print(f"         Replay: {exp['action']} SL={exp['new_sl']:.5f}")
+                    print(f"         Live:   {liv['action']} SL={liv['new_sl']:.5f}")
+                    print(f"         Diff:   {sl_diff:.1f} pips")
+            elif exp and not liv:
+                total_sl_mismatch += 1
+                has_issues = True
+                print(f"\n    [!!] {entry_hhmm} {tid} bar {bar}: MISSING in live log")
+                print(f"         Replay expected: {exp['action']} SL={exp['new_sl']:.5f}")
+            elif liv and not exp:
+                total_sl_mismatch += 1
+                has_issues = True
+                print(f"\n    [!!] {entry_hhmm} {tid} bar {bar}: EXTRA in live log")
+                print(f"         Live had: {liv['action']} SL={liv['new_sl']:.5f}")
+
+        # Close action comparison
+        for bar in all_close_bars:
+            exp_actions = {a['action'] for a in expected if a['bar_number'] == bar and a['action'] in ('stale_exit', 'max_bars_exit', 'partial_close')}
+            liv_actions = {a['action'] for a in live if a['bar_number'] == bar and a['action'] in ('stale_exit', 'max_bars_exit', 'partial_close')}
+
+            if exp_actions == liv_actions:
+                total_action_match += 1
+            else:
+                total_action_mismatch += 1
+                has_issues = True
+                print(f"\n    [!!] {entry_hhmm} {tid} bar {bar}: CLOSE ACTION MISMATCH")
+                print(f"         Replay: {exp_actions or 'none'}")
+                print(f"         Live:   {liv_actions or 'none'}")
+
+        if not has_issues and (all_sl_bars or all_close_bars):
+            n_actions = len(all_sl_bars) + len(all_close_bars)
+            print(f"    [OK] {entry_hhmm} {tid}: {n_actions} management action(s) matched")
+
+    # Summary
+    print(f"\n{'='*70}")
+    print(f"  MANAGEMENT VALIDATION SUMMARY")
+    print(f"{'='*70}")
+    print(f"  Trades checked:          {trades_checked}")
+    print(f"  SL modifications match:  {total_sl_match}")
+    print(f"  SL modifications differ: {total_sl_mismatch}")
+    print(f"  Close actions match:     {total_action_match}")
+    print(f"  Close actions differ:    {total_action_mismatch}")
+
+    if total_sl_mismatch == 0 and total_action_mismatch == 0 and trades_checked > 0:
+        print(f"  [OK] All management actions match backtest replay!")
+    elif total_sl_mismatch > 0:
+        print(f"  [ALERT] {total_sl_mismatch} SL modification(s) differ from backtester!")
+    if trades_checked == 0:
+        print(f"  [INFO] No trades with management data to validate")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Check live trades against backtest expectations")
     parser.add_argument("--instance", "-i", help="Instance ID to check")
     parser.add_argument("--all", "-a", action="store_true", help="Check all instances")
+    parser.add_argument("--csv", help="Path to OANDA transactions CSV export")
     parser.add_argument("--last", "-n", type=int, default=0, help="Only check last N trades")
     parser.add_argument("--replay", "-r", action="store_true",
                        help="Replay strategy on historical data to verify signals match")
+    parser.add_argument("--no-replay", action="store_true",
+                       help="Skip signal replay in CSV mode (just show summary)")
+    parser.add_argument("--mgmt", "-m", action="store_true",
+                       help="Validate management actions (trailing/BE/etc) against backtest replay")
+    parser.add_argument("--api-key", help="OANDA API key (overrides .env)")
     parser.add_argument("--json", action="store_true", help="Output as JSON")
     args = parser.parse_args()
+
+    # CSV mode: parse OANDA export and check trades
+    # Replay is ON by default for CSV mode (the whole point is backtester comparison)
+    if args.csv:
+        do_replay = not args.no_replay
+        check_csv(args.csv, do_replay=do_replay, api_key=args.api_key)
+        return
 
     instances_to_check = []
 
     if args.instance:
         instances_to_check = [args.instance]
-    elif STRATEGIES_FILE.exists():
+    elif args.all and STRATEGIES_FILE.exists():
         with open(STRATEGIES_FILE) as f:
             data = json.load(f)
         instances_to_check = [s["id"] for s in data.get("strategies", []) if s.get("enabled", True)]
@@ -620,6 +1658,10 @@ def main():
     all_results = {}
     for iid in instances_to_check:
         all_results[iid] = check_instance(iid, last_n=args.last, do_replay=args.replay)
+
+        # Management validation (separate pass)
+        if args.mgmt:
+            check_management(iid, api_key=args.api_key)
 
     if args.json:
         # Convert non-serializable types

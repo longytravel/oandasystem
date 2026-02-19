@@ -16,7 +16,12 @@
     "breakout_buffer_pct": 0,
     "sl_mode": "range",
     "sl_atr_mult": 1.5,
-    "tp_rr_ratio": 2.0
+    "tp_rr_ratio": 2.0,
+    "use_trailing": true,
+    "trail_mode": 0,
+    "trail_start_pips": 35,
+    "trail_step_pips": 12,
+    "stale_exit_bars": 15
   },
   "expectations": {
     "win_rate": 0,

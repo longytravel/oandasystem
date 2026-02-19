@@ -260,6 +260,61 @@ class OandaClient:
         result = result[~result.index.duplicated(keep='last')]
         return result.sort_index()
 
+    # ==================== Transactions ====================
+
+    def get_transactions(
+        self,
+        from_time: datetime,
+        to_time: Optional[datetime] = None,
+        tx_type: str = "ORDER_FILL"
+    ) -> List[Dict]:
+        """
+        Fetch transactions from OANDA.
+
+        Each ORDER_FILL transaction includes tradeClientExtensions.tag
+        which is the strategy instance_id (e.g., 'dch_NZD_USD_M15').
+
+        Args:
+            from_time: Start time (UTC)
+            to_time: End time (UTC), defaults to now
+            tx_type: Transaction type filter (default ORDER_FILL)
+
+        Returns:
+            List of transaction dicts
+        """
+        params = {
+            "from": from_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "type": tx_type,
+        }
+        if to_time:
+            params["to"] = to_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        # First get the transaction ID range
+        response = self._request(
+            "GET",
+            f"/v3/accounts/{self.account_id}/transactions",
+            params=params
+        )
+
+        # OANDA returns page URLs; fetch each page
+        pages = response.get("pages", [])
+        transactions = []
+
+        for page_url in pages:
+            try:
+                resp = requests.get(
+                    page_url,
+                    headers=self.headers,
+                    timeout=(10, 30)
+                )
+                resp.raise_for_status()
+                page_data = resp.json()
+                transactions.extend(page_data.get("transactions", []))
+            except Exception as e:
+                logger.warning(f"Failed to fetch transaction page: {e}")
+
+        return transactions
+
     # ==================== Orders ====================
 
     def market_order(

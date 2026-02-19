@@ -16,7 +16,16 @@
     "oversold": 20,
     "sl_atr_mult": 3.0,
     "tp_rr_ratio": 5.0,
-    "max_hold_bars": 0
+    "max_hold_bars": 0,
+    "use_trailing": true,
+    "trail_mode": 1,
+    "chandelier_atr_mult": 3.0,
+    "use_break_even": true,
+    "be_atr_mult": 0.5,
+    "be_offset_pips": 5,
+    "use_partial_close": true,
+    "partial_close_pct": 0.4,
+    "partial_target_pips": 20
   },
   "expectations": {
     "win_rate": 0.2712,

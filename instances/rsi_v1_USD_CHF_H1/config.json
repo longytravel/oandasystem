@@ -43,7 +43,9 @@
     "trade_end_hour": 18,
     "trade_monday": false,
     "trade_friday": true,
-    "friday_close_hour": 20
+    "friday_close_hour": 20,
+    "stale_exit_bars": 40,
+    "max_bars_in_trade": 200
   },
   "expectations": {
     "win_rate": 0.4231,

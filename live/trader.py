@@ -77,6 +77,10 @@ class LiveTrader:
         )
         self.risk_manager = RiskManager(self.position_manager)
 
+        # Set state dir on strategy adapter for mgmt state persistence & action logging
+        if hasattr(strategy, 'set_state_dir'):
+            strategy.set_state_dir(self.position_manager.state_dir)
+
         # State
         self.running = False
         self.last_signal_time: Optional[datetime] = None
@@ -422,10 +426,12 @@ class LiveTrader:
                     # excursions, matching the backtest engine behavior
                     bar_high = float(df['high'].iloc[-1])
                     bar_low = float(df['low'].iloc[-1])
+                    bar_time = df.index[-1]
                     mgmt_client = self.client if not self.dry_run else None
                     actions = self.strategy.manage_positions(
                         positions, current_price, atr_pips, client=mgmt_client,
                         bar_high=bar_high, bar_low=bar_low,
+                        bar_time=bar_time,
                     )
                     if actions:
                         result['management_actions'] = actions

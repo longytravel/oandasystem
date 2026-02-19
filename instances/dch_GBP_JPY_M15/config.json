@@ -16,7 +16,13 @@
     "trade_end_hour": 23,
     "sl_atr_mult": 2.0,
     "tp_rr_ratio": 3.0,
-    "max_hold_bars": 100
+    "max_hold_bars": 100,
+    "use_trailing": true,
+    "trail_mode": 1,
+    "chandelier_atr_mult": 2.5,
+    "use_partial_close": true,
+    "partial_close_pct": 0.5,
+    "partial_target_pips": 25
   },
   "expectations": {
     "win_rate": 0,

@@ -16,7 +16,14 @@
     "min_atr_pips": 10,
     "sl_atr_mult": 3.0,
     "tp_rr_ratio": 3.0,
-    "max_hold_bars": 50
+    "max_hold_bars": 50,
+    "use_trailing": true,
+    "trail_mode": 0,
+    "trail_start_pips": 40,
+    "trail_step_pips": 15,
+    "use_break_even": true,
+    "be_atr_mult": 0.5,
+    "be_offset_pips": 3
   },
   "expectations": {
     "win_rate": 0.8,
