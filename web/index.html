@@ -1127,7 +1127,13 @@ function switchDashTab(tabName) {
   document.querySelectorAll('.dash-tab-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.dtab === tabName); });
   document.querySelectorAll('.dash-tab-content').forEach(function(c) { c.classList.toggle('active', c.id === 'dtab-' + tabName); });
 }
-function toggleErrorPanel() { document.getElementById('error-panel').classList.toggle('open'); }
+var errorPanelDismissed = false;
+function toggleErrorPanel() {
+  var panel = document.getElementById('error-panel');
+  var isOpen = panel.classList.contains('open');
+  panel.classList.toggle('open');
+  errorPanelDismissed = isOpen; // user manually closed it
+}
 function toggleCompact() { document.body.classList.toggle('compact-mode'); document.getElementById('compact-toggle').classList.toggle('active'); }
 
 function dashUpdateTime() {
@@ -1172,7 +1178,8 @@ function dashUpdateSummary(s) {
   var errEl = document.getElementById('sum-errors');
   errEl.textContent = s.errors || 0;
   errEl.className = 'summary-value ' + ((s.errors||0) > 0 ? 'negative' : '');
-  if ((s.errors||0) > 0) document.getElementById('error-panel').classList.add('open');
+  // Only auto-open error panel on first load, not if user dismissed it
+  if ((s.errors||0) > 0 && !errorPanelDismissed) document.getElementById('error-panel').classList.add('open');
   // Error details
   var errorList = document.getElementById('error-list');
   if (s.error_instances && s.error_instances.length > 0) {
