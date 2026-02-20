@@ -145,7 +145,15 @@
     border-radius: 8px; display: none;
   }
   .error-panel.open { display: block; }
-  .error-panel-title { font-weight: 600; color: var(--red); margin-bottom: 8px; font-size: 0.82rem; }
+  .error-panel-title {
+    font-weight: 600; color: var(--red); margin-bottom: 0; font-size: 0.82rem;
+    cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+    user-select: none;
+  }
+  .error-panel-title .chevron { transition: transform 0.2s; font-size: 0.7rem; }
+  .error-panel.collapsed .error-panel-title .chevron { transform: rotate(-90deg); }
+  .error-panel.collapsed #error-list { display: none; }
+  #error-list { max-height: 240px; overflow-y: auto; margin-top: 8px; }
   .error-item { padding: 6px 0; border-bottom: 1px solid rgba(127, 29, 29, 0.3); }
   .error-item:last-child { border-bottom: none; }
   .error-id { color: var(--red); font-weight: 600; font-size: 0.78rem; }
@@ -837,7 +845,9 @@
 
   <!-- ERROR DETAILS PANEL -->
   <div class="error-panel" id="error-panel">
-    <div class="error-panel-title">Error Details</div>
+    <div class="error-panel-title" onclick="document.getElementById('error-panel').classList.toggle('collapsed')">
+      <span>Error Details</span><span class="chevron">&#9660;</span>
+    </div>
     <div id="error-list"><div class="no-data">No errors</div></div>
   </div>
 

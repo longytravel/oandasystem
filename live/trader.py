@@ -488,7 +488,7 @@ class LiveTrader:
 
                 if result.get('error'):
                     self.error_count += 1
-                    self.last_error = str(result.get('error_msg', 'unknown error'))
+                    self.last_error = str(result.get('error', 'unknown error'))
                 elif not result.get('blocked'):
                     self.error_count = 0
                     self.last_error = ""
