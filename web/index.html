@@ -5,43 +5,64 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OANDA Trading System</title>
 <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
+  :root {
+    --bg-primary: #0a0e1a;
+    --bg-card: #111827;
+    --bg-card-hover: #1a2237;
+    --bg-input: #0d1320;
+    --border: #1e293b;
+    --border-light: #2a3a52;
+    --text-primary: #e2e8f0;
+    --text-secondary: #8896ab;
+    --text-muted: #5a6a80;
+    --green: #10b981;
+    --green-dim: #065f46;
+    --red: #ef4444;
+    --red-dim: #7f1d1d;
+    --yellow: #f59e0b;
+    --yellow-dim: #78350f;
+    --blue: #3b82f6;
+    --purple: #8b5cf6;
+    --cyan: #06b6d4;
+  }
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: 'Inter', system-ui, sans-serif;
-    background: #0a0e1a;
-    color: #e2e8f0;
+    background: var(--bg-primary);
+    color: var(--text-primary);
     min-height: 100vh;
     line-height: 1.5;
     padding-bottom: 70px;
   }
-  a { color: #3b82f6; text-decoration: none; }
+  a { color: var(--blue); text-decoration: none; }
   a:hover { text-decoration: underline; }
 
   /* ── NAV ── */
   .nav {
-    background: #111827;
-    border-bottom: 1px solid #1e293b;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
     position: sticky; top: 0; z-index: 100;
     display: flex; align-items: center;
     padding: 0 32px; gap: 0;
   }
   .nav-brand {
-    font-weight: 700; font-size: 1rem; color: #3b82f6;
+    font-weight: 700; font-size: 1rem; color: var(--blue);
     margin-right: 24px; white-space: nowrap; padding: 12px 0;
     font-family: 'JetBrains Mono', monospace;
   }
   .nav-tab {
-    padding: 12px 20px; color: #5a6a80; cursor: pointer;
+    padding: 12px 20px; color: var(--text-muted); cursor: pointer;
     border-bottom: 2px solid transparent;
     transition: all 0.15s; font-size: 0.85rem; font-weight: 500; user-select: none;
   }
-  .nav-tab:hover { color: #e2e8f0; }
-  .nav-tab.active { color: #3b82f6; border-bottom-color: #3b82f6; }
+  .nav-tab:hover { color: var(--text-primary); }
+  .nav-tab.active { color: var(--blue); border-bottom-color: var(--blue); }
   .nav-right {
     margin-left: auto; display: flex; align-items: center; gap: 12px;
-    font-size: 0.75rem; color: #5a6a80; font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;
   }
 
   /* ── VIEWS ── */
@@ -49,54 +70,255 @@
   .view.active { display: block; }
 
   /* ══════════════════════════════════════
-     DASHBOARD VIEW
+     DASHBOARD VIEW (NEW)
      ══════════════════════════════════════ */
-  .dash-container { max-width: 1400px; margin: 0 auto; padding: 20px 32px; }
-  .cards {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 12px; margin-bottom: 20px;
+  .dash-header {
+    background: linear-gradient(180deg, rgba(17,24,39,0.95) 0%, var(--bg-primary) 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 32px;
+    display: flex; align-items: center; justify-content: space-between;
   }
-  .card {
-    background: #111827; border: 1px solid #1e293b; border-radius: 8px; padding: 16px;
+  .dash-header-left { display: flex; align-items: center; gap: 16px; }
+  .dash-header-title { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.02em; }
+  .dash-header-subtitle { font-size: 0.78rem; color: var(--text-muted); }
+  .dash-header-right { display: flex; align-items: center; gap: 12px; }
+  .refresh-indicator { display: flex; align-items: center; gap: 6px; font-size: 0.72rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+  .refresh-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  .dash-btn {
+    padding: 6px 14px; border: 1px solid var(--border-light); border-radius: 6px;
+    background: var(--bg-card); color: var(--text-secondary); font-family: 'Inter', sans-serif;
+    font-size: 0.78rem; cursor: pointer; transition: all 0.15s;
   }
-  .card-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; color: #5a6a80; margin-bottom: 4px; }
-  .card-value { font-size: 1.5rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+  .dash-btn:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+  .dash-btn.active { background: var(--blue); color: white; border-color: var(--blue); }
+
+  .dash-tab-nav {
+    display: flex; gap: 2px; padding: 0 32px;
+    border-bottom: 1px solid var(--border); background: var(--bg-card);
+  }
+  .dash-tab-btn {
+    padding: 10px 20px; background: transparent; border: none;
+    color: var(--text-muted); font-family: 'Inter', sans-serif; font-size: 0.8rem;
+    font-weight: 500; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s;
+  }
+  .dash-tab-btn:hover { color: var(--text-secondary); }
+  .dash-tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); }
+  .dash-tab-content { display: none; }
+  .dash-tab-content.active { display: block; }
 
   .banner {
-    padding: 10px 16px; border-radius: 6px; margin-bottom: 16px;
+    padding: 10px 16px; border-radius: 6px; margin: 0 32px 16px;
     font-size: 0.82rem; display: none;
-    background: rgba(239,68,68,0.1); border: 1px solid #dc2626; color: #ef4444;
+    background: rgba(239,68,68,0.1); border: 1px solid #dc2626; color: var(--red);
   }
   .banner.show { display: block; }
 
-  .dash-table { overflow-x: auto; background: #111827; border: 1px solid #1e293b; border-radius: 8px; }
-  .dash-table table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-  .dash-table th {
-    text-align: left; padding: 10px 12px; font-size: 0.68rem;
-    text-transform: uppercase; letter-spacing: 0.04em; color: #5a6a80;
-    border-bottom: 1px solid #1e293b; background: #111827;
+  .summary-row {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px; padding: 20px 32px;
   }
-  .dash-table td { padding: 8px 12px; border-bottom: 1px solid rgba(30,41,59,0.4); white-space: nowrap; }
-  .dash-table tr:hover td { background: rgba(255,255,255,0.02); }
-
-  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
-  .dot-green { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
-  .dot-yellow { background: #eab308; box-shadow: 0 0 6px #eab308; }
-  .dot-red { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
-
-  .btn {
-    display: inline-flex; align-items: center; gap: 4px;
-    padding: 4px 10px; border-radius: 4px; border: 1px solid #334155;
-    background: #1e293b; color: #8896ab; font-size: 0.7rem;
-    cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif;
+  .summary-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px 16px; position: relative;
   }
-  .btn:hover { background: #334155; color: #e2e8f0; }
-  .btn-danger { border-color: #dc2626; color: #ef4444; }
-  .btn-danger:hover { background: rgba(239,68,68,0.15); }
+  .summary-card.clickable { cursor: pointer; transition: border-color 0.15s; }
+  .summary-card.clickable:hover { border-color: var(--border-light); }
+  .summary-label {
+    font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase;
+    letter-spacing: 0.05em; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;
+  }
+  .summary-value {
+    font-size: 1.4rem; font-weight: 600; font-family: 'JetBrains Mono', monospace;
+    letter-spacing: -0.02em;
+  }
+  .sparkline-container { position: absolute; right: 12px; bottom: 10px; width: 80px; height: 24px; }
+  .click-hint { font-size: 0.55rem; color: var(--text-muted); opacity: 0.6; }
+  .positive { color: var(--green); }
+  .negative { color: var(--red); }
+  .warning-text { color: var(--yellow); }
 
-  .expand-panel { display: none; padding: 16px; background: #0a0e1a; border-bottom: 1px solid #1e293b; }
-  .expand-panel.open { display: block; }
-  .expand-panel table { max-width: 600px; }
+  .error-panel {
+    margin: 0 32px 12px; padding: 14px 18px;
+    background: rgba(127, 29, 29, 0.15); border: 1px solid var(--red-dim);
+    border-radius: 8px; display: none;
+  }
+  .error-panel.open { display: block; }
+  .error-panel-title { font-weight: 600; color: var(--red); margin-bottom: 8px; font-size: 0.82rem; }
+  .error-item { padding: 6px 0; border-bottom: 1px solid rgba(127, 29, 29, 0.3); }
+  .error-item:last-child { border-bottom: none; }
+  .error-id { color: var(--red); font-weight: 600; font-size: 0.78rem; }
+  .error-meta { color: var(--text-muted); margin-left: 8px; font-size: 0.72rem; }
+  .error-detail { color: var(--text-secondary); margin-top: 2px; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; }
+
+  .charts-section { padding: 0 32px 20px; }
+  .charts-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
+  .chart-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px;
+  }
+  .chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .chart-title { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+  .chart-range-btns { display: flex; gap: 4px; }
+  .range-btn {
+    padding: 2px 8px; border: 1px solid var(--border); border-radius: 4px;
+    background: transparent; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem; cursor: pointer; transition: all 0.15s;
+  }
+  .range-btn:hover { border-color: var(--border-light); color: var(--text-secondary); }
+  .range-btn.active { border-color: var(--blue); color: var(--blue); background: rgba(59,130,246,0.1); }
+  .chart-wrap { position: relative; height: 200px; }
+  .chart-wrap-tall { position: relative; height: 280px; }
+
+  .insights-section { padding: 0 32px 20px; }
+  .insights-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+  .insight-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+  .insight-title { font-size: 0.72rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px; }
+  .insight-item { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; font-size: 0.75rem; }
+  .insight-label { color: var(--text-secondary); font-size: 0.72rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
+  .insight-value { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; font-weight: 500; }
+  .alert-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 0.62rem; font-weight: 600; background: rgba(239, 68, 68, 0.15); color: var(--red); }
+  .pair-heatmap { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 4px; }
+  .pair-cell { padding: 4px 6px; border-radius: 4px; text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; }
+
+  .d-filter-bar { display: flex; align-items: center; gap: 10px; padding: 0 32px 12px; flex-wrap: wrap; }
+  .d-search-input {
+    padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg-input); color: var(--text-primary); font-family: 'Inter', sans-serif;
+    font-size: 0.78rem; outline: none; width: 220px; transition: border-color 0.15s;
+  }
+  .d-search-input:focus { border-color: var(--blue); }
+  .d-search-input::placeholder { color: var(--text-muted); }
+  .d-filter-btn {
+    padding: 4px 10px; border: 1px solid var(--border); border-radius: 4px;
+    background: transparent; color: var(--text-muted); font-family: 'Inter', sans-serif;
+    font-size: 0.7rem; cursor: pointer; transition: all 0.15s;
+  }
+  .d-filter-btn:hover { border-color: var(--border-light); color: var(--text-secondary); }
+  .d-filter-btn.active { border-color: var(--blue); color: var(--blue); background: rgba(59,130,246,0.1); }
+
+  .d-section { padding: 0 32px 20px; }
+  .d-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .d-section-title { font-size: 0.82rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+
+  .d-table-container {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+    overflow: hidden; max-height: 70vh; overflow-y: auto;
+  }
+  .d-table-container::-webkit-scrollbar { width: 6px; }
+  .d-table-container::-webkit-scrollbar-track { background: var(--bg-card); }
+  .d-table-container::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
+  #view-dashboard table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+  #view-dashboard th {
+    padding: 10px 14px; text-align: left; font-weight: 500; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.68rem;
+    border-bottom: 1px solid var(--border); background: var(--bg-input);
+    position: sticky; top: 0; z-index: 2; cursor: pointer; user-select: none; transition: color 0.15s;
+  }
+  #view-dashboard th:hover { color: var(--text-secondary); }
+  #view-dashboard th .sort-arrow { display: inline-block; margin-left: 4px; font-size: 0.6rem; opacity: 0.4; }
+  #view-dashboard th.sort-active .sort-arrow { opacity: 1; color: var(--blue); }
+  #view-dashboard td {
+    padding: 10px 14px; border-bottom: 1px solid rgba(30,41,59,0.5);
+    font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;
+  }
+  #view-dashboard tr.instance-row { transition: opacity 0.15s; }
+  #view-dashboard tr.instance-row:hover td { background: rgba(255,255,255,0.015); }
+  #view-dashboard tr.instance-row.dimmed { opacity: 0.4; }
+  #view-dashboard tr.instance-row.hidden-filter { display: none; }
+  #view-dashboard tr.instance-row td:first-child { border-left: 3px solid transparent; }
+  #view-dashboard tr.instance-row.pnl-positive td:first-child { border-left-color: var(--green); }
+  #view-dashboard tr.instance-row.pnl-negative td:first-child { border-left-color: var(--red); }
+  #view-dashboard tr.instance-row.pnl-zero td:first-child { border-left-color: var(--text-muted); }
+  body.compact-mode #view-dashboard td { padding: 4px 14px; font-size: 0.72rem; }
+  body.compact-mode .strategy-name { font-size: 0.75rem; }
+  body.compact-mode .strategy-comment { display: none; }
+  body.compact-mode .strategy-pair { font-size: 0.68rem; }
+
+  .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .status-running { background: var(--green); box-shadow: 0 0 6px rgba(16,185,129,0.4); }
+  .status-stopped { background: var(--red); }
+  .status-unknown { background: var(--text-muted); }
+  .status-stale { background: var(--yellow); }
+
+  .svc-btn {
+    padding: 3px 8px; border: 1px solid var(--border-light); border-radius: 4px;
+    background: transparent; color: var(--text-muted); font-family: 'Inter', sans-serif;
+    font-size: 0.68rem; cursor: pointer; transition: all 0.15s; margin-right: 4px;
+  }
+  .svc-btn:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+  .svc-btn.start:hover { border-color: var(--green); color: var(--green); }
+  .svc-btn.stop:hover { border-color: var(--red); color: var(--red); }
+  .svc-btn.restart:hover { border-color: var(--yellow); color: var(--yellow); }
+  .pnl-cell { text-align: right; }
+
+  .perf-panel {
+    background: var(--bg-input); border-top: 1px solid var(--border);
+    padding: 16px 20px; display: none;
+  }
+  .perf-panel.open { display: block; }
+  .perf-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .perf-title { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); }
+  .perf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+  .perf-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; }
+  .perf-metric-name { font-size: 0.75rem; color: var(--text-muted); }
+  .perf-values { display: flex; align-items: center; gap: 10px; }
+  .perf-expected { font-size: 0.72rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+  .perf-live { font-size: 0.82rem; font-weight: 500; font-family: 'JetBrains Mono', monospace; }
+  .perf-chart-wrap { margin-top: 12px; height: 160px; position: relative; }
+  .export-btn {
+    padding: 4px 12px; border: 1px solid var(--border-light); border-radius: 4px;
+    background: var(--bg-card); color: var(--text-secondary); font-family: 'Inter', sans-serif;
+    font-size: 0.72rem; cursor: pointer; text-decoration: none; transition: all 0.15s;
+  }
+  .export-btn:hover { background: var(--bg-card-hover); color: var(--text-primary); }
+
+  .trades-panel {
+    background: var(--bg-input); border-top: 1px solid var(--border);
+    padding: 16px 20px; display: none; max-height: 400px; overflow-y: auto;
+  }
+  .trades-panel.open { display: block; }
+  .trades-panel::-webkit-scrollbar { width: 6px; }
+  .trades-panel::-webkit-scrollbar-track { background: var(--bg-card); }
+  .trades-panel::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
+  .trades-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+  .trades-table th { padding: 6px 10px; font-size: 0.65rem; background: var(--bg-card); position: static; }
+  .trades-table td { padding: 5px 10px; font-size: 0.72rem; }
+
+  .toggle-btn {
+    padding: 3px 10px; border: 1px solid var(--border); border-radius: 4px;
+    background: transparent; color: var(--text-muted); font-family: 'Inter', sans-serif;
+    font-size: 0.68rem; cursor: pointer; transition: all 0.15s;
+  }
+  .toggle-btn:hover { color: var(--text-secondary); border-color: var(--border-light); }
+  .toggle-btn.active { color: var(--blue); border-color: var(--blue); }
+
+  .group-header-row td {
+    background: var(--bg-input); font-family: 'Inter', sans-serif; font-weight: 600;
+    font-size: 0.78rem; color: var(--text-secondary); cursor: pointer; padding: 8px 14px;
+    border-left: 3px solid var(--blue) !important;
+  }
+  .group-header-row:hover td { background: rgba(59,130,246,0.05); }
+  .group-chevron { display: inline-block; transition: transform 0.15s; margin-right: 6px; font-size: 0.65rem; }
+  .group-chevron.collapsed { transform: rotate(-90deg); }
+  .group-pnl { float: right; font-family: 'JetBrains Mono', monospace; font-weight: 500; }
+
+  .strategy-cell { font-family: 'Inter', sans-serif !important; }
+  .strategy-name { font-weight: 600; font-size: 0.82rem; color: var(--text-primary); display: flex; align-items: center; gap: 6px; }
+  .strategy-pair { font-size: 0.75rem; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
+  .tf-badge { display: inline-block; padding: 0 5px; border-radius: 3px; font-size: 0.65rem; font-weight: 600; background: rgba(59,130,246,0.15); color: var(--blue); }
+  .strat-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+  .strat-mean-rev { background: rgba(139,92,246,0.2); color: var(--purple); }
+  .strat-trend { background: rgba(6,182,212,0.2); color: var(--cyan); }
+  .strat-value { background: rgba(16,185,129,0.2); color: var(--green); }
+  .strat-momentum { background: rgba(245,158,11,0.2); color: var(--yellow); }
+  .strat-volatility { background: rgba(245,158,11,0.2); color: var(--yellow); }
+  .strat-session { background: rgba(6,182,212,0.2); color: var(--cyan); }
+  .strategy-comment { font-size: 0.68rem; color: var(--text-muted); margin-top: 2px; line-height: 1.3; }
+
+  .no-data { color: var(--text-muted); font-style: italic; font-family: 'Inter', sans-serif; }
+  .d-footer { text-align: center; padding: 16px 32px; color: var(--text-muted); font-size: 0.7rem; border-top: 1px solid var(--border); margin-top: 20px; }
 
   .badge {
     display: inline-block; padding: 2px 8px; border-radius: 4px;
@@ -106,6 +328,17 @@
   .badge-yellow { background: #78350f; color: #f59e0b; }
   .badge-red { background: #7f1d1d; color: #ef4444; }
   .badge-blue { background: rgba(59,130,246,0.15); color: #3b82f6; }
+
+  .hide-mobile { }
+  .btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 4px; border: 1px solid #334155;
+    background: #1e293b; color: #8896ab; font-size: 0.7rem;
+    cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif;
+  }
+  .btn:hover { background: #334155; color: #e2e8f0; }
+  .btn-danger { border-color: #dc2626; color: #ef4444; }
+  .btn-danger:hover { background: rgba(239,68,68,0.15); }
 
   /* ══════════════════════════════════════
      LEADERBOARD VIEW (matching generate_index.py)
@@ -383,15 +616,21 @@
     .nav-tab { padding: 10px 14px; font-size: 0.78rem; min-height: 44px; display: flex; align-items: center; }
     .nav-right { font-size: 0.68rem; gap: 8px; }
 
-    /* Dashboard */
-    .dash-container { padding: 12px; }
-    .cards { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
-    .card { padding: 12px; }
-    .card-value { font-size: 1.2rem; }
-    .dash-table table { font-size: 0.75rem; }
-    .dash-table th, .dash-table td { padding: 6px 8px; }
-    .dash-table th:nth-child(5), .dash-table td:nth-child(5),
-    .dash-table th:nth-child(7), .dash-table td:nth-child(7) { display: none; }
+    /* Dashboard (new) */
+    .dash-header { padding: 16px; flex-direction: column; gap: 12px; }
+    .summary-row { padding: 12px 16px; grid-template-columns: repeat(2, 1fr); }
+    .d-section, .charts-section, .insights-section, .d-filter-bar { padding-left: 12px; padding-right: 12px; }
+    .dash-tab-nav { padding: 0 12px; }
+    #view-dashboard td, #view-dashboard th { padding: 6px 8px; font-size: 0.7rem; }
+    .perf-grid { grid-template-columns: 1fr; }
+    .hide-mobile { display: none !important; }
+    .strategy-name { font-size: 0.75rem; }
+    .strategy-pair { font-size: 0.7rem; }
+    .strategy-comment { font-size: 0.65rem; }
+    .d-table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .charts-grid { grid-template-columns: 1fr; }
+    .insights-grid { grid-template-columns: 1fr; }
+    .d-search-input { width: 150px; }
     .btn { padding: 6px 8px; font-size: 0.68rem; min-height: 36px; }
 
     /* Leaderboard header */
@@ -544,29 +783,212 @@
   <div class="nav-right"><span id="clock"></span></div>
 </nav>
 
-<!-- ═══ DASHBOARD VIEW ═══ -->
+<!-- ═══ DASHBOARD VIEW (NEW) ═══ -->
 <div id="view-dashboard" class="view active">
-  <div class="dash-container">
-    <div id="vps-banner" class="banner">VPS Offline &mdash; Live trading data unavailable. The Pipeline tab still works.</div>
-    <div class="cards">
-      <div class="card"><div class="card-label">Daily P&amp;L</div><div class="card-value mono" id="sum-pnl">&mdash;</div></div>
-      <div class="card"><div class="card-label">Open Positions</div><div class="card-value mono" id="sum-positions">&mdash;</div></div>
-      <div class="card"><div class="card-label">Trades Today</div><div class="card-value mono" id="sum-trades">&mdash;</div></div>
-      <div class="card"><div class="card-label">Running</div><div class="card-value mono" id="sum-running">&mdash;</div></div>
-      <div class="card"><div class="card-label">Errors</div><div class="card-value mono" id="sum-errors">&mdash;</div></div>
+
+  <div id="vps-banner" class="banner">VPS Offline &mdash; Live trading data unavailable. The Pipeline tab still works.</div>
+
+  <!-- HEADER -->
+  <div class="dash-header">
+    <div class="dash-header-left">
+      <div>
+        <div class="dash-header-title">OANDA Trading Dashboard</div>
+        <div class="dash-header-subtitle">Multi-Strategy Monitor</div>
+      </div>
     </div>
-    <div class="dash-table">
+    <div class="dash-header-right">
+      <div class="refresh-indicator"><span class="refresh-dot"></span><span id="dash-last-update">--:--:--</span></div>
+      <button class="dash-btn" id="compact-toggle" onclick="toggleCompact()">Compact</button>
+      <button class="dash-btn" onclick="dashRefreshAll()">Refresh</button>
+    </div>
+  </div>
+
+  <!-- TAB NAVIGATION -->
+  <div class="dash-tab-nav">
+    <button class="dash-tab-btn active" data-dtab="overview" onclick="switchDashTab('overview')">Overview</button>
+    <button class="dash-tab-btn" data-dtab="strategies" onclick="switchDashTab('strategies')">All Strategies</button>
+    <button class="dash-tab-btn" data-dtab="alerts" onclick="switchDashTab('alerts')">Alerts</button>
+  </div>
+
+  <!-- SUMMARY CARDS -->
+  <div class="summary-row" id="summary-row">
+    <div class="summary-card">
+      <div class="summary-label">Daily P&amp;L</div>
+      <div class="summary-value" id="sum-daily-pnl">&mdash;</div>
+      <div class="sparkline-container"><canvas id="sparkline-pnl"></canvas></div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Open Positions</div>
+      <div class="summary-value" id="sum-positions">&mdash;</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Trades Today</div>
+      <div class="summary-value" id="sum-trades">&mdash;</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-label">Running</div>
+      <div class="summary-value" id="sum-running">&mdash;</div>
+    </div>
+    <div class="summary-card clickable" onclick="toggleErrorPanel()">
+      <div class="summary-label">Errors <span class="click-hint">&#9660;</span></div>
+      <div class="summary-value" id="sum-errors">&mdash;</div>
+    </div>
+  </div>
+
+  <!-- ERROR DETAILS PANEL -->
+  <div class="error-panel" id="error-panel">
+    <div class="error-panel-title">Error Details</div>
+    <div id="error-list"><div class="no-data">No errors</div></div>
+  </div>
+
+  <!-- ==================== OVERVIEW TAB ==================== -->
+  <div class="dash-tab-content active" id="dtab-overview">
+    <div class="charts-section">
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-header">
+            <span class="chart-title">Portfolio Equity Curve</span>
+            <div class="chart-range-btns">
+              <button class="range-btn" onclick="setDashRange(7)">1W</button>
+              <button class="range-btn active" onclick="setDashRange(30)">1M</button>
+              <button class="range-btn" onclick="setDashRange(90)">3M</button>
+              <button class="range-btn" onclick="setDashRange(0)">ALL</button>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-equity"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-header"><span class="chart-title">Daily P&amp;L</span></div>
+          <div class="chart-wrap"><canvas id="chart-daily-pnl"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="insights-section">
+      <div class="insights-grid" id="insights-grid">
+        <div class="insight-card">
+          <div class="insight-title">Best / Worst Today</div>
+          <div id="insight-best-worst"><span class="no-data">Loading...</span></div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-title">Alerts</div>
+          <div id="insight-alerts"><span class="no-data">Loading...</span></div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-title">Trade Frequency</div>
+          <div id="insight-frequency"><span class="no-data">Loading...</span></div>
+        </div>
+        <div class="insight-card">
+          <div class="insight-title">Pair Heatmap (Today)</div>
+          <div id="insight-heatmap" class="pair-heatmap"><span class="no-data">Loading...</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="charts-section">
+      <div class="chart-card">
+        <div class="chart-header"><span class="chart-title">Strategy Ranking by Total P&amp;L</span></div>
+        <div class="chart-wrap-tall"><canvas id="chart-strategy-rank"></canvas></div>
+      </div>
+    </div>
+
+    <div class="d-section" id="overview-table-section">
+      <div class="d-section-header"><div class="d-section-title">Top &amp; Bottom Performers</div></div>
+      <div class="d-table-container" style="max-height:none">
+        <table>
+          <thead><tr>
+            <th>Status</th><th>Strategy / Pair</th>
+            <th style="text-align:right">Daily P&amp;L</th><th style="text-align:right">Total P&amp;L</th><th style="text-align:right">W / L</th>
+          </tr></thead>
+          <tbody id="overview-top-bottom"><tr><td colspan="5" class="no-data" style="text-align:center;padding:2rem">Loading...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== ALL STRATEGIES TAB ==================== -->
+  <div class="dash-tab-content" id="dtab-strategies">
+    <div class="d-filter-bar">
+      <input type="text" class="d-search-input" id="d-search-input" placeholder="Search strategy, pair..." oninput="dFilterTable()">
+      <button class="d-filter-btn active" data-dfilter="ALL" onclick="setDGroupFilter('ALL')">ALL</button>
+      <button class="d-filter-btn" data-dfilter="RSI" onclick="setDGroupFilter('RSI')">RSI</button>
+      <button class="d-filter-btn" data-dfilter="EMA" onclick="setDGroupFilter('EMA')">EMA</button>
+      <button class="d-filter-btn" data-dfilter="BBSQ" onclick="setDGroupFilter('BBSQ')">BBSQ</button>
+      <button class="d-filter-btn" data-dfilter="DCH" onclick="setDGroupFilter('DCH')">DCH</button>
+      <button class="d-filter-btn" data-dfilter="LDN" onclick="setDGroupFilter('LDN')">LDN</button>
+      <button class="d-filter-btn" data-dfilter="STADX" onclick="setDGroupFilter('STADX')">STADX</button>
+      <button class="d-filter-btn" data-dfilter="FPMA" onclick="setDGroupFilter('FPMA')">FPMA</button>
+      <button class="dash-btn" id="d-group-toggle" onclick="dToggleGrouping()" style="margin-left:auto">Group</button>
+    </div>
+
+    <div class="d-section">
+      <div class="d-table-container" id="d-main-table-container">
+        <table id="d-main-table">
+          <thead><tr>
+            <th data-dsort="status" onclick="dSortTable('status')">Status <span class="sort-arrow">&#9650;</span></th>
+            <th data-dsort="strategy" onclick="dSortTable('strategy')">Strategy / Pair <span class="sort-arrow">&#9650;</span></th>
+            <th class="hide-mobile" data-dsort="heartbeat" onclick="dSortTable('heartbeat')">Heartbeat <span class="sort-arrow">&#9650;</span></th>
+            <th class="hide-mobile" data-dsort="pos" onclick="dSortTable('pos')">Pos <span class="sort-arrow">&#9650;</span></th>
+            <th style="text-align:right" data-dsort="pnl" onclick="dSortTable('pnl')">P&amp;L <span class="sort-arrow">&#9660;</span></th>
+            <th style="text-align:right" data-dsort="wl" onclick="dSortTable('wl')">W / L <span class="sort-arrow">&#9650;</span></th>
+            <th class="hide-mobile">Actions</th>
+          </tr></thead>
+          <tbody id="d-instances-body">
+            <tr><td colspan="7" class="no-data" style="text-align:center;padding:2rem">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== ALERTS TAB ==================== -->
+  <div class="dash-tab-content" id="dtab-alerts">
+    <div class="d-section" style="padding-top:20px">
+      <div class="chart-card" style="margin-bottom:16px">
+        <div class="chart-title" style="margin-bottom:12px">Instance Errors</div>
+        <div id="alerts-errors"><span class="no-data">No errors</span></div>
+      </div>
+      <div class="chart-card" style="margin-bottom:16px">
+        <div class="chart-title" style="margin-bottom:12px">Losing Streaks</div>
+        <div id="alerts-streaks"><span class="no-data">Loading...</span></div>
+      </div>
+      <div class="chart-card" style="margin-bottom:16px">
+        <div class="chart-title" style="margin-bottom:12px">Drawdown Alerts (Live &gt; 1.5x Expected)</div>
+        <div id="alerts-dd"><span class="no-data">Loading...</span></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title" style="margin-bottom:12px">Trade Frequency Anomalies</div>
+        <div id="alerts-freq"><span class="no-data">Loading...</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SCAN RESULTS -->
+  <div class="d-section" id="scan-section" style="display:none">
+    <div class="d-section-title">Pipeline Scanner</div>
+    <div class="summary-row" style="padding:0 0 12px 0">
+      <div class="summary-card"><div class="summary-label">Phase</div><div class="summary-value" id="scan-phase" style="font-size:1rem">--</div></div>
+      <div class="summary-card"><div class="summary-label">Progress</div><div class="summary-value" id="scan-progress">--</div></div>
+      <div class="summary-card"><div class="summary-label">GREEN</div><div class="summary-value positive" id="scan-green">0</div></div>
+      <div class="summary-card"><div class="summary-label">Strategy</div><div class="summary-value" id="scan-strategy" style="font-size:0.9rem">--</div></div>
+    </div>
+    <div style="background:var(--bg-input);border-radius:4px;height:6px;margin-bottom:12px;overflow:hidden">
+      <div id="scan-bar" style="background:var(--green);height:100%;width:0%;transition:width 0.5s"></div>
+    </div>
+    <div class="d-table-container" style="max-height:none">
       <table>
         <thead><tr>
-          <th>Status</th><th>Strategy</th><th>Pair / TF</th><th>Heartbeat</th>
-          <th>Positions</th><th style="text-align:right">Daily P&L</th><th>W / L</th><th>Actions</th>
+          <th style="cursor:default">#</th><th style="cursor:default">Pair</th><th style="cursor:default">TF</th>
+          <th style="text-align:right;cursor:default">Score</th><th style="cursor:default">Rating</th>
+          <th style="text-align:right;cursor:default">WF%</th><th style="text-align:right;cursor:default">Sharpe</th>
+          <th style="text-align:right;cursor:default">Stability</th><th style="text-align:right;cursor:default">Time</th>
         </tr></thead>
-        <tbody id="instances-body">
-          <tr><td colspan="8" style="text-align:center;padding:2rem;color:#5a6a80">Loading...</td></tr>
-        </tbody>
+        <tbody id="scan-body"></tbody>
       </table>
     </div>
   </div>
+
+  <div class="d-footer">OANDA Trading System &mdash; Auto-refresh: 15s &mdash; <span id="dash-footer-time">--:--:-- UTC</span></div>
 </div>
 
 <!-- ═══ LEADERBOARD VIEW ═══ -->
@@ -653,7 +1075,6 @@ function mobileLayout(l) {
   return l;
 }
 var currentView = 'dashboard';
-var dashTimer = null;
 var lbData = null;
 var lbLoaded = false;
 
@@ -669,6 +1090,9 @@ function switchView(v) {
   history.replaceState(null, '', '#' + v);
 }
 
+// Charts refresh separately every 5 minutes
+setInterval(function() { if (currentView === 'dashboard') { dashRefreshCharts(30); dashRenderStrategyRankChart(); } }, 300000);
+
 // Clock
 function updateClock() {
   var d = new Date();
@@ -677,143 +1101,640 @@ function updateClock() {
 setInterval(updateClock, 1000); updateClock();
 
 // ═══════════════════════════════════════
-// DASHBOARD
+// DASHBOARD (NEW - Charts, Insights, Alerts)
 // ═══════════════════════════════════════
 function esc(s) { if (s == null) return ''; var d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
 function num(v, dec) { return v != null ? Number(v).toFixed(dec||2) : '\u2014'; }
 
-async function fetchDash() {
-  var errMsg = '';
+var DASH_REFRESH_SECONDS = 15;
+var dCurrentSort = { col: 'pnl', dir: 'desc' };
+var dCurrentGroupFilter = 'ALL';
+var dGroupingEnabled = false;
+var dCachedInstances = [];
+var equityChart = null, dailyPnlChart = null, strategyRankChart = null, sparklineChart = null;
+var perfCharts = {};
+var chartDefaults = {
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { display: false } },
+  scales: {
+    x: { grid: { color: 'rgba(30,41,59,0.5)' }, ticks: { color: '#5a6a80', font: { family: 'JetBrains Mono', size: 10 } } },
+    y: { grid: { color: 'rgba(30,41,59,0.5)' }, ticks: { color: '#5a6a80', font: { family: 'JetBrains Mono', size: 10 } } }
+  }
+};
+
+// ── Tab navigation ──
+function switchDashTab(tabName) {
+  document.querySelectorAll('.dash-tab-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.dtab === tabName); });
+  document.querySelectorAll('.dash-tab-content').forEach(function(c) { c.classList.toggle('active', c.id === 'dtab-' + tabName); });
+}
+function toggleErrorPanel() { document.getElementById('error-panel').classList.toggle('open'); }
+function toggleCompact() { document.body.classList.toggle('compact-mode'); document.getElementById('compact-toggle').classList.toggle('active'); }
+
+function dashUpdateTime() {
+  var now = new Date();
+  var ts = now.toLocaleTimeString('en-US', {hour12: false, timeZone: 'UTC'});
+  document.getElementById('dash-last-update').textContent = ts;
+  document.getElementById('dash-footer-time').textContent = ts + ' UTC';
+}
+
+// ── Main refresh ──
+function dashRefreshAll() { dashRefreshStatus(); dashRefreshCharts(30); dashRefreshInsights(); dashRefreshScan(); }
+
+async function dashRefreshStatus() {
   try {
     var r = await fetch('/api/vps/status');
-    if (!r.ok) {
-      try { var ed = await r.json(); errMsg = ed.message || ''; if (ed.traceback) console.error('VPS error:', ed.traceback); } catch(x) {}
-      throw new Error(errMsg || 'HTTP ' + r.status);
-    }
+    if (!r.ok) { var ed; try { ed = await r.json(); } catch(x) { ed = {}; } throw new Error(ed.message || 'HTTP ' + r.status); }
     var data = await r.json();
     if (data.error) throw new Error(data.message);
     document.getElementById('vps-banner').classList.remove('show');
-    renderDash(data);
+    dashUpdateSummary(data.summary || {});
+    dCachedInstances = data.instances || [];
+    dashRenderInstances(dCachedInstances);
+    dashUpdateOverviewTopBottom(dCachedInstances);
+    dashUpdateTime();
   } catch(e) {
     var banner = document.getElementById('vps-banner');
     banner.classList.add('show');
     banner.innerHTML = 'VPS Error &mdash; ' + esc(e.message) + '. The Pipeline tab still works.';
-    renderDashOff();
   }
 }
 
-function renderDash(data) {
-  var s = data.summary || {};
+function dashUpdateSummary(s) {
   var pnl = s.daily_pnl || 0;
-  var el = function(id, v) { document.getElementById(id).textContent = v; };
-  var pnlEl = document.getElementById('sum-pnl');
+  var pnlEl = document.getElementById('sum-daily-pnl');
   pnlEl.textContent = (pnl >= 0 ? '+' : '') + pnl.toFixed(2);
-  pnlEl.className = 'card-value mono ' + (pnl >= 0 ? 'text-green' : 'text-red');
-  el('sum-positions', s.open_positions || 0);
-  el('sum-trades', s.total_trades || 0);
-  el('sum-running', (s.running||0) + '/' + (s.total||0));
+  pnlEl.className = 'summary-value ' + (pnl >= 0 ? 'positive' : 'negative');
+  document.getElementById('sum-positions').textContent = s.open_positions || 0;
+  document.getElementById('sum-trades').textContent = s.total_trades || 0;
+  var runEl = document.getElementById('sum-running');
+  runEl.textContent = (s.running||0) + '/' + (s.total||0);
+  runEl.className = 'summary-value ' + ((s.running||0) === (s.total||0) ? 'positive' : 'warning-text');
   var errEl = document.getElementById('sum-errors');
   errEl.textContent = s.errors || 0;
-  errEl.className = 'card-value mono' + ((s.errors||0) > 0 ? ' text-red' : '');
-
-  var insts = data.instances || [];
-  var tbody = document.getElementById('instances-body');
-  if (!insts.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:#5a6a80">No trading instances configured</td></tr>'; return; }
-
-  tbody.innerHTML = insts.map(function(i) {
-    var dot = i.heartbeat_ok ? 'dot-green' : (i.status === 'error' ? 'dot-red' : 'dot-yellow');
-    var lbl = i.heartbeat_ok ? 'Running' : (i.status === 'error' ? 'Error' : (i.service_status === 'SERVICE_STOPPED' ? 'Stopped' : 'Stale'));
-    var dp = i.daily_pnl || 0;
-    var pc = dp >= 0 ? 'text-green' : 'text-red';
-    return '<tr>' +
-      '<td><span class="dot '+dot+'"></span>'+lbl+'</td>' +
-      '<td>'+esc(i.strategy)+'<br><span class="text-dim" style="font-size:0.7rem">'+esc(i.id||'')+'</span></td>' +
-      '<td class="mono">'+esc(i.pair)+' '+esc(i.timeframe)+'</td>' +
-      '<td>'+(i.heartbeat_display||'\u2014')+'</td>' +
-      '<td class="mono">'+(i.positions||0)+'</td>' +
-      '<td class="mono text-right '+pc+'">'+(dp>=0?'+':'')+dp.toFixed(2)+'</td>' +
-      '<td class="mono">'+(i.daily_wins||0)+' / '+(i.daily_losses||0)+'</td>' +
-      '<td><div style="display:flex;gap:3px;flex-wrap:wrap">' +
-        '<button class="btn" onclick="svcAction(\''+i.id+'\',\'start\')">Start</button>' +
-        '<button class="btn" onclick="svcAction(\''+i.id+'\',\'restart\')">Restart</button>' +
-        '<button class="btn btn-danger" onclick="svcAction(\''+i.id+'\',\'stop\')">Stop</button>' +
-        '<button class="btn" onclick="togglePanel(\'perf\',\''+i.id+'\')">Perf</button>' +
-        '<button class="btn" onclick="togglePanel(\'trades\',\''+i.id+'\')">Trades</button>' +
-      '</div></td>' +
-    '</tr>' +
-    '<tr id="perf-row-'+i.id+'"><td colspan="8"><div class="expand-panel" id="perf-'+i.id+'"></div></td></tr>' +
-    '<tr id="trades-row-'+i.id+'"><td colspan="8"><div class="expand-panel" id="trades-'+i.id+'"></div></td></tr>';
-  }).join('');
+  errEl.className = 'summary-value ' + ((s.errors||0) > 0 ? 'negative' : '');
+  if ((s.errors||0) > 0) document.getElementById('error-panel').classList.add('open');
+  // Error details
+  var errorList = document.getElementById('error-list');
+  if (s.error_instances && s.error_instances.length > 0) {
+    errorList.innerHTML = s.error_instances.map(function(e) {
+      return '<div class="error-item"><span class="error-id">' + esc(e.id) + '</span>' +
+        '<span class="error-meta">(' + e.errors + 'x, status: ' + esc(e.status) + ')</span>' +
+        '<div class="error-detail">' + esc(e.last_error || 'no detail') + '</div></div>';
+    }).join('');
+  } else {
+    errorList.innerHTML = '<div class="no-data">No errors</div>';
+  }
 }
 
-function renderDashOff() {
-  ['sum-pnl','sum-positions','sum-trades','sum-running','sum-errors'].forEach(function(id) {
-    document.getElementById(id).textContent = '\u2014';
-    document.getElementById(id).className = 'card-value mono';
+// ── Instance table rendering ──
+function dashRenderInstances(instances) {
+  var tbody = document.getElementById('d-instances-body');
+  if (!instances.length) { tbody.innerHTML = '<tr><td colspan="7" class="no-data" style="text-align:center;padding:2rem">No trading instances</td></tr>'; return; }
+  var html = '';
+  instances.forEach(function(inst) {
+    var pnlCls = inst.daily_pnl > 0 ? 'pnl-positive' : inst.daily_pnl < 0 ? 'pnl-negative' : 'pnl-zero';
+    var dimCls = (!inst.enabled || inst.service_status === 'SERVICE_STOPPED') ? ' dimmed' : '';
+    var totalPnl = (inst.live_performance && inst.live_performance.total_pnl) || 0;
+    var tag = inst.strategy_tag || getStratTag(inst.id);
+
+    html += '<tr class="instance-row ' + pnlCls + dimCls + '"' +
+      ' data-id="' + esc(inst.id) + '"' +
+      ' data-strategy="' + esc(inst.strategy_display || inst.strategy) + '"' +
+      ' data-pair="' + esc(inst.pair) + '"' +
+      ' data-pnl="' + (inst.daily_pnl||0) + '"' +
+      ' data-total-pnl="' + totalPnl + '"' +
+      ' data-enabled="' + inst.enabled + '"' +
+      ' data-status="' + esc(inst.service_status) + '"' +
+      ' data-heartbeat="' + (inst.heartbeat_age_seconds||99999) + '"' +
+      ' data-heartbeat-ok="' + inst.heartbeat_ok + '"' +
+      ' data-group="' + esc(tag) + '"' +
+      ' data-daily-trades="' + (inst.daily_trades||0) + '"' +
+      ' data-daily-wins="' + (inst.daily_wins||0) + '"' +
+      ' data-daily-losses="' + (inst.daily_losses||0) + '">';
+
+    // Status cell
+    html += '<td>';
+    if (!inst.enabled) html += '<span class="status-dot status-unknown"></span><span class="no-data">Disabled</span>';
+    else if (inst.service_status === 'SERVICE_RUNNING' && inst.heartbeat_ok) html += '<span class="status-dot status-running"></span>Running';
+    else if (inst.service_status === 'SERVICE_RUNNING' && !inst.heartbeat_ok && inst.has_health) html += '<span class="status-dot status-stale"></span>Stale';
+    else if (inst.service_status === 'SERVICE_STOPPED') html += '<span class="status-dot status-stopped"></span>Stopped';
+    else if (inst.service_status === 'not_installed') html += '<span class="status-dot status-unknown"></span>Not installed';
+    else html += '<span class="status-dot status-unknown"></span>' + esc(inst.service_status || 'Unknown');
+    html += '</td>';
+
+    // Strategy cell
+    var badgeHtml = tag ? '<span class="strat-badge strat-' + esc(tag) + '">' + esc(tag.toUpperCase()) + '</span>' : '';
+    html += '<td class="strategy-cell"><div class="strategy-name">' + badgeHtml + esc(inst.strategy_display || inst.strategy) + '</div>';
+    html += '<div class="strategy-pair">' + esc(inst.pair) + ' <span class="tf-badge">' + esc(inst.timeframe) + '</span></div>';
+    if (inst.auto_comment) html += '<div class="strategy-comment">' + esc(inst.auto_comment) + '</div>';
+    else if (inst.description) html += '<div class="strategy-comment">' + esc(inst.description) + '</div>';
+    html += '</td>';
+
+    // Heartbeat
+    html += '<td class="hide-mobile">';
+    if (inst.heartbeat_ok) html += '<span style="color:var(--green)">' + esc(inst.heartbeat_display) + '</span>';
+    else if (inst.has_health) html += '<span style="color:var(--yellow)">' + esc(inst.heartbeat_display) + '</span>';
+    else html += '<span class="no-data">N/A</span>';
+    html += '</td>';
+
+    // Positions
+    html += '<td class="hide-mobile">' + (inst.has_health ? inst.positions : '-') + '</td>';
+
+    // P&L
+    html += '<td class="pnl-cell">';
+    if (inst.daily_pnl !== 0) html += '<span class="' + (inst.daily_pnl > 0 ? 'positive' : 'negative') + '">' + (inst.daily_pnl > 0 ? '+' : '') + inst.daily_pnl.toFixed(2) + '</span>';
+    else html += '<span class="no-data">0.00</span>';
+    html += '</td>';
+
+    // W/L
+    html += '<td class="pnl-cell">';
+    if (inst.daily_trades > 0) html += '<span class="positive">' + inst.daily_wins + '</span> / <span class="negative">' + inst.daily_losses + '</span>';
+    else html += '<span class="no-data">- / -</span>';
+    html += '</td>';
+
+    // Actions
+    html += '<td class="hide-mobile">';
+    if (inst.enabled) {
+      html += '<button class="svc-btn start" onclick="dServiceAction(\'' + esc(inst.id) + '\',\'start\')" title="Start">St</button>';
+      html += '<button class="svc-btn restart" onclick="dServiceAction(\'' + esc(inst.id) + '\',\'restart\')" title="Restart">Re</button>';
+      html += '<button class="svc-btn stop" onclick="dServiceAction(\'' + esc(inst.id) + '\',\'stop\')" title="Stop">Sp</button>';
+      html += '<button class="toggle-btn" onclick="dTogglePerf(\'' + esc(inst.id) + '\')" title="Performance">Perf</button>';
+      html += '<button class="toggle-btn" onclick="dToggleTrades(\'' + esc(inst.id) + '\')" title="Trades">Trades</button>';
+    }
+    html += '</td></tr>';
+
+    // Perf panel row
+    html += '<tr class="panel-row" data-parent="' + esc(inst.id) + '"><td colspan="7" style="padding:0;border:none"><div class="perf-panel" id="perf-' + esc(inst.id) + '"><div class="perf-header"><span class="perf-title">Performance vs Backtest</span>';
+    html += '<a class="export-btn" href="/api/vps/export/' + encodeURIComponent(inst.id) + '" title="Download CSV">Export CSV</a></div>';
+    html += '<div id="perf-content-' + esc(inst.id) + '"><span class="no-data">Click Perf to load...</span></div></div></td></tr>';
+
+    // Trades panel row
+    html += '<tr class="panel-row" data-parent="' + esc(inst.id) + '"><td colspan="7" style="padding:0;border:none"><div class="trades-panel" id="trades-' + esc(inst.id) + '"><div class="perf-header"><span class="perf-title">Recent Trades</span></div>';
+    html += '<div id="trades-content-' + esc(inst.id) + '"><span class="no-data">Click Trades to load...</span></div></div></td></tr>';
   });
-  document.getElementById('instances-body').innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:#5a6a80">VPS offline \u2014 cannot load trading data</td></tr>';
+  tbody.innerHTML = html;
+  dApplySortAndFilter();
 }
 
-var openPanels = {};
-async function togglePanel(type, id) {
-  var key = type+'-'+id;
-  var panel = document.getElementById(type+'-'+id);
-  if (openPanels[key]) { panel.classList.remove('open'); delete openPanels[key]; return; }
-  openPanels[key] = true;
-  panel.innerHTML = 'Loading...';
-  panel.classList.add('open');
+function getStratTag(id) {
+  if (!id) return '';
+  if (id.startsWith('rsi_')) return 'mean-rev';
+  if (id.startsWith('ema_')) return 'trend';
+  if (id.startsWith('bbsq_')) return 'volatility';
+  if (id.startsWith('dch_')) return 'trend';
+  if (id.startsWith('ldn_')) return 'session';
+  if (id.startsWith('stadx_')) return 'momentum';
+  if (id.startsWith('fpma_') || id.startsWith('fair_price')) return 'value';
+  return '';
+}
+
+function getDFilterGroup(id) {
+  if (!id) return 'OTHER';
+  if (id.startsWith('rsi_')) return 'RSI';
+  if (id.startsWith('ema_')) return 'EMA';
+  if (id.startsWith('bbsq_')) return 'BBSQ';
+  if (id.startsWith('dch_')) return 'DCH';
+  if (id.startsWith('ldn_')) return 'LDN';
+  if (id.startsWith('stadx_')) return 'STADX';
+  if (id.startsWith('fpma_') || id.startsWith('fair_price')) return 'FPMA';
+  return 'OTHER';
+}
+
+// ── Overview Top/Bottom ──
+function dashUpdateOverviewTopBottom(instances) {
+  var sorted = instances.slice().sort(function(a, b) { return b.daily_pnl - a.daily_pnl; });
+  var top5 = sorted.slice(0, 5);
+  var bottom5 = sorted.slice(-5).reverse();
+  var combined = top5.concat([null], bottom5);
+  var tbody = document.getElementById('overview-top-bottom');
+  var html = '';
+  combined.forEach(function(inst) {
+    if (inst === null) { html += '<tr><td colspan="5" style="padding:4px;border:none;background:var(--bg-primary)"></td></tr>'; return; }
+    var pnlCls = inst.daily_pnl > 0 ? 'positive' : inst.daily_pnl < 0 ? 'negative' : '';
+    var totalPnl = (inst.live_performance && inst.live_performance.total_pnl) || 0;
+    var totalCls = totalPnl > 0 ? 'positive' : totalPnl < 0 ? 'negative' : '';
+    var statusHtml = '';
+    if (inst.service_status === 'SERVICE_RUNNING' && inst.heartbeat_ok) statusHtml = '<span class="status-dot status-running"></span>';
+    else if (inst.service_status === 'SERVICE_STOPPED') statusHtml = '<span class="status-dot status-stopped"></span>';
+    else statusHtml = '<span class="status-dot status-unknown"></span>';
+    html += '<tr><td>' + statusHtml + '</td>';
+    html += '<td class="strategy-cell"><div class="strategy-name" style="font-size:0.78rem">' + esc((inst.strategy_display || inst.strategy) + ' / ' + inst.pair) + '</div></td>';
+    html += '<td class="pnl-cell"><span class="' + pnlCls + '">' + (inst.daily_pnl > 0 ? '+' : '') + (inst.daily_pnl||0).toFixed(2) + '</span></td>';
+    html += '<td class="pnl-cell"><span class="' + totalCls + '">' + (totalPnl > 0 ? '+' : '') + totalPnl.toFixed(2) + '</span></td>';
+    html += '<td class="pnl-cell">' + (inst.daily_trades > 0 ? '<span class="positive">' + inst.daily_wins + '</span> / <span class="negative">' + inst.daily_losses + '</span>' : '<span class="no-data">-</span>') + '</td></tr>';
+  });
+  tbody.innerHTML = html;
+}
+
+// ── Table sorting ──
+function dSortTable(col) {
+  if (dCurrentSort.col === col) dCurrentSort.dir = dCurrentSort.dir === 'asc' ? 'desc' : 'asc';
+  else { dCurrentSort.col = col; dCurrentSort.dir = col === 'pnl' ? 'desc' : 'asc'; }
+  document.querySelectorAll('#d-main-table th').forEach(function(h) {
+    h.classList.remove('sort-active');
+    var arrow = h.querySelector('.sort-arrow');
+    if (arrow) arrow.innerHTML = '&#9650;';
+  });
+  var th = document.querySelector('#d-main-table th[data-dsort="' + col + '"]');
+  if (th) { th.classList.add('sort-active'); var arrow = th.querySelector('.sort-arrow'); if (arrow) arrow.innerHTML = dCurrentSort.dir === 'asc' ? '&#9650;' : '&#9660;'; }
+  dApplySortAndFilter();
+}
+
+function dApplySortAndFilter() {
+  var tbody = document.getElementById('d-instances-body');
+  var rows = Array.from(tbody.querySelectorAll('tr.instance-row'));
+  var panelRows = {};
+  tbody.querySelectorAll('tr.panel-row').forEach(function(pr) {
+    var pid = pr.dataset.parent;
+    if (!panelRows[pid]) panelRows[pid] = [];
+    panelRows[pid].push(pr);
+  });
+  rows.sort(function(a, b) {
+    var va, vb;
+    switch (dCurrentSort.col) {
+      case 'pnl': va = parseFloat(a.dataset.pnl) || 0; vb = parseFloat(b.dataset.pnl) || 0; break;
+      case 'strategy':
+        va = (a.dataset.strategy + a.dataset.pair).toLowerCase();
+        vb = (b.dataset.strategy + b.dataset.pair).toLowerCase();
+        return dCurrentSort.dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+      case 'status': va = a.dataset.status || ''; vb = b.dataset.status || ''; return dCurrentSort.dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+      case 'heartbeat': va = parseFloat(a.dataset.heartbeat) || 99999; vb = parseFloat(b.dataset.heartbeat) || 99999; break;
+      case 'pos': va = parseInt(a.querySelector('td:nth-child(4)').textContent) || 0; vb = parseInt(b.querySelector('td:nth-child(4)').textContent) || 0; break;
+      case 'wl': va = parseInt(a.dataset.dailyWins) || 0; vb = parseInt(b.dataset.dailyWins) || 0; break;
+      default: va = 0; vb = 0;
+    }
+    return dCurrentSort.dir === 'asc' ? va - vb : vb - va;
+  });
+  rows.forEach(function(row) {
+    tbody.appendChild(row);
+    var id = row.dataset.id;
+    if (panelRows[id]) panelRows[id].forEach(function(pr) { tbody.appendChild(pr); });
+  });
+  dFilterTable();
+}
+
+// ── Filtering ──
+function setDGroupFilter(group) {
+  dCurrentGroupFilter = group;
+  document.querySelectorAll('.d-filter-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.dfilter === group); });
+  dFilterTable();
+}
+
+function dFilterTable() {
+  var search = (document.getElementById('d-search-input').value || '').toLowerCase();
+  document.querySelectorAll('#d-instances-body tr.instance-row').forEach(function(row) {
+    var id = row.dataset.id;
+    var strat = (row.dataset.strategy || '').toLowerCase();
+    var pair = (row.dataset.pair || '').toLowerCase();
+    var group = getDFilterGroup(id);
+    var matchesSearch = !search || strat.indexOf(search) >= 0 || pair.indexOf(search) >= 0 || id.toLowerCase().indexOf(search) >= 0;
+    var matchesGroup = dCurrentGroupFilter === 'ALL' || group === dCurrentGroupFilter;
+    row.classList.toggle('hidden-filter', !(matchesSearch && matchesGroup));
+    document.querySelectorAll('tr.panel-row[data-parent="' + id + '"]').forEach(function(pr) { pr.style.display = (matchesSearch && matchesGroup) ? '' : 'none'; });
+  });
+}
+
+// ── Grouping ──
+function dToggleGrouping() {
+  dGroupingEnabled = !dGroupingEnabled;
+  document.getElementById('d-group-toggle').classList.toggle('active', dGroupingEnabled);
+  if (dGroupingEnabled) dInsertGroupHeaders(); else dRemoveGroupHeaders();
+}
+function dInsertGroupHeaders() {
+  dRemoveGroupHeaders();
+  var tbody = document.getElementById('d-instances-body');
+  var rows = Array.from(tbody.querySelectorAll('tr.instance-row:not(.hidden-filter)'));
+  var lastGroup = null;
+  rows.forEach(function(row) {
+    var group = getDFilterGroup(row.dataset.id);
+    if (group !== lastGroup) {
+      var groupRows = rows.filter(function(r) { return getDFilterGroup(r.dataset.id) === group; });
+      var groupPnl = groupRows.reduce(function(s, r) { return s + (parseFloat(r.dataset.pnl) || 0); }, 0);
+      var pnlCls = groupPnl > 0 ? 'positive' : groupPnl < 0 ? 'negative' : '';
+      var header = document.createElement('tr');
+      header.className = 'group-header-row';
+      header.dataset.group = group;
+      header.innerHTML = '<td colspan="7"><span class="group-chevron">&#9660;</span>' + esc(group) + ' (' + groupRows.length + ')<span class="group-pnl ' + pnlCls + '">' + (groupPnl >= 0 ? '+' : '') + groupPnl.toFixed(2) + '</span></td>';
+      header.onclick = function() { dToggleGroup(group); };
+      row.parentNode.insertBefore(header, row);
+      lastGroup = group;
+    }
+  });
+}
+function dRemoveGroupHeaders() {
+  document.querySelectorAll('.group-header-row').forEach(function(r) { r.remove(); });
+  document.querySelectorAll('tr.instance-row.group-collapsed').forEach(function(r) { r.classList.remove('group-collapsed'); r.style.display = ''; });
+}
+function dToggleGroup(group) {
+  var header = document.querySelector('.group-header-row[data-group="' + group + '"]');
+  var chevron = header.querySelector('.group-chevron');
+  var isCollapsed = chevron.classList.contains('collapsed');
+  chevron.classList.toggle('collapsed');
+  document.querySelectorAll('#d-instances-body tr.instance-row').forEach(function(row) {
+    if (getDFilterGroup(row.dataset.id) === group) {
+      row.style.display = isCollapsed ? '' : 'none';
+      row.classList.toggle('group-collapsed', !isCollapsed);
+      document.querySelectorAll('tr.panel-row[data-parent="' + row.dataset.id + '"]').forEach(function(pr) { pr.style.display = isCollapsed ? '' : 'none'; });
+    }
+  });
+}
+
+// ── Service actions ──
+async function dServiceAction(instanceId, action) {
+  if (!confirm(action.toUpperCase() + ' service "' + instanceId + '"?')) return;
   try {
-    var ep = type === 'perf' ? 'performance' : 'trades';
-    var r = await fetch('/api/vps/'+ep+'/'+id);
-    var d = await r.json();
-    if (d.error) throw new Error(d.message);
-    if (type === 'perf') renderPerf(panel, d); else renderTrades(panel, d);
-  } catch(e) { panel.innerHTML = '<span class="text-red">Error: '+esc(e.message)+'</span>'; }
-}
-
-function renderPerf(panel, d) {
-  var l = d.live||{}, ex = d.expected||{}, c = d.comparison||{};
-  function si(s) { return s==='ok'?'<span class="text-green">OK</span>':s==='warning'?'<span style="color:#eab308">WARN</span>':s==='alert'?'<span class="text-red">ALERT</span>':'<span class="text-dim">\u2014</span>'; }
-  function row(lb,lv,ev,st) { return '<tr><td>'+lb+'</td><td class="mono" style="text-align:right">'+lv+'</td><td class="mono" style="text-align:right">'+ev+'</td><td style="text-align:right">'+si(st)+'</td></tr>'; }
-  function pct(v) { return v!=null?(v*100).toFixed(1)+'%':'\u2014'; }
-  panel.innerHTML = '<div style="font-weight:600;margin-bottom:8px;font-size:0.85rem">Performance vs Backtest</div>' +
-    '<table><thead><tr><th>Metric</th><th style="text-align:right">Live</th><th style="text-align:right">Expected</th><th style="text-align:right">Status</th></tr></thead><tbody>' +
-    row('Win Rate', pct(l.win_rate), pct(ex.win_rate), c.win_rate_status) +
-    row('Profit Factor', num(l.profit_factor), num(ex.profit_factor), c.profit_factor_status) +
-    row('Trades/Month', num(l.trades_per_month), num(ex.trades_per_month), c.trades_per_month_status) +
-    row('Total Trades', l.trades||0, '\u2014', '') +
-    row('Max DD%', pct(l.max_drawdown_pct), '\u2014', '') +
-    row('Total P&L', num(l.total_pnl), '\u2014', '') +
-    '</tbody></table>';
-}
-
-function renderTrades(panel, d) {
-  var trades = d.trades || [];
-  if (!trades.length) { panel.innerHTML = '<span class="text-dim">No trades yet</span>'; return; }
-  panel.innerHTML = '<div style="font-weight:600;margin-bottom:8px;font-size:0.85rem">Recent Trades ('+trades.length+')</div>' +
-    '<div style="overflow-x:auto"><table><thead><tr><th>Time</th><th>Dir</th><th>Entry</th><th>Exit</th><th>Reason</th><th style="text-align:right">P&L</th></tr></thead><tbody>' +
-    trades.map(function(t) {
-      var pnl = t.realized_pnl||0;
-      return '<tr><td class="mono">'+(t.exit_time||t.entry_time||'').replace('T',' ').substring(0,16)+'</td>' +
-        '<td><span class="badge '+(t.direction==='BUY'?'badge-green':'badge-red')+'">'+t.direction+'</span></td>' +
-        '<td class="mono">'+num(t.entry_price,5)+'</td><td class="mono">'+(t.exit_price?num(t.exit_price,5):'\u2014')+'</td>' +
-        '<td>'+esc(t.exit_reason||'\u2014')+'</td>' +
-        '<td class="mono text-right '+(pnl>=0?'text-green':'text-red')+'">'+(pnl>=0?'+':'')+pnl.toFixed(2)+'</td></tr>';
-    }).join('') + '</tbody></table></div>';
-}
-
-async function svcAction(id, action) {
-  if (!confirm(action.toUpperCase()+' service "'+id+'"?')) return;
-  try {
-    var r = await fetch('/api/vps/service/'+id+'/'+action, {method:'POST'});
+    var r = await fetch('/api/vps/service/' + instanceId + '/' + action, { method: 'POST' });
     var d = await r.json();
     alert(d.message || (d.ok ? 'Done' : 'Failed'));
-    fetchDash();
-  } catch(e) { alert('Error: '+e.message); }
+    setTimeout(dashRefreshStatus, 1500);
+  } catch(e) { alert('Request failed: ' + e.message); }
 }
 
-function startDash() { fetchDash(); if (dashTimer) clearInterval(dashTimer); dashTimer = setInterval(fetchDash, 15000); }
-function stopDash() { if (dashTimer) { clearInterval(dashTimer); dashTimer = null; } }
+// ── Perf / Trades panels ──
+function dTogglePerf(instanceId) {
+  var panel = document.getElementById('perf-' + instanceId);
+  if (!panel) return;
+  var wasOpen = panel.classList.contains('open');
+  panel.classList.toggle('open');
+  if (!wasOpen) dLoadPerf(instanceId);
+}
+
+function dLoadPerf(instanceId) {
+  var content = document.getElementById('perf-content-' + instanceId);
+  content.innerHTML = '<span class="no-data">Loading...</span>';
+  fetch('/api/vps/performance/' + instanceId)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.expected && !data.live) { content.innerHTML = '<span class="no-data">No expectations data</span>'; return; }
+      var ex = data.expected || {};
+      var lp = data.live || {};
+      var html = '<div class="perf-grid">';
+      function perfItem(name, expVal, liveVal) {
+        html += '<div class="perf-item"><span class="perf-metric-name">' + name + '</span><div class="perf-values">';
+        html += '<span class="perf-expected">exp ' + expVal + '</span>';
+        html += '<span class="perf-live">' + liveVal + '</span></div></div>';
+      }
+      perfItem('Win Rate', ((ex.win_rate||0)*100).toFixed(1) + '%', lp.trades_total > 0 ? ((lp.win_rate||0)*100).toFixed(1) + '%' : 'No trades');
+      perfItem('Profit Factor', (ex.profit_factor||0).toFixed(2), lp.trades_total > 0 ? (lp.profit_factor||0).toFixed(2) : '--');
+      perfItem('Trades/Month', (ex.avg_trades_per_month||0).toFixed(1), lp.trades_per_month > 0 ? lp.trades_per_month.toFixed(1) : '--');
+      perfItem('Sharpe', (ex.sharpe||0).toFixed(2), lp.trades_total >= 30 ? '--' : 'Need 30+ trades');
+      perfItem('Max Drawdown', (ex.max_drawdown_pct||0).toFixed(1) + '%', lp.trades_total > 0 ? (lp.max_drawdown_pct||0).toFixed(1) + '%' : '--');
+      perfItem('Total Trades', 'fwd ' + (ex.forward_trades||'?'), lp.trades_total || 0);
+      html += '</div>';
+      // Live vs backtest bar chart
+      html += '<div class="perf-chart-wrap"><canvas id="perf-chart-' + instanceId + '"></canvas></div>';
+      content.innerHTML = html;
+      // Render chart
+      setTimeout(function() { dRenderPerfChart(instanceId, data); }, 50);
+    })
+    .catch(function() { content.innerHTML = '<span class="no-data">Failed to load performance data</span>'; });
+}
+
+function dRenderPerfChart(instanceId, data) {
+  var canvas = document.getElementById('perf-chart-' + instanceId);
+  if (!canvas || !data.expected || !data.live) return;
+  var metrics = ['win_rate', 'profit_factor', 'trades_per_month'];
+  var metricLabels = ['Win Rate', 'Profit Factor', 'Trades/Mo'];
+  var expected = metrics.map(function(m) { var key = m === 'trades_per_month' ? 'avg_trades_per_month' : m; return data.expected[key] || 0; });
+  var actual = metrics.map(function(m) { return data.live[m] || 0; });
+  var actualColors = metrics.map(function(_, i) { if (expected[i] === 0) return '#10b981'; return (actual[i] / expected[i]) < 0.75 ? '#ef4444' : '#10b981'; });
+  if (perfCharts[instanceId]) perfCharts[instanceId].destroy();
+  perfCharts[instanceId] = new Chart(canvas, {
+    type: 'bar',
+    data: { labels: metricLabels, datasets: [
+      { label: 'Expected', data: expected, backgroundColor: 'rgba(90,106,128,0.3)', borderColor: '#5a6a80', borderWidth: 1, borderRadius: 3 },
+      { label: 'Actual', data: actual, backgroundColor: actualColors, borderRadius: 3 }
+    ]},
+    options: { ...chartDefaults, plugins: { legend: { display: true, labels: { color: '#8896ab', font: { family: 'Inter', size: 11 } } } },
+      scales: { x: { grid: { display: false }, ticks: { color: '#8896ab', font: { family: 'Inter', size: 11 } } }, y: { grid: { color: 'rgba(30,41,59,0.5)' }, ticks: { color: '#5a6a80', font: { family: 'JetBrains Mono', size: 10 } } } }
+    }
+  });
+}
+
+function dToggleTrades(instanceId) {
+  var panel = document.getElementById('trades-' + instanceId);
+  if (!panel) return;
+  var wasOpen = panel.classList.contains('open');
+  panel.classList.toggle('open');
+  if (!wasOpen) dLoadTrades(instanceId);
+}
+
+function dLoadTrades(instanceId) {
+  var content = document.getElementById('trades-content-' + instanceId);
+  content.innerHTML = '<span class="no-data">Loading...</span>';
+  fetch('/api/vps/trades/' + instanceId + '?limit=30')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var trades = data.trades || [];
+      if (!trades.length) { content.innerHTML = '<span class="no-data">No closed trades yet</span>'; return; }
+      var html = '<table class="trades-table"><thead><tr><th>Time</th><th>Dir</th><th>Entry</th><th>Exit</th><th>Reason</th><th style="text-align:right">P&L</th></tr></thead><tbody>';
+      trades.forEach(function(t) {
+        var pnl = t.realized_pnl || 0;
+        var cls = pnl >= 0 ? 'positive' : 'negative';
+        var exitTime = t.exit_time ? t.exit_time.substring(0, 16).replace('T', ' ') : '--';
+        html += '<tr><td style="font-family:JetBrains Mono,monospace">' + esc(exitTime) + '</td>';
+        html += '<td>' + esc(t.direction || '--') + '</td>';
+        html += '<td>' + (t.entry_price ? parseFloat(t.entry_price).toFixed(5) : '--') + '</td>';
+        html += '<td>' + (t.exit_price ? parseFloat(t.exit_price).toFixed(5) : '--') + '</td>';
+        html += '<td style="font-family:Inter,sans-serif">' + esc(t.exit_reason || '--') + '</td>';
+        html += '<td class="pnl-cell ' + cls + '">' + (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + '</td></tr>';
+      });
+      html += '</tbody></table>';
+      content.innerHTML = html;
+    })
+    .catch(function() { content.innerHTML = '<span class="no-data">Failed to load trades</span>'; });
+}
+
+// ── Charts ──
+function dashRefreshCharts(days) {
+  fetch('/api/vps/portfolio-history?days=' + (days || 30))
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var history = data.history || [];
+      dashRenderEquityChart(history);
+      dashRenderDailyPnlChart(history);
+      dashRenderSparkline(history.slice(-7));
+    })
+    .catch(function(err) { console.error('Chart data failed:', err); });
+}
+
+function setDashRange(days) {
+  document.querySelectorAll('.range-btn').forEach(function(b) { b.classList.remove('active'); });
+  event.target.classList.add('active');
+  dashRefreshCharts(days || 365);
+}
+
+function dashRenderEquityChart(history) {
+  var ctx = document.getElementById('chart-equity');
+  if (!ctx || !history.length) return;
+  var labels = history.map(function(h) { return h.date.substring(5); });
+  var data = history.map(function(h) { return h.cumulative_pnl; });
+  if (equityChart) equityChart.destroy();
+  equityChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: labels, datasets: [{ data: data, borderColor: '#10b981', borderWidth: 2, fill: true, backgroundColor: 'rgba(16,185,129,0.08)', tension: 0.3, pointRadius: 0, pointHitRadius: 8 }] },
+    options: { ...chartDefaults, interaction: { intersect: false, mode: 'index' }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#111827', borderColor: '#2a3a52', borderWidth: 1, titleFont: { family: 'JetBrains Mono', size: 11 }, bodyFont: { family: 'JetBrains Mono', size: 11 }, callbacks: { label: function(ctx) { return 'P&L: ' + ctx.parsed.y.toFixed(2); } } } } }
+  });
+}
+
+function dashRenderDailyPnlChart(history) {
+  var ctx = document.getElementById('chart-daily-pnl');
+  if (!ctx || !history.length) return;
+  var labels = history.map(function(h) { return h.date.substring(5); });
+  var data = history.map(function(h) { return h.pnl; });
+  var colors = data.map(function(v) { return v >= 0 ? '#10b981' : '#ef4444'; });
+  if (dailyPnlChart) dailyPnlChart.destroy();
+  dailyPnlChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderRadius: 2 }] },
+    options: { ...chartDefaults, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#111827', borderColor: '#2a3a52', borderWidth: 1, bodyFont: { family: 'JetBrains Mono', size: 11 }, callbacks: { label: function(ctx) { return 'P&L: ' + ctx.parsed.y.toFixed(2); } } } } }
+  });
+}
+
+function dashRenderSparkline(history) {
+  var ctx = document.getElementById('sparkline-pnl');
+  if (!ctx || !history.length) return;
+  var data = history.map(function(h) { return h.pnl; });
+  var trend = data.length >= 2 && data[data.length - 1] >= data[0];
+  var color = trend ? '#10b981' : '#ef4444';
+  if (sparklineChart) sparklineChart.destroy();
+  sparklineChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: data.map(function() { return ''; }), datasets: [{ data: data, borderColor: color, borderWidth: 1.5, fill: false, tension: 0.3, pointRadius: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } } }
+  });
+}
+
+function dashRenderStrategyRankChart() {
+  if (!dCachedInstances.length) return;
+  var ctx = document.getElementById('chart-strategy-rank');
+  if (!ctx) return;
+  var tagColors = { 'mean-rev': '#8b5cf6', 'trend': '#06b6d4', 'value': '#10b981', 'momentum': '#f59e0b', 'volatility': '#f59e0b', 'session': '#06b6d4', 'other': '#5a6a80' };
+  var withPnl = dCachedInstances.filter(function(i) { return i.live_performance && i.live_performance.total_pnl !== 0; })
+    .map(function(i) { return { label: (i.strategy_display || i.strategy) + ' / ' + i.pair, pnl: i.live_performance.total_pnl, tag: i.strategy_tag || getStratTag(i.id) || 'other' }; })
+    .sort(function(a, b) { return b.pnl - a.pnl; });
+  var top10 = withPnl.slice(0, 10);
+  var bottom10 = withPnl.slice(-10).reverse();
+  var combined = top10.concat(bottom10.filter(function(b) { return top10.indexOf(b) < 0; }));
+  if (!combined.length) { if (strategyRankChart) strategyRankChart.destroy(); return; }
+  if (strategyRankChart) strategyRankChart.destroy();
+  strategyRankChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: combined.map(function(c) { return c.label; }), datasets: [{ data: combined.map(function(c) { return c.pnl; }), backgroundColor: combined.map(function(c) { return c.pnl >= 0 ? (tagColors[c.tag] || '#10b981') : '#ef4444'; }), borderRadius: 3 }] },
+    options: { ...chartDefaults, indexAxis: 'y', scales: { x: { grid: { color: 'rgba(30,41,59,0.5)' }, ticks: { color: '#5a6a80', font: { family: 'JetBrains Mono', size: 10 } } }, y: { grid: { display: false }, ticks: { color: '#8896ab', font: { family: 'Inter', size: 11 }, mirror: false } } }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#111827', borderColor: '#2a3a52', borderWidth: 1, bodyFont: { family: 'JetBrains Mono', size: 11 }, callbacks: { label: function(ctx) { return 'Total P&L: ' + ctx.parsed.x.toFixed(2); } } } } }
+  });
+}
+
+// ── Insights ──
+function dashRefreshInsights() {
+  fetch('/api/vps/insights')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      dashRenderBestWorst(data);
+      dashRenderAlerts(data);
+      dashRenderFrequency(data);
+      dashRenderHeatmap(data);
+      dashRenderAlertsTab(data);
+    })
+    .catch(function(err) { console.error('Insights failed:', err); });
+}
+
+function dashRenderBestWorst(data) {
+  var el = document.getElementById('insight-best-worst');
+  var html = '';
+  if (data.best_today && data.best_today.length) data.best_today.forEach(function(b) { html += '<div class="insight-item"><span class="insight-label">' + esc(b.strategy || b.id) + '</span><span class="insight-value positive">+' + b.pnl.toFixed(2) + '</span></div>'; });
+  if (data.worst_today && data.worst_today.length) data.worst_today.forEach(function(w) { html += '<div class="insight-item"><span class="insight-label">' + esc(w.strategy || w.id) + '</span><span class="insight-value negative">' + w.pnl.toFixed(2) + '</span></div>'; });
+  el.innerHTML = html || '<span class="no-data">No P&L data today</span>';
+}
+
+function dashRenderAlerts(data) {
+  var el = document.getElementById('insight-alerts');
+  var html = '';
+  if (data.streak_alerts && data.streak_alerts.length) data.streak_alerts.forEach(function(a) { html += '<div class="insight-item"><span class="insight-label">' + esc(a.id) + '</span><span class="alert-badge">' + a.count + ' losses in a row</span></div>'; });
+  if (data.dd_alerts && data.dd_alerts.length) data.dd_alerts.forEach(function(a) { html += '<div class="insight-item"><span class="insight-label">' + esc(a.strategy || a.id) + '</span><span class="alert-badge">DD ' + a.live_dd + '% (exp ' + a.expected_dd + '%)</span></div>'; });
+  el.innerHTML = html || '<span class="no-data">No alerts</span>';
+}
+
+function dashRenderFrequency(data) {
+  var el = document.getElementById('insight-frequency');
+  var html = '';
+  if (data.frequency_alerts && data.frequency_alerts.length) data.frequency_alerts.forEach(function(f) { html += '<div class="insight-item"><span class="insight-label">' + esc(f.strategy || f.id) + ' ' + (f.pair || '') + '</span><span class="insight-value warning-text">' + f.actual + '/mo (exp ' + f.expected + ')</span></div>'; });
+  el.innerHTML = html || '<span class="no-data">All within expected range</span>';
+}
+
+function dashRenderHeatmap(data) {
+  var el = document.getElementById('insight-heatmap');
+  if (!data.pair_pnl || Object.keys(data.pair_pnl).length === 0) { el.innerHTML = '<span class="no-data">No pair data</span>'; return; }
+  var values = Object.values(data.pair_pnl);
+  var maxAbs = Math.max.apply(null, values.map(Math.abs).concat([0.01]));
+  var html = '';
+  Object.entries(data.pair_pnl).forEach(function(entry) {
+    var pair = entry[0], pnl = entry[1];
+    var intensity = Math.min(Math.abs(pnl) / maxAbs, 1);
+    var bg;
+    if (pnl > 0) bg = 'rgba(16, 185, 129, ' + (0.1 + intensity * 0.5) + ')';
+    else if (pnl < 0) bg = 'rgba(239, 68, 68, ' + (0.1 + intensity * 0.5) + ')';
+    else bg = 'rgba(90, 106, 128, 0.1)';
+    var cls = pnl > 0 ? 'positive' : pnl < 0 ? 'negative' : '';
+    html += '<div class="pair-cell" style="background:' + bg + '"><div style="font-size:0.6rem;color:var(--text-muted)">' + pair.replace('_', '/') + '</div><div class="' + cls + '">' + (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + '</div></div>';
+  });
+  el.innerHTML = html;
+}
+
+function dashRenderAlertsTab(data) {
+  var errEl = document.getElementById('alerts-errors');
+  var errorList = document.getElementById('error-list');
+  if (errorList) errEl.innerHTML = errorList.innerHTML;
+  var streakEl = document.getElementById('alerts-streaks');
+  if (data.streak_alerts && data.streak_alerts.length) streakEl.innerHTML = data.streak_alerts.map(function(a) { return '<div class="insight-item"><span class="insight-label">' + esc(a.id) + '</span><span class="alert-badge">' + a.count + ' consecutive losses</span></div>'; }).join('');
+  else streakEl.innerHTML = '<span class="no-data">No losing streaks detected (3+ threshold)</span>';
+  var ddEl = document.getElementById('alerts-dd');
+  if (data.dd_alerts && data.dd_alerts.length) ddEl.innerHTML = data.dd_alerts.map(function(a) { return '<div class="insight-item"><span class="insight-label">' + esc(a.strategy || a.id) + ' ' + (a.pair || '') + '</span><span class="alert-badge">Live DD: ' + a.live_dd + '% vs Expected: ' + a.expected_dd + '%</span></div>'; }).join('');
+  else ddEl.innerHTML = '<span class="no-data">All drawdowns within expected bounds</span>';
+  var freqEl = document.getElementById('alerts-freq');
+  if (data.frequency_alerts && data.frequency_alerts.length) freqEl.innerHTML = data.frequency_alerts.map(function(f) { return '<div class="insight-item"><span class="insight-label">' + esc(f.strategy || f.id) + ' ' + (f.pair || '') + '</span><span class="insight-value warning-text">' + f.actual + ' trades/mo (expected ' + f.expected + ')</span></div>'; }).join('');
+  else freqEl.innerHTML = '<span class="no-data">All trading at expected frequency</span>';
+}
+
+// ── Scan ──
+function dashRefreshScan() {
+  fetch('/api/vps/scan')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var section = document.getElementById('scan-section');
+      if (data.status === 'no_scan') { section.style.display = 'none'; return; }
+      section.style.display = 'block';
+      document.getElementById('scan-phase').textContent = data.phase || '--';
+      document.getElementById('scan-strategy').textContent = data.strategy || '--';
+      var total = data.total_combos || 0, done = data.completed || 0;
+      document.getElementById('scan-progress').textContent = done + '/' + total;
+      document.getElementById('scan-bar').style.width = (total > 0 ? (done / total * 100) : 0) + '%';
+      var results = (data.results || []).slice().sort(function(a, b) { return (b.score || 0) - (a.score || 0); });
+      document.getElementById('scan-green').textContent = results.filter(function(r) { return r.rating === 'GREEN'; }).length;
+      var tbody = document.getElementById('scan-body');
+      tbody.innerHTML = results.map(function(r, i) {
+        var rc = r.rating === 'GREEN' ? 'var(--green)' : r.rating === 'YELLOW' ? 'var(--yellow)' : 'var(--red)';
+        return '<tr><td>' + (i + 1) + '</td><td style="font-weight:500">' + esc(r.pair || '') + '</td><td style="color:var(--text-muted)">' + esc(r.timeframe || '') + '</td>' +
+          '<td style="text-align:right">' + (r.score || 0).toFixed(1) + '</td><td style="color:' + rc + ';font-weight:600">' + esc(r.rating || '--') + '</td>' +
+          '<td style="text-align:right">' + ((r.wf_pass_rate || 0) * 100).toFixed(0) + '%</td><td style="text-align:right">' + (r.sharpe || 0).toFixed(2) + '</td>' +
+          '<td style="text-align:right">' + ((r.stability || 0) * 100).toFixed(1) + '%</td><td style="text-align:right">' + (r.elapsed_minutes || 0).toFixed(0) + 'm</td></tr>';
+      }).join('');
+    })
+    .catch(function() {});
+}
+
+// ── Dashboard lifecycle ──
+var dashRefreshTimer = null;
+function startDash() {
+  dashRefreshStatus();
+  dashRefreshCharts(30);
+  dashRefreshInsights();
+  dashRefreshScan();
+  setTimeout(function() { dashRenderStrategyRankChart(); }, 500);
+  if (dashRefreshTimer) clearInterval(dashRefreshTimer);
+  dashRefreshTimer = setInterval(function() { dashRefreshStatus(); dashRefreshInsights(); dashRefreshScan(); }, DASH_REFRESH_SECONDS * 1000);
+}
+function stopDash() { if (dashRefreshTimer) { clearInterval(dashRefreshTimer); dashRefreshTimer = null; } }
 
 // ═══════════════════════════════════════
 // LEADERBOARD
