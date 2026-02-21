@@ -31,6 +31,7 @@ def get_strategy(strategy_name: str) -> FastStrategy:
     from strategies.bollinger_squeeze import BollingerSqueezeStrategy
     from strategies.london_breakout import LondonBreakoutStrategy
     from strategies.stochastic_adx import StochasticADXStrategy
+    from strategies.ema_bounce_v1 import EMABounceFastV1
 
     strategies = {
         # V3 - RSI Stability-Hardened (multi-RSI consensus, adaptive swings)
@@ -70,6 +71,10 @@ def get_strategy(strategy_name: str) -> FastStrategy:
         'Stochastic_ADX': StochasticADXStrategy,
         'stochastic_adx': StochasticADXStrategy,
         'stoch_adx': StochasticADXStrategy,
+        # EMA Bounce (price rejection off EMA in trend direction)
+        'EMA_Bounce_v1': EMABounceFastV1,
+        'ema_bounce_v1': EMABounceFastV1,
+        'ema_bounce': EMABounceFastV1,
     }
 
     if strategy_name not in strategies:

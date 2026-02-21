@@ -102,8 +102,13 @@ def download_with_progress(
     OANDA limits to 5000 candles per request. This function
     calculates proper chunk sizes based on timeframe and downloads
     in manageable pieces.
+
+    Uses disk-based checkpointing to avoid segfaults from repeated
+    pd.concat with pyarrow-backed DataFrames (pandas 3.x).
     """
-    all_chunks = []
+    import tempfile
+    import shutil
+
     current_from = from_time
     total_days = (to_time - from_time).days
 
@@ -126,80 +131,112 @@ def download_with_progress(
     logger.info(f"Period: {from_time.date()} to {to_time.date()}")
     logger.info(f"Chunk size: {max_candles_per_request} candles (~{estimated_requests} requests)")
 
+    # Use temp directory for intermediate parquet files to avoid segfaults
+    # from repeated pd.concat with pyarrow-backed DataFrames (pandas 3.x)
+    tmp_dir = Path(tempfile.mkdtemp(prefix="oanda_dl_"))
+    logger.info(f"Temp dir: {tmp_dir}")
+
     request_count = 0
     total_candles = 0
     start_time = time.time()
     retry_count = 0
     max_retries = 3
+    flush_every = 50  # Save to disk every N API requests
+    pending_chunks = []
+    part_files = []
 
-    while current_from < to_time:
-        # Calculate chunk end time
-        chunk_end = min(current_from + chunk_duration, to_time)
+    try:
+        while current_from < to_time:
+            # Calculate chunk end time
+            chunk_end = min(current_from + chunk_duration, to_time)
 
-        try:
-            # Fetch chunk - no count parameter when using from/to
-            df_chunk = client.get_candles(
-                instrument=instrument,
-                granularity=granularity,
-                from_time=current_from,
-                to_time=chunk_end,
-            )
+            try:
+                # Fetch chunk - no count parameter when using from/to
+                df_chunk = client.get_candles(
+                    instrument=instrument,
+                    granularity=granularity,
+                    from_time=current_from,
+                    to_time=chunk_end,
+                )
 
-            if df_chunk.empty:
-                # No data in this chunk, move forward
-                current_from = chunk_end
-                continue
+                if df_chunk.empty:
+                    # No data in this chunk, move forward
+                    current_from = chunk_end
+                    continue
 
-            all_chunks.append(df_chunk)
-            total_candles += len(df_chunk)
-            request_count += 1
-            retry_count = 0  # Reset retry counter on success
+                pending_chunks.append(df_chunk)
+                total_candles += len(df_chunk)
+                request_count += 1
+                retry_count = 0  # Reset retry counter on success
 
-            # Update progress
-            last_time = df_chunk.index[-1].to_pydatetime()
-            if last_time.tzinfo is not None:
-                last_time = last_time.replace(tzinfo=None)
+                # Flush to disk periodically - avoids accumulating DataFrames in memory
+                if len(pending_chunks) >= flush_every:
+                    part_df = pd.concat(pending_chunks)
+                    part_path = tmp_dir / f"part_{len(part_files):04d}.parquet"
+                    part_df.to_parquet(part_path)
+                    part_files.append(part_path)
+                    pending_chunks.clear()
+                    logger.info(f"Saved part {len(part_files)} to disk ({len(part_df):,} rows)")
 
-            downloaded_days = (last_time - from_time).days
-            progress = min(100, downloaded_days / total_days * 100) if total_days > 0 else 100
+                # Update progress
+                last_time = df_chunk.index[-1].to_pydatetime()
+                if last_time.tzinfo is not None:
+                    last_time = last_time.replace(tzinfo=None)
 
-            elapsed = time.time() - start_time
-            rate = total_candles / elapsed if elapsed > 0 else 0
+                downloaded_days = (last_time - from_time).days
+                progress = min(100, downloaded_days / total_days * 100) if total_days > 0 else 100
 
-            # Log progress every request for long downloads
-            logger.info(f"Progress: {progress:.0f}% | {total_candles:,} candles | "
-                       f"{rate:.0f}/sec | up to {last_time.date()}")
+                elapsed = time.time() - start_time
+                rate = total_candles / elapsed if elapsed > 0 else 0
 
-            # Move to next chunk
-            current_from = last_time + timedelta(minutes=minutes_per_candle)
+                # Log progress every request for long downloads
+                logger.info(f"Progress: {progress:.0f}% | {total_candles:,} candles | "
+                           f"{rate:.0f}/sec | up to {last_time.date()}")
 
-            # Small delay to avoid rate limiting
-            time.sleep(0.2)
+                # Move to next chunk
+                current_from = last_time + timedelta(minutes=minutes_per_candle)
 
-        except Exception as e:
-            retry_count += 1
-            if retry_count >= max_retries:
-                logger.error(f"Failed after {max_retries} retries: {e}")
-                # Move forward anyway to avoid infinite loop
-                current_from = chunk_end
-                retry_count = 0
-            else:
-                logger.warning(f"Error fetching chunk (attempt {retry_count}): {e}")
-                time.sleep(2)
+                # Small delay to avoid rate limiting
+                time.sleep(0.2)
 
-    if not all_chunks:
-        return pd.DataFrame()
+            except Exception as e:
+                retry_count += 1
+                if retry_count >= max_retries:
+                    logger.error(f"Failed after {max_retries} retries: {e}")
+                    # Move forward anyway to avoid infinite loop
+                    current_from = chunk_end
+                    retry_count = 0
+                else:
+                    logger.warning(f"Error fetching chunk (attempt {retry_count}): {e}")
+                    time.sleep(2)
 
-    # Combine all chunks
-    result = pd.concat(all_chunks)
-    result = result[~result.index.duplicated(keep='last')]
-    result = result.sort_index()
+        # Flush any remaining chunks
+        if pending_chunks:
+            part_df = pd.concat(pending_chunks)
+            part_path = tmp_dir / f"part_{len(part_files):04d}.parquet"
+            part_df.to_parquet(part_path)
+            part_files.append(part_path)
+            pending_chunks.clear()
 
-    elapsed = time.time() - start_time
-    logger.info(f"Download complete: {len(result):,} candles in {elapsed:.1f}s "
-               f"({len(result)/elapsed:.0f}/sec)")
+        if not part_files:
+            return pd.DataFrame()
 
-    return result
+        # Read all parts from disk and combine in one shot
+        logger.info(f"Combining {len(part_files)} parts from disk...")
+        all_parts = [pd.read_parquet(p) for p in part_files]
+        result = pd.concat(all_parts)
+        result = result[~result.index.duplicated(keep='last')]
+        result = result.sort_index()
+
+        elapsed = time.time() - start_time
+        logger.info(f"Download complete: {len(result):,} candles in {elapsed:.1f}s "
+                   f"({len(result)/elapsed:.0f}/sec)")
+
+        return result
+
+    finally:
+        # Clean up temp directory
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 def download_data(

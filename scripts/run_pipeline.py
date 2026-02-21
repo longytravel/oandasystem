@@ -21,6 +21,11 @@ import sys
 import argparse
 from pathlib import Path
 
+# MUST be before any other imports: pandas 3.x + pyarrow causes segfaults
+# on Windows during heavy DataFrame/Optuna operations. Disable pyarrow strings.
+import pandas as pd
+pd.set_option("future.infer_string", False)
+
 # Add project root to path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))

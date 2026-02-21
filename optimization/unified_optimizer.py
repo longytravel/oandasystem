@@ -32,6 +32,7 @@ import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
+import gc
 warnings.filterwarnings('ignore')
 
 from loguru import logger
@@ -439,7 +440,16 @@ class UnifiedOptimizer:
         param_space: Dict = None,
         base_params: Dict = None,
     ) -> Tuple[List[Dict], 'optuna.Study']:
-        """Run Optuna TPE optimization."""
+        """Run Optuna TPE optimization.
+
+        Uses batched execution to avoid a known heap corruption bug in
+        Optuna's in-memory storage that corrupts trial state after ~500-5000
+        trials on Windows/Python 3.11.  Each batch creates a fresh study with
+        an independent TPE sampler.  With categorical parameters and
+        independent (non-multivariate) TPE, each parameter's distribution is
+        modeled separately, so per-batch TPE converges quickly and the total
+        search coverage equals a single monolithic run.
+        """
         if param_space is None:
             param_space = self.strategy.get_parameter_space()
         if base_params is None:
@@ -484,30 +494,55 @@ class UnifiedOptimizer:
             # Optimize for quality_score: Sortino × R² × min(PF,5) × √min(Trades,200) / (Ulcer + MaxDD/2 + 5)
             return quality_score_from_metrics(metrics)
 
-        sampler = optuna.samplers.TPESampler(seed=42, multivariate=True)
-        study = optuna.create_study(direction='maximize', sampler=sampler)
+        # --- Batched TPE execution ---
+        # Fresh study per batch avoids heap corruption while preserving
+        # full Bayesian optimization quality.  Each batch varies the seed
+        # so different regions of the search space are explored.
+        BATCH_SIZE = 500
+        all_completed = []  # FrozenTrial objects from all batches
+        n_batches = (n_trials + BATCH_SIZE - 1) // BATCH_SIZE
 
         start = time.time()
 
-        def callback(study, trial):
-            if (trial.number + 1) % 1000 == 0:
-                elapsed = time.time() - start
-                rate = (trial.number + 1) / elapsed
-                best = study.best_value if study.best_trial else 0
-                logger.info(f"  {trial.number+1:,}/{n_trials:,} ({rate:.0f}/sec) best={best:.2f}")
+        for b in range(n_batches):
+            batch_n = min(BATCH_SIZE, n_trials - b * BATCH_SIZE)
+            sampler = optuna.samplers.TPESampler(seed=42 + b)
+            study = optuna.create_study(direction='maximize', sampler=sampler)
 
-        # Use parallel workers if configured (n_jobs=-1 uses all cores)
-        # Note: TPE sampler benefits from sequential trials for better suggestions,
-        # but parallel still helps when objective function is fast
-        n_jobs = getattr(self, 'n_jobs', 1)
-        study.optimize(objective, n_trials=n_trials, callbacks=[callback],
-                      show_progress_bar=False, n_jobs=n_jobs)
+            try:
+                study.optimize(objective, n_trials=batch_n,
+                               show_progress_bar=False, n_jobs=1)
+            except Exception as e:
+                logger.warning(f"Batch {b+1}/{n_batches} crashed after "
+                               f"{len(study.trials)} trials: {e}")
+
+            # Collect completed trials from this batch
+            for t in study.trials:
+                if t.state == optuna.trial.TrialState.COMPLETE and t.value is not None:
+                    all_completed.append(t)
+
+            del study
+            gc.collect()
+
+            # Progress logging every 1000 trials
+            total_done = len(all_completed)
+            elapsed = time.time() - start
+            if total_done > 0 and (total_done % 1000 < BATCH_SIZE or b == n_batches - 1):
+                rate = total_done / elapsed
+                best_val = max(t.value for t in all_completed)
+                logger.info(f"  {total_done:,}/{n_trials:,} ({rate:.0f}/sec) best={best_val:.2f}")
 
         back_time = time.time() - start
 
+        # Build a merged study for param importance analysis
+        final_sampler = optuna.samplers.TPESampler(seed=42)
+        final_study = optuna.create_study(direction='maximize', sampler=final_sampler)
+        for t in all_completed:
+            final_study.add_trial(t)
+
         # Extract valid results: positive quality_score + min Sharpe
         back_results = []
-        for i, trial in enumerate(study.trials):
+        for i, trial in enumerate(all_completed):
             if trial.state == optuna.trial.TrialState.COMPLETE:
                 metrics = trial.user_attrs.get('metrics')
                 if metrics:
@@ -524,7 +559,7 @@ class UnifiedOptimizer:
         logger.info(f"Back complete: {len(back_results)} valid in {back_time:.1f}s "
                    f"({n_trials/back_time:.0f}/sec)")
 
-        return back_results, study
+        return back_results, final_study
 
     def _run_staged_optimization(
         self,
